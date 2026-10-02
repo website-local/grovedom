@@ -13,6 +13,13 @@ typedef union {
 static _Thread_local gd_document *gd_active;
 static _Thread_local size_t gd_live_bytes, gd_peak_bytes, gd_allocations, gd_live_documents;
 
+#ifdef __wasm__
+/* Only synchronous transfers use this space. Pending operations and
+ * returned results remain document-owned. Keep capacity paired with JS glue. */
+static _Alignas(uint32_t) unsigned char gd_scratch[16384];
+void *gk_scratch(void) { return gd_scratch; }
+#endif
+
 static void *gd_malloc(size_t size) {
     GD_PROFILE_ADD(GP_ALLOC_CALLS, 1); GD_PROFILE_ADD(GP_ALLOC_BYTES, size);
     if (!gd_active || size > SIZE_MAX - sizeof(gd_allocation)) return NULL;

@@ -184,7 +184,7 @@ Explicit parse5 defaults remain a control, not an optimization claim. Fresh-inst
 
 Eight unmodified local MDN HTML inputs, about 3.3–147 KiB, included examples and English/Chinese documentation. A diagnostic-only parsing entry point included template allocations, which the production facade currently rejects. The timed lifecycle included instance acquisition/creation, input conversion, parsing, and disposal. File reads were outside timing. A separate linker wrapper timed libc `sbrk` calls that actually grew linear memory; release builds contain no clock imports or wrapper.
 
-With 2 MiB initial memory, fresh-instance parsing spent approximately **0–7%** of elapsed time growing memory. The larger documents made 8–14 growth calls and reached roughly 2.7–3.1 MiB. Shared and pooled instances made **zero growth calls after warmup** for these bounded page sequences. Fixed 8 MiB and 16 MiB builds removed the growth calls but did not consistently improve complete lifetime time and retained more capacity. Consequently, **no HTML-size heuristic is enabled**. The default stays at 2 MiB; input size alone is also a weak predictor of node/attribute density.
+With 2 MiB initial memory, fresh-instance parsing spent approximately **0–7%** of elapsed time growing memory. The larger documents made 8–14 growth calls and reached roughly 2.7–3.1 MiB. Shared and pooled instances made **zero growth calls after warmup** for these bounded page sequences. Fixed 8 MiB and 16 MiB builds removed the growth calls but did not consistently improve complete lifetime time and retained more capacity. Consequently, **no HTML-size heuristic is enabled**. This pass retained the then-default 2 MiB; a later [stack measurement](#wasm-stack-and-transfer-storage) reduces the fixed reservation. Input size alone is also a weak predictor of node/attribute density.
 
 An initial imported-memory experiment was discarded: WASI libc's linker-defined initial allocation region did not expand just because the host supplied more initial pages. The corrected comparison links each initial size into its module. Any future dynamic-sizing implementation must account for this allocator behavior instead of reporting unused pages as usable initial heap.
 
@@ -368,3 +368,84 @@ Disassembly of the current artifacts confirms different instructions, but does n
 The SIMD-only build's 362 vector instructions consist of **113 constants, 232 stores, 16 loads, and one byte shuffle**. It contains no vector byte comparisons. Enabling SIMD has generated mostly memory movement/initialization, not evidence of vectorized byte scanning. This comparison does not measure handwritten intrinsics, and its inconclusive SIMD timings do not rule out a targeted implementation. Any such experiment must stay in GroveDOM-owned code, preserve a scalar path and bounded memory access, and show a benefit including boundary/lifecycle costs. Lexbor remains unmodified; no SIMD fork is planned.
 
 All five builds retain **zero imports** and pass the pooled-Wasm suite on both runtimes: **459 cases, 450 passes and nine documented skips** per build/runtime. No runtime implementation or default flags changed in this repeat. The full engine replay, fastest-compatible-Cheerio comparison, and memory/adoption gates remain open.
+
+## Wasm stack and transfer storage
+
+The next pass reduces memory reservation and transfer overhead while preserving document-local queues. The selected defaults are **1 MiB initial linear memory, a 64 KiB stack, and 16 KiB fixed transfer scratch per instance**. The former defaults were 2 MiB initial memory and a 1 MiB stack. O3/ThinLTO and the default target feature set are unchanged; Lexbor remains unmodified.
+
+### Stack measurements
+
+`bench/stack.mjs` combines written-byte watermarks with instrumentation of every compiled stack-pointer assignment. The Node utility uses existing LLVM disassembly, verifies offsets against module bytes, updates a temporary module, and validates it before execution. The measured artifact has 100 stack-pointer write sites, including prebuilt libc. A separate compiled probe with known, unwritten reservations from 16 through 32,000 bytes verified the counter; a watermark alone would miss those reservations. Release artifacts contain none of this instrumentation or the diagnostic stack exports.
+
+| Workload | Maximum stack-pointer depth | Maximum written depth |
+|---|---:|---:|
+| Authored replay, 120 / 600 / 5,000 articles | 80 bytes | 52 bytes |
+| Trees nested 100 / 1,000 / 10,000 elements | 64 bytes | 52 bytes |
+| Selectors with 20 / 100 / 500 nested `:is()` calls | 64 bytes | 52 bytes |
+| Eight selected unmodified MDN pages | 96 bytes | 68 bytes |
+
+Both sentinel patterns agreed, and every case restored the stack pointer. Four MDN pages completed the facade replay; four template-containing pages were parsed and then explicitly rejected by the facade. Their measurements cover that path, not supported template transformations. These are linear-memory stack measurements: Wasm locals and the engine's separate call stack are not included. They do not prove a worst-case bound for arbitrary future kernel paths. The 64 KiB reservation provides substantial measured headroom and passes the suite; repeat the diagnostic when extending parser/selector paths or changing compilation.
+
+### Fixed scratch and string results
+
+Small synchronous transfers now reuse a 16 KiB area in each Wasm instance. One authored replay eliminates **492 `gk_transfer` calls**, with one new scratch-address lookup at instance creation. Actual backing-allocation requests decrease only **252 → 250**, because the previous transfer buffers already reused their allocations. The fixed area is additional static capacity, not free storage. Oversized opcode/payload/ID transfers retain the document-owned growable fallback. Tests cover the exact boundary, overflow, interleaved owners, memory growth, and copied results.
+
+Pending JS mutation queues remain per-document. A single shared pending queue would need copying or early flushing when another document runs, changing lifecycle/error timing. The shared scratch contains only the synchronous call's transfers; no queued operation or public result borrows it after return.
+
+String results decode directly from a cached Node `Buffer` view, avoiding **241 temporary result subarrays** in this authored replay. The returned strings still own their bytes, views refresh after growth, and disposal clears references. This also preserves leading BOM characters previously stripped by the default `TextDecoder`. Unicode, NUL, BOM, and post-disposal results have regression coverage.
+
+| Linear-memory observation | Before | Final |
+|---|---:|---:|
+| Initial instance | 2 MiB | 1 MiB |
+| Pooled instance after one 120-article replay | 2.3125 MiB | 1.375 MiB |
+| Fresh instances, eight simultaneous 80-article DOMs | 17 MiB | 9.5 MiB |
+| Idle pool after the mixed-lifetime probe | 8.5 MiB | 4.75 MiB |
+| Shared heap after the large-then-small probe | 15.25 MiB | 14.375 MiB |
+
+The 120-article core peak counter changes only from 1,020,876 to 1,018,796 bytes; most linear-memory savings come from the smaller stack reservation. All tracked live backing bytes return to zero. Pool trim releases idle references, while shared memory retains its high-water capacity. These observations do not establish fragmentation budgets or immediate OS reclamation.
+
+### Release timing and limits
+
+The baseline is `9187556`; timing in this pass uses pooled Wasm unless explicitly labeled Node-API. Two sequential short-run passes each used 16 fresh processes: three comparisons and one identical-code control for each runtime/size. Each comparison process used the established 60 balanced blocks, 200 warmups, and 12 replays per batch at 120 articles or three at 600. The second comparison reversed import order, and its ratios are normalized before aggregation. All results, including regressions, remain included. The final pass retained **938 of 960 blocks**; both passes retained 1,867 of 1,920. No filtering rule changed.
+
+Every speedup is baseline elapsed / candidate elapsed. The first candidate has fixed scratch and smaller stack/initial memory; the final candidate also decodes strings from its cached memory view. Ranges are the three process estimates, not confidence intervals.
+
+| Candidate / Node / articles | Raw median | Filtered median | Filtered min–max | Identical-code control |
+|---|---:|---:|---:|---:|
+| Scratch + smaller memory / 22 / 120 | 1.020× | 1.019× | 1.013–1.039× | 0.978× |
+| Scratch + smaller memory / 22 / 600 | 1.000× | 0.999× | 0.990–1.001× | 0.992× |
+| Scratch + smaller memory / 24 / 120 | 0.922× | 0.932× | 0.923–1.028× | 0.937× |
+| Scratch + smaller memory / 24 / 600 | 0.996× | 0.991× | 0.973–1.037× | 1.003× |
+| Final / 22 / 120 | 1.011× | 1.012× | 0.996–1.019× | 0.996× |
+| Final / 22 / 600 | 1.031× | 1.033× | 1.005–1.044× | 0.993× |
+| Final / 24 / 120 | 0.958× | 0.960× | 0.957–1.000× | 1.036× |
+| Final / 24 / 600 | 1.027× | 1.033× | 1.003–1.034× | 1.048× |
+
+Because controls and small-page results remain order-sensitive, a complementary check loads just one implementation per child process. It uses 400 warmups, 30 short batches, and three ABBA/BAAB process blocks, plus one identical-code block per runtime/size: **64 child processes**. No batch is filtered. Each process contributes its median batch time, paired by process block. This avoids mixing facade shapes and implementation lifetimes inside one process; it still includes GC and between-process drift. `bench/process.mjs` exposes this method with the same variant/corpus manifest.
+
+| Node / articles | Median speedup | Three process-block estimates, min–max | Identical-code control |
+|---|---:|---:|---:|
+| 22 / 120 | 1.018× | 1.010–1.027× | 0.993× |
+| 22 / 600 | 1.047× | 1.032–1.064× | 1.008× |
+| 24 / 120 | 1.003× | 0.997–1.009× | 1.000× |
+| 24 / 600 | 1.038× | 0.957–1.040× | 1.045× |
+
+The strongest timing evidence is a modest improvement in the larger Node 22 replay. Node 24 results remain inconclusive: small pages move toward parity with process isolation, and the larger case has a regression in one block plus a 4.5% control offset. Neither method supports a universal speedup claim. The definite changes are lower linear-memory reservation and fewer transfer calls/temporary views.
+
+Four compatible MDN examples also matched exact output. Their original two-variant check used nine alternating rounds of 80 replays. A separate-process follow-up used the same 400-warmup/30-batch method and three process blocks, with one identical-code block per page. These short page workloads remain inconclusive; controls alone range from 0.872× to 1.102×.
+
+| MDN example | Original paired estimate | Separate-process median | Separate-process min–max | Identical-code control |
+|---|---:|---:|---:|---:|
+| 1 | 1.115× | 0.987× | 0.777–1.070× | 0.872× |
+| 2 | 0.936× | 1.000× | 0.946–1.052× | 1.102× |
+| 3 | 0.885× | 1.006× | 0.985–1.021× | 0.992× |
+| 4 | 1.030× | 0.975× | 0.956–1.015× | 1.097× |
+
+The final authored 120-article comparison with Cheerio 1.2.0 used nine rounds and 30 replays on Node 22. Each backend runs with its own parser baselines, so absolute times are not a controlled backend ranking. All outputs matched, including explicit parse5 defaults. These diagnostics continue to beat both parser baselines; they do not establish the full engine adoption gate.
+
+| Candidate | Buffered ms | Current parse5 ms | Explicit-default parse5 ms | htmlparser2 ms | Current / htmlparser2 speedup |
+|---|---:|---:|---:|---:|---:|
+| Node-API | 1.304 | 5.503 | 5.417 | 3.615 | 4.22× / 2.77× |
+| Wasm pooled | 1.647 | 5.639 | 5.464 | 3.655 | 3.42× / 2.22× |
+
+The 462-case matrix passes on Node 22: native 447 passes/15 skips, shared Wasm 449/13, fresh Wasm 450/12, and pooled Wasm 453/9. Native and pooled Wasm also pass on Node 24. Type checks and native ASan/UBSan with leak detection pass; no sanitizer reports were emitted. Release Wasm remains import-free and has no diagnostic stack exports. The final CPU profile still shows transfer handling, selection creation, parsing, queries, and allocation work; template support and the real engine adapter should expose the next representative workloads before further broad optimization claims.

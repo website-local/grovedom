@@ -42,6 +42,9 @@ struct gd_document {
 
 
 void gk_init(void);
+#ifdef __wasm__
+void *gk_scratch(void);
+#endif
 gd_document *gk_new(void);
 void gk_dispose(gd_document *doc);
 void gk_delete(gd_document *doc);

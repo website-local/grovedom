@@ -12,6 +12,10 @@ The Wasm feature sweep now covers bulk memory, SIMD, relaxed SIMD, tail calls, a
 
 The allocation pass shares selector plans/keys in one document-owned arena and reuses Wasm transfer views. Authored-replay backing allocation requests fall about 41–43%, with lower peak tracked memory. Initial timings under high host load remain provisional. A subsequent short-batch harness uses balanced orders, a fixed CPU-probe filter, raw results, identical-code controls, and fresh-process repetitions. It shows modest gains in some cases and mixed results elsewhere; precise universal speedups and full consumer performance/memory gates remain unproven.
 
+The next pass measures Wasm stack-pointer changes and written-byte watermarks, reduces the stack reservation to 64 KiB and initial memory to 1 MiB, and shares 16 KiB of synchronous transfer scratch within each instance. Pending queues remain per-document. Cached memory views also decode returned strings without a temporary subarray. See the [measurements and their limits](benchmarks.md#wasm-stack-and-transfer-storage).
+
+The core is ready for focused feature expansion: supported ownership, observation order, worker use, and both bindings have regression coverage. This is development readiness, not production adoption. Prioritize template contents and the engine adapter to unlock unmodified MDN/engine replay; then resolve the required XML/SVG paths and remaining consumer options. Each addition needs successful-output, lifecycle, and performance checks on the real operations it enables. Full workload speed, memory budgets, fragmentation testing, and release packaging remain open.
+
 ## First implementation milestone
 
 Establish the actual API surface and a deterministic baseline replay before choosing the implementation backend.

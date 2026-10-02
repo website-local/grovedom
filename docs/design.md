@@ -285,6 +285,10 @@ Measure sequential documents, multiple live documents interleaved on one thread,
 
 Measure initial-size choices on unmodified representative pages. Add an HTML-size heuristic only if linear-memory growth materially dominates total lifetime overhead; include any work shifted into instance creation and resulting retained capacity. The current MDN diagnostic does not support such a heuristic.
 
+The current prototype starts with 1 MiB linear memory, including a 64 KiB stack and a 16 KiB fixed transfer scratch area per instance. Stack-pointer instrumentation and written-byte watermarks guide the stack setting; repeat these checks when changing compiler options or adding kernel paths. These measurements exclude the engine's separate call stack and are not a worst-case bound.
+
+The fixed scratch area carries opcodes, payloads, and node IDs only during synchronous kernel calls. All DOMs within an instance can reuse it because the kernel never calls back into user JS. Oversized transfers use the existing document-owned growable buffer. Pending mutation queues remain document-owned: sharing their storage would otherwise require extra copies or flushing another document's work early. Scratch pointers never escape as public results, and JS views must refresh after memory growth.
+
 Choose using complete workload time, peak/retained memory, and code complexity. A shared heap that retains unacceptable high-water capacity or cannot reuse free blocks fails the memory gate; separate heaps that lose the speed gate or waste excessive per-document capacity fail too. Neither model is presumed faster or memory-safe without measurement.
 
 ## Optimization sequence and non-goals

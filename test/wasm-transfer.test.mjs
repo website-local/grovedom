@@ -5,6 +5,60 @@ import { load } from '../src/index.js';
 import { kernel } from '../src/kernel.js';
 
 const wasm = process.env.GROVEDOM_BACKEND === 'wasm';
+test('string results preserve leading BOM, Unicode, NUL and prior values after disposal', () => {
+  const $ = load('<p>initial</p>');
+  const value = '\ufeff\u0000é汉字🪴';
+  let saved;
+  try {
+    $('p').attr('title', value).text(value);
+    saved = $('p').text();
+    assert.equal(saved, value);
+    assert.equal($('p').attr('title'), value);
+  } finally { $.dispose(); }
+  assert.equal(saved, value);
+});
+
+test('Wasm transfer scratch handles its boundary, overflow and interleaved owners', { skip: !wasm }, () => {
+  const a = kernel.create('<p>A</p>', true, false), b = kernel.create('<p>B</p>', true, false);
+  const roots = Uint32Array.of(1), ai = kernel.query(a, 'p', roots, false), bi = kernel.query(b, 'p', roots, false);
+  try {
+    // One SET_TEXT command uses seven words; cross the combined word/payload
+    // capacity, then return to small transfers through the other document.
+    for (const length of [16384 - 28, 16384 - 27, 32768, 17]) {
+      const payload = new Uint8Array(length).fill(65);
+      kernel.execute(a, Uint32Array.of(3, 1, 0, length, 0, 0, ai[0]), payload);
+      const saved = kernel.read(a, 2, ai, '');
+      kernel.execute(b, Uint32Array.of(3, 1, 0, 1, 0, 0, bi[0]), Uint8Array.of(66));
+      assert.equal(kernel.read(b, 2, bi, ''), 'B');
+      assert.equal(kernel.read(a, 2, ai, ''), 'A'.repeat(length));
+      assert.equal(saved, 'A'.repeat(length));
+      assert.deepEqual(kernel.query(a, 'p', roots, false), ai);
+    }
+  } finally { kernel.dispose(a); kernel.dispose(b); }
+  assert.equal(kernel.stats().liveBytes, 0);
+});
+
+test('pending commands stay document-owned across nested callbacks', () => {
+  const a = load('<p>A</p>'), b = load('<p>B</p>');
+  try {
+    const ap = a('p'), bp = b('p');
+    ap.attr('title', 'A queued');
+    bp.attr('title', 'B queued');
+    bp.each(() => {
+      assert.equal(ap.attr('title'), 'A queued');
+      ap.text('A changed');
+      assert.equal(bp.attr('title'), 'B queued');
+      bp.text('B changed');
+    });
+    assert.equal(ap.text(), 'A changed');
+    assert.equal(bp.text(), 'B changed');
+    ap.text('discarded');
+    a.dispose();
+    assert.equal(bp.text(), 'B changed');
+  } finally { a.dispose(); b.dispose(); }
+  assert.equal(kernel.stats().liveBytes, 0);
+});
+
 test('Wasm transfers refresh after growth and preserve copied results and Unicode', { skip: !wasm }, () => {
   const $ = load('<main><p title="🪴">original</p></main>');
   const p = $('p'), node = p[0], original = p.text();

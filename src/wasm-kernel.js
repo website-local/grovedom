@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,7 +37,7 @@ if (process.env.GROVEDOM_WASM_PROFILE_GROWTH === '1') {
 function instance() {
   const runtime = new WebAssembly.Instance(module, imports).exports;
   runtime.gk_init();
-  return runtime;
+  return { ...runtime, scratch: runtime.gk_scratch() };
 }
 const shared = perDocument ? null : instance();
 function statsOf(runtime) { return new Uint32Array(runtime.memory.buffer, runtime.gk_stats(), 4); }
@@ -80,7 +81,7 @@ function views(state) {
   // every allocating export, and never return these borrowed views to callers.
   const buffer = state.runtime.memory.buffer;
   if (state.bytes?.buffer !== buffer) {
-    state.bytes = new Uint8Array(buffer);
+    state.bytes = Buffer.from(buffer);
     state.words = new Uint32Array(buffer);
   }
 }
@@ -103,10 +104,15 @@ function input(state, value) {
 }
 function ids(state, value) {
   if (!(value instanceof Uint32Array) || !(value.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected an ordinary Uint32Array');
-  const pointer = check(state, state.runtime.gk_transfer(state.pointer, value.byteLength));
+  const pointer = transfer(state, value.byteLength);
   views(state);
   state.words.set(value, pointer >>> 2);
   return pointer;
+}
+function transfer(state, length) {
+  // Shared within one instance, only during a synchronous kernel call. Large
+  // operations retain the existing document-owned, geometrically grown buffer.
+  return length <= 16384 ? state.runtime.scratch : check(state, state.runtime.gk_transfer(state.pointer, length));
 }
 function result(state, pointer) {
   check(state, pointer);
@@ -116,7 +122,7 @@ function result(state, pointer) {
   const data = fields[offset + 1], length = fields[offset + 2];
   switch (fields[offset]) {
     case 0: return undefined;
-    case 1: return decoder.decode(state.bytes.subarray(data, data + length));
+    case 1: return state.bytes.toString('utf8', data, data + length);
     case 2: return fields[offset + 3];
     case 3: return fields.slice(data >>> 2, (data >>> 2) + length);
     case 4: return null;
@@ -125,7 +131,7 @@ function result(state, pointer) {
 }
 
 export const kernel = {
-  configuration: { heap, initialPages: metadata.initialPages },
+  configuration: { heap, initialPages: metadata.initialPages, stackBytes: metadata.stackBytes },
   growthStats() { return { ...growth }; },
   profileParse(html) {
     const runtime = shared ?? acquire();
@@ -192,7 +198,7 @@ export const kernel = {
     const state = owner(handle);
     if (!(words instanceof Uint32Array) || !(words.buffer instanceof ArrayBuffer) ||
         !(payload instanceof Uint8Array) || !(payload.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary command and payload arrays');
-    const pointer = check(state, state.runtime.gk_transfer(state.pointer, words.byteLength + payload.byteLength));
+    const pointer = transfer(state, words.byteLength + payload.byteLength);
     views(state);
     state.words.set(words, pointer >>> 2);
     state.bytes.set(payload, pointer + words.byteLength);
@@ -203,7 +209,7 @@ export const kernel = {
     if (!(nodes instanceof Uint32Array) || !(nodes.buffer instanceof ArrayBuffer) ||
         !(other instanceof Uint32Array) || !(other.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary node arrays');
     input(state, text);
-    const pointer = check(state, state.runtime.gk_transfer(state.pointer, nodes.byteLength + other.byteLength));
+    const pointer = transfer(state, nodes.byteLength + other.byteLength);
     views(state);
     state.words.set(nodes, pointer >>> 2);
     state.words.set(other, (pointer + nodes.byteLength) >>> 2);
