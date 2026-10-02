@@ -75,32 +75,50 @@ function check(state, result) {
   if (!result) fail(cstring(state.runtime, state.runtime.gk_error_code(state.pointer)), cstring(state.runtime, state.runtime.gk_error_message(state.pointer)));
   return result;
 }
-function typed(value, type) {
-  if (!(value instanceof type) || !(value.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected an ordinary typed array of the required type');
+function views(state) {
+  // A different document can grow the global heap between calls. Refresh after
+  // every allocating export, and never return these borrowed views to callers.
+  const buffer = state.runtime.memory.buffer;
+  if (state.bytes?.buffer !== buffer) {
+    state.bytes = new Uint8Array(buffer);
+    state.words = new Uint32Array(buffer);
+  }
 }
 function input(state, value) {
   if (typeof value !== 'string') fail('ERR_GROVEDOM_ARGUMENT', 'Expected a UTF-8 encodable string');
   const runtime = state.runtime;
   const pointer = check(state, runtime.gk_input(state.pointer, value.length * 3));
-  const { written } = encoder.encodeInto(value, new Uint8Array(runtime.memory.buffer, pointer, value.length * 3));
+  views(state);
+  let written = 0;
+  if (value.length <= 128) {
+    while (written < value.length && value.charCodeAt(written) < 128) {
+      state.bytes[pointer + written] = value.charCodeAt(written);
+      written++;
+    }
+  }
+  if (written !== value.length) {
+    written = encoder.encodeInto(value, state.bytes.subarray(pointer, pointer + value.length * 3)).written;
+  }
   runtime.gk_input(state.pointer, written);
 }
 function ids(state, value) {
-  typed(value, Uint32Array);
+  if (!(value instanceof Uint32Array) || !(value.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected an ordinary Uint32Array');
   const pointer = check(state, state.runtime.gk_transfer(state.pointer, value.byteLength));
-  new Uint32Array(state.runtime.memory.buffer, pointer, value.length).set(value);
+  views(state);
+  state.words.set(value, pointer >>> 2);
   return pointer;
 }
 function result(state, pointer) {
   check(state, pointer);
-  const runtime = state.runtime;
+  views(state);
   // Private wasm32 gd_result layout: kind, data pointer, length, scalar.
-  const fields = new Uint32Array(runtime.memory.buffer, pointer, 4);
-  switch (fields[0]) {
+  const fields = state.words, offset = pointer >>> 2;
+  const data = fields[offset + 1], length = fields[offset + 2];
+  switch (fields[offset]) {
     case 0: return undefined;
-    case 1: return decoder.decode(new Uint8Array(runtime.memory.buffer, fields[1], fields[2]));
-    case 2: return fields[3];
-    case 3: return new Uint32Array(runtime.memory.buffer, fields[1], fields[2]).slice();
+    case 1: return decoder.decode(state.bytes.subarray(data, data + length));
+    case 2: return fields[offset + 3];
+    case 3: return fields.slice(data >>> 2, (data >>> 2) + length);
     case 4: return null;
     default: throw new Error('Invalid kernel result');
   }
@@ -114,7 +132,7 @@ export const kernel = {
     if (!runtime.gk_parse_profile) throw new Error('Parsing probe requires the growth diagnostic build.');
     const pointer = runtime.gk_new();
     if (!pointer) fail('ERR_GROVEDOM_MEMORY', 'Owner allocation failed');
-    const state = { runtime, pointer };
+    const state = { runtime, pointer, bytes: null, words: null };
     try { input(state, html); check(state, runtime.gk_parse_profile(pointer)); return runtime.memory.buffer.byteLength; }
     finally { runtime.gk_delete(pointer); if (perDocument) release(runtime); }
   },
@@ -122,7 +140,7 @@ export const kernel = {
     if (typeof scripting !== 'boolean' || typeof fragment !== 'boolean') fail('ERR_GROVEDOM_ARGUMENT', 'Expected parser flags');
     const runtime = shared ?? acquire(), pointer = runtime.gk_new();
     if (!pointer) fail('ERR_GROVEDOM_MEMORY', 'Owner allocation failed');
-    const state = { runtime, pointer };
+    const state = { runtime, pointer, bytes: null, words: null };
     try { input(state, html); check(state, runtime.gk_parse(pointer, Number(scripting), Number(fragment))); }
     catch (error) { runtime.gk_delete(pointer); if (perDocument) release(runtime); throw error; }
     const handle = Object.freeze({});
@@ -144,6 +162,7 @@ export const kernel = {
     if (perDocument) release(state.runtime);
     state.pointer = 0;
     state.runtime = null;
+    state.bytes = state.words = null;
   },
   query(handle, selector, roots, match) {
     const state = owner(handle);
@@ -171,19 +190,23 @@ export const kernel = {
   },
   execute(handle, words, payload) {
     const state = owner(handle);
-    typed(words, Uint32Array); typed(payload, Uint8Array);
+    if (!(words instanceof Uint32Array) || !(words.buffer instanceof ArrayBuffer) ||
+        !(payload instanceof Uint8Array) || !(payload.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary command and payload arrays');
     const pointer = check(state, state.runtime.gk_transfer(state.pointer, words.byteLength + payload.byteLength));
-    new Uint32Array(state.runtime.memory.buffer, pointer, words.length).set(words);
-    new Uint8Array(state.runtime.memory.buffer, pointer + words.byteLength, payload.byteLength).set(payload);
+    views(state);
+    state.words.set(words, pointer >>> 2);
+    state.bytes.set(payload, pointer + words.byteLength);
     check(state, state.runtime.gk_execute(state.pointer, pointer, words.length, pointer + words.byteLength, payload.byteLength));
   },
   edit(handle, operation, nodes, other, text) {
     const state = owner(handle);
-    typed(nodes, Uint32Array); typed(other, Uint32Array);
+    if (!(nodes instanceof Uint32Array) || !(nodes.buffer instanceof ArrayBuffer) ||
+        !(other instanceof Uint32Array) || !(other.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary node arrays');
     input(state, text);
     const pointer = check(state, state.runtime.gk_transfer(state.pointer, nodes.byteLength + other.byteLength));
-    new Uint32Array(state.runtime.memory.buffer, pointer, nodes.length).set(nodes);
-    new Uint32Array(state.runtime.memory.buffer, pointer + nodes.byteLength, other.length).set(other);
+    views(state);
+    state.words.set(nodes, pointer >>> 2);
+    state.words.set(other, (pointer + nodes.byteLength) >>> 2);
     return result(state, state.runtime.gk_edit(state.pointer, operation, pointer, nodes.length, pointer + nodes.byteLength, other.length));
   },
   stats() {

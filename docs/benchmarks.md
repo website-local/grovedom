@@ -268,3 +268,24 @@ The kernel now formats the operation index into its existing fixed-size error bu
 The default release module shrank from **833,010 to 764,031 bytes (8.3%)** and instantiates without an imports object. A paired before/after check on Node 22 measured about 1.03× for shared and pooled Wasm at 120 articles, 1.01× for fresh instances, and 1.02× for pooled Wasm at 600 articles. Node 24 pooled timing was near parity. Tiny MDN examples remained variable. These modest timings are diagnostic; the clear changes are the smaller artifact and removal of the host-I/O dependency.
 
 The final 456-case matrix passes: native/shared/fresh Wasm have 444 passes and 12 skips; pooled Wasm has 447 passes and nine upstream exclusions. Native and pooled Wasm pass on Node 22 and 24. Native ASan/UBSan with leak detection emits no findings. The added regression covers zero- and multi-digit error indices and preserved partial effects; experimental feature builds also pass it. A combined phase/growth diagnostic build imports only its three `env` timing functions and leaves tracked live bytes at zero after cleanup. The complete engine performance and memory gates remain open.
+
+## Selector storage and Wasm transfer allocations
+
+The next profile-guided pass replaces separate per-selector arenas with one document-owned CSS arena for up to 32 cached plans and their keys. It reuses the CSS parser's selector state. A cache miss at capacity or a failed parse clears the complete cache/arena. Queries are synchronous and selections contain node IDs, so no external selection depends on the lifetime of a parsed selector.
+
+The Wasm adapter reuses whole-memory byte/word views for transfers and result descriptors, refreshes them after heap growth, and clears them on disposal. Returned arrays and strings still own their data. Short ASCII names avoid temporary encoder views/results, and typed-array validation uses fixed types while retaining ordinary-buffer checks. A separate proxy-index experiment was reverted after mixed results.
+
+**Elapsed-time samples from this pass were collected under high host load and are provisional. They do not establish a further speedup.** Repeat paired release measurements on a quiet host before drawing throughput conclusions or changing backend/compiler defaults. The retained changes have a directly measurable allocation benefit; their complete-workload timing effect remains open.
+
+One authored 120-article replay in a fresh process, including disposal, produced these backing-allocator counters compared with the preceding import-free checkpoint:
+
+| Backend | Allocation requests before | After | Peak tracked bytes before | After |
+|---|---:|---:|---:|---:|
+| Node-API | 451 | 264 | 2,500,596 | 1,827,248 |
+| Wasm shared | 439 | 252 | 1,458,756 | 1,020,876 |
+
+Requests decreased about **41–43%**, and peak tracked bytes about **27–30%**. Pooled Wasm also used 439 versus 252 allocation requests. Its retained linear memory after that single replay decreased from 44 to 37 pages (2.75 to 2.3125 MiB); both builds retain the same 32-page initial setting. Live documents and tracked live bytes returned to zero. These counters exclude JS allocations, the small owner control record, and allocator slack; they are not evidence of zero fragmentation or immediate OS reclamation.
+
+Reproduce current counters with `node bench/allocations.mjs`, or `GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=global node bench/allocations.mjs`. Use a fresh process for each source/artifact pair. The shared-heap counter records the actual core high-water mark; fresh/pooled statistics sample live bytes only and cannot measure a completed lifecycle's peak from a single final sample.
+
+Exact before/after outputs matched for the authored replay and four unmodified compatible MDN examples. The 459-case matrix passes on Node 22: native 445 passes/14 skips, shared Wasm 446/13, fresh Wasm 447/12, and pooled Wasm 450/9. Native and pooled Wasm also pass on Node 24; ASan/UBSan with leak detection reports no findings. Added regressions cover cache resets, repeated invalid queries, preserved snapshots, Unicode transfers after heap growth, and collection of released heap buffers while disposed selections remain reachable. Release Wasm still has zero imports. The full engine replay and fastest-compatible-Cheerio adoption gates remain unverified.

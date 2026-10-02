@@ -125,12 +125,12 @@ static void gd_release(gd_document *doc) {
     GD_PROFILE_SCOPE(GP_DISPOSE);
     if (doc->closed) return;
     doc->closed = 1;
-    for (size_t i = 0; i < PLAN_COUNT; i++) {
-        if (doc->plans[i].list) lxb_css_selector_list_destroy_memory(doc->plans[i].list);
-        gd_free(doc->plans[i].key);
-    }
     if (doc->selectors) lxb_selectors_destroy(doc->selectors, true);
-    if (doc->css) lxb_css_parser_destroy(doc->css, true);
+    if (doc->css) {
+        lxb_css_memory_destroy(doc->css->memory, true);
+        lxb_css_parser_selectors_destroy(doc->css);
+        lxb_css_parser_destroy(doc->css, true);
+    }
     if (doc->html) lxb_html_document_destroy(doc->html);
     gd_free(doc->nodes);
     gd_free(doc->results);
@@ -282,33 +282,48 @@ static void gd_clear_children(lxb_dom_node_t *node) {
     }
 }
 
+static void gd_plans_clean(gd_document *doc) {
+    /* Plans never escape a synchronous query; selections hold only node IDs.
+     * Reset the whole bounded cache so keys and ASTs can share one arena. */
+    doc->plan_count = 0;
+    lxb_css_parser_erase(doc->css);
+    lxb_css_selectors_clean(doc->css->selectors);
+}
+
 static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     GD_PROFILE_SCOPE(GP_PLAN);
-    for (size_t i = 0; i < PLAN_COUNT; i++) {
+    for (size_t i = 0; i < doc->plan_count; i++) {
         gd_plan *plan = &doc->plans[i];
-        if (plan->list && plan->length == doc->input.length &&
+        if (plan->length == doc->input.length &&
             memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); return plan->list; }
     }
     GD_PROFILE_ADD(GP_PLAN_MISSES, 1);
+    if (doc->plan_count == PLAN_COUNT) gd_plans_clean(doc);
+    if (!doc->css->memory) {
+        doc->css->memory = lxb_css_memory_create();
+        if (lxb_css_memory_init(doc->css->memory, 256) != LXB_STATUS_OK) {
+            doc->css->memory = lxb_css_memory_destroy(doc->css->memory, true);
+            goto memory_error;
+        }
+    }
+    if (!doc->css->selectors && lxb_css_parser_selectors_init(doc->css) != LXB_STATUS_OK) goto memory_error;
     lxb_css_log_clean(doc->css->log);
     lxb_css_selector_list_t *list = lxb_css_selectors_parse(doc->css, doc->input.data, doc->input.length);
     int valid = list && doc->css->status == LXB_STATUS_OK && lxb_css_log_length(doc->css->log) == 0;
     if (!valid) {
-        if (list) lxb_css_selector_list_destroy_memory(list);
-        else if (doc->css->memory) lxb_css_memory_destroy(doc->css->memory, true);
-        doc->css->memory = NULL;
+        gd_plans_clean(doc);
         gd_error(doc, "ERR_GROVEDOM_SELECTOR", "Invalid or unsupported CSS selector");
         return NULL;
     }
-    doc->css->memory = NULL; /* Each cached plan owns its separate CSS arena. */
-    char *key = gd_malloc(doc->input.length + 1);
-    if (!key) { lxb_css_selector_list_destroy_memory(list); gd_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed"); return NULL; }
+    char *key = lexbor_mraw_alloc(doc->css->memory->mraw, doc->input.length + 1);
+    if (!key) { gd_plans_clean(doc); goto memory_error; }
     memcpy(key, doc->input.data, doc->input.length + 1);
-    gd_plan *plan = &doc->plans[doc->plan_next++ % PLAN_COUNT];
-    if (plan->list) lxb_css_selector_list_destroy_memory(plan->list);
-    gd_free(plan->key);
+    gd_plan *plan = &doc->plans[doc->plan_count++];
     *plan = (gd_plan) { key, doc->input.length, list };
     return list;
+memory_error:
+    gd_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed");
+    return NULL;
 }
 
 gd_document *gk_new(void) {

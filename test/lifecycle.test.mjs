@@ -56,6 +56,27 @@ test('native bounds, owner validation, and partial-batch errors', () => {
   assert.equal(kernel.stats().liveBytes, 0);
 });
 
+test('selector arena resets preserve snapshots and bound repeated invalid-query storage', () => {
+  const $ = load('<main><p data-id="0">original</p></main>');
+  const snapshot = $('main > p'), node = snapshot[0];
+  try {
+    for (let round = 0; round < 4; round++) {
+      for (let i = 0; i < 96; i++) assert.equal($(`main > p[data-id="${i}"]`).length, i === 0 ? 1 : 0);
+      assert.throws(() => $('main > p['), { code: 'ERR_GROVEDOM_SELECTOR' });
+      assert.equal($('main > p')[0], node);
+    }
+    const before = kernel.stats().liveBytes;
+    for (let i = 0; i < 200; i++) assert.throws(() => $('main > p['), { code: 'ERR_GROVEDOM_SELECTOR' });
+    assert.ok(kernel.stats().liveBytes <= before);
+    $('main').append('<p>new</p>');
+    snapshot.text('changed');
+    assert.equal(snapshot.length, 1);
+    assert.equal($('p').text(), 'changednew');
+    assert.equal($('p')[0], node);
+  } finally { $.dispose(); }
+  assert.equal(kernel.stats().liveBytes, 0);
+});
+
 test('warmed repeated text and attribute writes need no new native backing allocations', () => {
   const $ = load('<p>initial content with spare capacity</p>', { execution: 'direct' });
   const p = $('p');

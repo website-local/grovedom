@@ -25,7 +25,7 @@ struct gd_document {
     lxb_css_parser_t *css;
     lxb_selectors_t *selectors;
     gd_plan plans[PLAN_COUNT];
-    size_t plan_next;
+    size_t plan_count;
     gd_node *nodes;
     size_t node_count, node_capacity;
     uint32_t *results;
