@@ -1,0 +1,28 @@
+# Local agent instructions and session state
+AGENTS.md
+CLAUDE.md
+.codex/
+codex.sh
+.local/
+.private/
+.env
+.env.*
+!.env.example
+
+# Dependencies, generated output, and scratch files
+node_modules/
+target/
+build/
+dist/
+tmp/
+.cache/
+.benchmarks/
+*.node
+*.wasm
+core
+core.[0-9]*
+
+# Private experiments and machine-specific reports
+research/boundary-*/
+research/local/
+*.local.log
