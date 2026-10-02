@@ -92,8 +92,7 @@ for (const execution of ['buffered', 'direct']) {
 }
 
 test('unsupported options and foreign nodes fail explicitly; markup and rename work', () => {
-  assert.throws(() => load('<x/>', { xml: true }), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
-  assert.throws(() => load('<template><p>x</p></template>'), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+  assert.throws(() => load('<x/>', { xml: { onopentag() {} } }), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
   const a = load('<p>A</p>'), b = load('<p>B</p>');
   try {
     assert.throws(() => a(b('p')[0]), /another document/);
@@ -104,7 +103,7 @@ test('unsupported options and foreign nodes fail explicitly; markup and rename w
     a('div').prop('tagName', 'p');
     assert.throws(() => a.html({}), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
     a('p').html('<template>x</template>');
-    assert.throws(() => a.flush(), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
-    assert.equal(a('p').text(), 'A');
+    a.flush();
+    assert.equal(a('p').text(), 'x');
   } finally { a.dispose(); b.dispose(); }
 });

@@ -11,21 +11,17 @@ if (!source || !jquery) throw new Error('Set both upstream source directories.')
 const output = resolve('test/upstream');
 mkdirSync(output, { recursive: true });
 const exclusions = {
+  'attributes:(key, value) : should update namespace': 'Arbitrary namespace changes and null domhandler attribute maps are outside the supported handle API.',
+  'attributes:(inherited properties) : prop should support inherited properties': 'Child arrays are snapshots; writable live domhandler arrays are not supported.',
+  'traversing:should throw a TypeError if given invalid input': 'Exact invalid-input error compatibility is not a performance gate.',
+  'traversing:should throw an Error if given an invalid selector': 'Exact invalid-input error compatibility is not a performance gate.',
   'attributes:(map, val) : should throw with wrong combination of arguments': 'Invalid-input error compatibility is not a performance gate.',
-  "attributes:(bool) shouldn't treat boolean attributes differently in XML mode": 'XML is outside the HTML prototype.',
   'attributes:(invalid) : should be a no-op for invalid inputs': 'Invalid-input behavior is outside the compatibility target.',
   'attributes:(key, value) : should set data attribute': 'Includes an invalid numeric data key; normal data writes have separate coverage.',
   'traversing:(selector) : should throw an Error if given an invalid selector': 'Exact selector error messages are not a compatibility target.',
-  'manipulation:() : should pass options': 'XML is outside the HTML prototype.',
-  'manipulation:() : should preserve parsing options': 'XML is outside the HTML prototype.',
   'css:(any, val): should ignore unsupported prop types': 'Invalid property types are outside the compatibility target.',
 };
-const groups = {
-  attributes: ['.attr', '.removeAttr', '.hasClass', '.addClass', '.removeClass', '.toggleClass', '.val', '.data'],
-  traversing: ['.children', '.contents', '.next', '.nextAll', '.prev', '.prevAll', '.siblings', '.parent', '.closest', '.each', '.map', '.filter', '.not', '.has', '.first', '.last', '.eq', '.get', '.index', '.slice', '.end() :'],
-  manipulation: ['.append', '.prepend', '.appendTo', '.prependTo', '.remove', '.empty', '.html', '.toString', '.text', '.clone', '.wrap', '.before', '.after', '.replaceWith'],
-  forms: null, css: null, extract: null,
-};
+const groups = { attributes: null, traversing: null, manipulation: null, forms: null, css: null, extract: null, static: ['.contains', '.merge'] };
 function convert(text, file, selected) {
   const ast = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const transform = context => {
@@ -53,11 +49,12 @@ function convert(text, file, selected) {
   transformed.dispose();
   result = result.replaceAll("from 'vitest'", "from '../upstream-support.mjs'")
     .replace(/from '(?:\.\.\/(?:index|load-parse|load|cheerio)\.js|domhandler)'/g, "from '../upstream-support.mjs'")
-    .replaceAll("from '../__fixtures__/fixtures.js'", "from './fixtures.mjs'");
+    .replaceAll("from '../__fixtures__/fixtures.js'", "from './fixtures.mjs'")
+    .replaceAll("from './__fixtures__/fixtures.js'", "from './fixtures.mjs'");
   if (file === 'fixtures.ts') result = result.replace('load([])', 'fixtureCheerio').replace("import { load }", "import { fixtureCheerio }");
   return '// Adapted from Cheerio 1.2.0; see README.md and cheerio-LICENSE.\n'+result;
 }
-for (const [file, selected] of Object.entries(groups)) writeFileSync(join(output, file+'.mjs'), convert(readFileSync(join(source, 'src/api', file+'.spec.ts'), 'utf8'), file+'.ts', selected));
+for (const [file, selected] of Object.entries(groups)) writeFileSync(join(output, file+'.mjs'), convert(readFileSync(join(source, file === 'static' ? 'src' : 'src/api', file+'.spec.ts'), 'utf8'), file+'.ts', selected));
 writeFileSync(join(output, 'fixtures.mjs'), convert(readFileSync(join(source, 'src/__fixtures__/fixtures.ts'), 'utf8'), 'fixtures.ts'));
 copyFileSync(join(source, 'LICENSE'), join(output, 'cheerio-LICENSE'));
 copyFileSync(join(jquery, 'LICENSE.txt'), join(output, 'jquery-LICENSE'));

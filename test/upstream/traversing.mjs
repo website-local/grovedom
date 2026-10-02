@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from '../upstream-support.mjs';
 import { load } from '../upstream-support.mjs';
 import { Cheerio } from '../upstream-support.mjs';
 import { isText } from '../upstream-support.mjs';
-import { food, fruits, eleven, text, mixedText, } from './fixtures.mjs';
+import { cheerio, food, fruits, eleven, drinks, text, forms, mixedText, vegetables, } from './fixtures.mjs';
 function getText(el) {
     if (el.length === 0)
         return undefined;
@@ -14,6 +14,123 @@ describe('$(...)', () => {
     let $;
     beforeEach(() => {
         $ = load(fruits);
+    });
+    describe('.load', () => {
+        it.skip('should throw a TypeError if given invalid input', () => {
+            expect(() => {
+                // @ts-expect-error Testing invalid input
+                load();
+            }).toThrow('cheerio.load() expects a string');
+        });
+    });
+    describe('.find', () => {
+        it('() : should find nothing', () => {
+            expect($('ul').find()).toHaveLength(0);
+        });
+        it('(single) : should find one descendant', () => {
+            expect($('#fruits').find('.apple')[0].attribs).toHaveProperty('class', 'apple');
+        });
+        // #1679 - text tags not filtered
+        it('(single) : should filter out text nodes', () => {
+            const $root = $(`<html>\n${fruits.replace(/></g, '>\n<')}\n</html>`);
+            expect($root.find('.apple')[0].attribs).toHaveProperty('class', 'apple');
+        });
+        it('(many) : should find all matching descendant', () => {
+            expect($('#fruits').find('li')).toHaveLength(3);
+        });
+        it('(many) : should merge all selected elems with matching descendants', () => {
+            expect($('#fruits, #food', food).find('.apple')).toHaveLength(1);
+        });
+        it('(invalid single) : should return empty if cant find', () => {
+            expect($('ul').find('blah')).toHaveLength(0);
+        });
+        it('(invalid single) : should query descendants only', () => {
+            expect($('#fruits').find('ul')).toHaveLength(0);
+        });
+        it('should return empty if search already empty result', () => {
+            expect($('#not-fruits').find('li')).toHaveLength(0);
+        });
+        it('should lowercase selectors', () => {
+            expect($('#fruits').find('LI')).toHaveLength(3);
+        });
+        it('should query immediate descendant only', () => {
+            const q = load('<foo><bar><bar></bar><bar></bar></bar></foo>');
+            expect(q('foo').find('> bar')).toHaveLength(1);
+        });
+        it('should find siblings', () => {
+            const q = load('<p class=a><p class=b></p>');
+            expect(q('.a').find('+.b')).toHaveLength(1);
+            expect(q('.a').find('~.b')).toHaveLength(1);
+            expect(q('.a').find('+.a')).toHaveLength(0);
+            expect(q('.a').find('~.a')).toHaveLength(0);
+        });
+        it('should find self', () => {
+            const q = load('<p class=a></p>');
+            expect(q('.a').find(':scope')).toHaveLength(1);
+        });
+        it('should query case-sensitively when in xml mode', () => {
+            const q = load('<caseSenSitive allTheWay>', { xml: true });
+            expect(q('caseSenSitive')).toHaveLength(1);
+            expect(q('[allTheWay]')).toHaveLength(1);
+            expect(q('casesensitive')).toHaveLength(0);
+            expect(q('[alltheway]')).toHaveLength(0);
+        });
+        it.skip('should throw an Error if given an invalid selector', () => {
+            expect(() => {
+                $('#fruits').find(':bah');
+            }).toThrow('Unknown pseudo-class :bah');
+        });
+        it('should respect the `lowerCaseTags` option (#3495)', () => {
+            const q = load(`<parentTag class="myClass">
+          <firstTag> <child> blah </child> </firstTag>
+          <secondTag> <child> blah </child> </secondTag>
+        </parentTag> `, {
+                xml: {
+                    xmlMode: true,
+                    decodeEntities: false,
+                    lowerCaseTags: true,
+                    lowerCaseAttributeNames: false,
+                    recognizeSelfClosing: true,
+                },
+            });
+            expect(q('.myClass').find('firstTag > child')).toHaveLength(1);
+        });
+        describe('(cheerio object) :', () => {
+            it('returns only those nodes contained within the current selection', () => {
+                const q = load(food);
+                const $selection = q('#fruits').find(q('li'));
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe(q('.apple')[0]);
+                expect($selection[1]).toBe(q('.orange')[0]);
+                expect($selection[2]).toBe(q('.pear')[0]);
+            });
+            it('returns only those nodes contained within any element in the current selection', () => {
+                const q = load(food);
+                const $selection = q('.apple, #vegetables').find(q('li'));
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe(q('.carrot')[0]);
+                expect($selection[1]).toBe(q('.sweetcorn')[0]);
+            });
+        });
+        describe('(node) :', () => {
+            it('returns node when contained within the current selection', () => {
+                const q = load(food);
+                const $selection = q('#fruits').find(q('.apple')[0]);
+                expect($selection).toHaveLength(1);
+                expect($selection[0]).toBe(q('.apple')[0]);
+            });
+            it('returns node when contained within any element the current selection', () => {
+                const q = load(food);
+                const $selection = q('#fruits, #vegetables').find(q('.carrot')[0]);
+                expect($selection).toHaveLength(1);
+                expect($selection[0]).toBe(q('.carrot')[0]);
+            });
+            it('does not return node that is not contained within the current selection', () => {
+                const q = load(food);
+                const $selection = q('#fruits').find(q('.carrot')[0]);
+                expect($selection).toHaveLength(0);
+            });
+        });
     });
     describe('.children', () => {
         it('() : should get all children', () => {
@@ -124,6 +241,69 @@ describe('$(...)', () => {
             });
         });
     });
+    describe('.nextUntil', () => {
+        it('() : should return all following siblings if no selector specified', () => {
+            const elems = $('.apple', food).nextUntil();
+            expect(elems).toHaveLength(2);
+            expect(elems[0].attribs).toHaveProperty('class', 'orange');
+            expect(elems[1].attribs).toHaveProperty('class', 'pear');
+        });
+        it('() : should filter out non-element nodes', () => {
+            const elems = $('<div><div></div><!-- comment -->text<div></div></div>');
+            const div = elems.children().eq(0);
+            expect(div.nextUntil()).toHaveLength(1);
+        });
+        it('() : should operate over all elements in the selection', () => {
+            const elems = $('.apple, .carrot', food);
+            expect(elems.nextUntil()).toHaveLength(3);
+        });
+        it('() : should not contain duplicate elements', () => {
+            const elems = $('.apple, .orange', food);
+            expect(elems.nextUntil()).toHaveLength(2);
+        });
+        it('(selector) : should return all following siblings until selector', () => {
+            const elems = $('.apple', food).nextUntil('.pear');
+            expect(elems).toHaveLength(1);
+            expect(elems[0].attribs).toHaveProperty('class', 'orange');
+        });
+        it('(selector) : should support selector matching multiple elements', () => {
+            const elems = $('#disabled', forms).nextUntil('option, #unnamed');
+            expect(elems).toHaveLength(2);
+            expect(elems[0].attribs).toHaveProperty('id', 'submit');
+            expect(elems[1].attribs).toHaveProperty('id', 'select');
+        });
+        it('(selector not sibling) : should return all following siblings', () => {
+            const elems = $('.apple').nextUntil('#vegetables');
+            expect(elems).toHaveLength(2);
+        });
+        it('(selector, filterString) : should return all following siblings until selector, filtered by filter', () => {
+            const elems = $('.beer', drinks).nextUntil('.water', '.milk');
+            expect(elems).toHaveLength(1);
+            expect(elems[0].attribs).toHaveProperty('class', 'milk');
+        });
+        it('(null, filterString) : should return all following siblings until selector, filtered by filter', () => {
+            const elems = $('<ul><li></li><li><p></p></li></ul>');
+            const empty = elems.find('li').eq(0).nextUntil(null, 'p');
+            expect(empty).toHaveLength(0);
+        });
+        it('() : should return an empty object for last child', () => {
+            expect($('.pear').nextUntil()).toHaveLength(0);
+        });
+        it('() : should return an empty object when called on an empty object', () => {
+            expect($('.banana').nextUntil()).toHaveLength(0);
+        });
+        it('(node) : should return all following siblings until the node', () => {
+            const $fruits = $('#fruits').children();
+            const elems = $fruits.eq(0).nextUntil($fruits[2]);
+            expect(elems).toHaveLength(1);
+        });
+        it('(cheerio object) : should return all following siblings until any member of the cheerio object', () => {
+            const $drinks = $(drinks).children();
+            const $until = $([$drinks[4], $drinks[3]]);
+            const elems = $drinks.eq(0).nextUntil($until);
+            expect(elems).toHaveLength(2);
+        });
+    });
     describe('.prev', () => {
         it('() : should return previous element', () => {
             const { attribs } = $('.orange').prev()[0];
@@ -207,6 +387,70 @@ describe('$(...)', () => {
             });
         });
     });
+    describe('.prevUntil', () => {
+        it('() : should return all preceding siblings if no selector specified', () => {
+            const elems = $('.pear').prevUntil();
+            expect(elems).toHaveLength(2);
+            expect(elems[0].attribs).toHaveProperty('class', 'orange');
+            expect(elems[1].attribs).toHaveProperty('class', 'apple');
+        });
+        it('() : should filter out non-element nodes', () => {
+            const elems = $('<div class="1"><div class="2"></div><!-- comment -->text<div class="3"></div></div>');
+            const div = elems.children().last();
+            expect(div.prevUntil()).toHaveLength(1);
+        });
+        it('() : should operate over all elements in the selection', () => {
+            const elems = $('.pear, .sweetcorn', food);
+            expect(elems.prevUntil()).toHaveLength(3);
+        });
+        it('() : should not contain duplicate elements', () => {
+            const elems = $('.orange, .pear', food);
+            expect(elems.prevUntil()).toHaveLength(2);
+        });
+        it('(selector) : should return all preceding siblings until selector', () => {
+            const elems = $('.pear').prevUntil('.apple');
+            expect(elems).toHaveLength(1);
+            expect(elems[0].attribs).toHaveProperty('class', 'orange');
+        });
+        it('(selector) : should support selector matching multiple elements', () => {
+            const elems = $('#unnamed', forms).prevUntil('option, #disabled');
+            expect(elems).toHaveLength(2);
+            expect(elems[0].attribs).toHaveProperty('id', 'select');
+            expect(elems[1].attribs).toHaveProperty('id', 'submit');
+        });
+        it('(selector not sibling) : should return all preceding siblings', () => {
+            const elems = $('.sweetcorn', food).prevUntil('#fruits');
+            expect(elems).toHaveLength(1);
+            expect(elems[0].attribs).toHaveProperty('class', 'carrot');
+        });
+        it('(selector, filterString) : should return all preceding siblings until selector, filtered by filter', () => {
+            const elems = $('.cider', drinks).prevUntil('.juice', '.water');
+            expect(elems).toHaveLength(1);
+            expect(elems[0].attribs).toHaveProperty('class', 'water');
+        });
+        it('(selector, filterString) : should return all preceding siblings until selector', () => {
+            const elems = $('<ul><li><p></p></li><li></li></ul>');
+            const empty = elems.find('li').eq(1).prevUntil(null, 'p');
+            expect(empty).toHaveLength(0);
+        });
+        it('() : should return an empty object for first child', () => {
+            expect($('.apple').prevUntil()).toHaveLength(0);
+        });
+        it('() : should return an empty object when called on an empty object', () => {
+            expect($('.banana').prevUntil()).toHaveLength(0);
+        });
+        it('(node) : should return all previous siblings until the node', () => {
+            const $fruits = $('#fruits').children();
+            const elems = $fruits.eq(2).prevUntil($fruits[0]);
+            expect(elems).toHaveLength(1);
+        });
+        it('(cheerio object) : should return all previous siblings until any member of the cheerio object', () => {
+            const $drinks = $(drinks).children();
+            const $until = $([$drinks[0], $drinks[1]]);
+            const elems = $drinks.eq(4).prevUntil($until);
+            expect(elems).toHaveLength(2);
+        });
+    });
     describe('.siblings', () => {
         it('() : should get all the siblings', () => {
             expect($('.orange').siblings()).toHaveLength(2);
@@ -250,6 +494,124 @@ describe('$(...)', () => {
             expect(result.eq(1).text()).toBe('Two');
             expect(result.eq(2).text()).toBe('Eight');
             expect(result.eq(3).text()).toBe('Ten');
+        });
+    });
+    describe('.parents', () => {
+        beforeEach(() => {
+            $ = load(food);
+        });
+        it('() : should get all of the parents in logical order', () => {
+            const orange = $('.orange').parents();
+            expect(orange).toHaveLength(4);
+            expect(orange[0].attribs).toHaveProperty('id', 'fruits');
+            expect(orange[1].attribs).toHaveProperty('id', 'food');
+            expect(orange[2].tagName).toBe('body');
+            expect(orange[3].tagName).toBe('html');
+            const fruits = $('#fruits').parents();
+            expect(fruits).toHaveLength(3);
+            expect(fruits[0].attribs).toHaveProperty('id', 'food');
+            expect(fruits[1].tagName).toBe('body');
+            expect(fruits[2].tagName).toBe('html');
+        });
+        it('(selector) : should get all of the parents that match the selector in logical order', () => {
+            const fruits = $('.orange').parents('#fruits');
+            expect(fruits).toHaveLength(1);
+            expect(fruits[0].attribs).toHaveProperty('id', 'fruits');
+            const uls = $('.orange').parents('ul');
+            expect(uls).toHaveLength(2);
+            expect(uls[0].attribs).toHaveProperty('id', 'fruits');
+            expect(uls[1].attribs).toHaveProperty('id', 'food');
+        });
+        it('() : should not break if the selector does not have any results', () => {
+            const result = $('.saladbar').parents();
+            expect(result).toHaveLength(0);
+        });
+        it('() : should return an empty set for top-level elements', () => {
+            const result = $('html').parents();
+            expect(result).toHaveLength(0);
+        });
+        it('() : should return the parents of every element in the *reversed* collection, omitting duplicates', () => {
+            const $parents = $('li').parents();
+            expect($parents).toHaveLength(5);
+            expect($parents[0]).toBe($('#vegetables')[0]);
+            expect($parents[1]).toBe($('#fruits')[0]);
+            expect($parents[2]).toBe($('#food')[0]);
+            expect($parents[3]).toBe($('body')[0]);
+            expect($parents[4]).toBe($('html')[0]);
+        });
+    });
+    describe('.parentsUntil', () => {
+        beforeEach(() => {
+            $ = load(food);
+        });
+        it('() : should get all of the parents in logical order', () => {
+            const result = $('.orange').parentsUntil();
+            expect(result).toHaveLength(4);
+            expect(result[0].attribs).toHaveProperty('id', 'fruits');
+            expect(result[1].attribs).toHaveProperty('id', 'food');
+            expect(result[2].tagName).toBe('body');
+            expect(result[3].tagName).toBe('html');
+        });
+        it('() : should get all of the parents in reversed order, omitting duplicates', () => {
+            const result = $('.apple, .sweetcorn').parentsUntil();
+            expect(result).toHaveLength(5);
+            expect(result[0]).toBe($('#vegetables')[0]);
+            expect(result[1]).toBe($('#fruits')[0]);
+            expect(result[2]).toBe($('#food')[0]);
+            expect(result[3]).toBe($('body')[0]);
+            expect(result[4]).toBe($('html')[0]);
+        });
+        it('(selector) : should get all of the parents until selector', () => {
+            const food = $('.orange').parentsUntil('#food');
+            expect(food).toHaveLength(1);
+            expect(food[0].attribs).toHaveProperty('id', 'fruits');
+            const fruits = $('.orange').parentsUntil('#fruits');
+            expect(fruits).toHaveLength(0);
+        });
+        it('(selector) : Less simple parentsUntil check with selector', () => {
+            const result = $('#fruits').parentsUntil('html, body');
+            expect(result.eq(0).attr('id')).toBe('food');
+        });
+        it('(selector not parent) : should return all parents', () => {
+            const result = $('.orange').parentsUntil('.apple');
+            expect(result).toHaveLength(4);
+            expect(result[0].attribs).toHaveProperty('id', 'fruits');
+            expect(result[1].attribs).toHaveProperty('id', 'food');
+            expect(result[2].tagName).toBe('body');
+            expect(result[3].tagName).toBe('html');
+        });
+        it('(selector, filter) : should get all of the parents that match the filter', () => {
+            const result = $('.apple, .sweetcorn').parentsUntil('.saladbar', '#vegetables');
+            expect(result).toHaveLength(1);
+            expect(result[0].attribs).toHaveProperty('id', 'vegetables');
+        });
+        it('(selector, filter) : Multiple-filtered parentsUntil check', () => {
+            const result = $('.orange').parentsUntil('html', 'ul,body');
+            expect(result).toHaveLength(3);
+            expect(result.eq(0).attr('id')).toBe('fruits');
+            expect(result.eq(1).attr('id')).toBe('food');
+            expect(result.eq(2).prop('tagName')).toBe('BODY');
+        });
+        it('() : should return empty object when called on an empty object', () => {
+            const result = $('.saladbar').parentsUntil();
+            expect(result).toHaveLength(0);
+        });
+        it('() : should return an empty set for top-level elements', () => {
+            const result = $('html').parentsUntil();
+            expect(result).toHaveLength(0);
+        });
+        it('(cheerio object) : should return all parents until any member of the cheerio object', () => {
+            const $fruits = $('#fruits');
+            const $until = $('#food');
+            const result = $fruits.children().eq(1).parentsUntil($until);
+            expect(result).toHaveLength(1);
+            expect(result[0].attribs).toHaveProperty('id', 'fruits');
+        });
+        it('(cheerio object) : should return all parents until body element', () => {
+            const body = $('body')[0];
+            const result = $('.carrot').parentsUntil(body);
+            expect(result).toHaveLength(2);
+            expect(result.eq(0).is('ul#vegetables')).toBe(true);
         });
     });
     describe('.parent', () => {
@@ -523,6 +885,18 @@ describe('$(...)', () => {
             expect($last[0]).toBeUndefined();
         });
     });
+    describe('.first & .last', () => {
+        it('() : should return equivalent collections if only one element', () => {
+            const $src = $('<span>bar</span>');
+            const $first = $src.first();
+            const $last = $src.last();
+            expect($first.length).toBe(1);
+            expect($first[0].childNodes[0]).toHaveProperty('data', 'bar');
+            expect($last.length).toBe(1);
+            expect($last[0].childNodes[0]).toHaveProperty('data', 'bar');
+            expect($first[0]).toBe($last[0]);
+        });
+    });
     describe('.eq', () => {
         it('(i) : should return the element at the specified index', () => {
             expect(getText($('li').eq(0))).toBe('Apple');
@@ -685,6 +1059,336 @@ describe('$(...)', () => {
         });
         it('clone', () => {
             expect($fruits.clone().end()).toBe($fruits);
+        });
+    });
+    describe('.add()', () => {
+        let $fruits;
+        let $apple;
+        let $orange;
+        let $pear;
+        beforeEach(() => {
+            $ = load(food);
+            $fruits = $('#fruits');
+            $apple = $('.apple');
+            $orange = $('.orange');
+            $pear = $('.pear');
+        });
+        describe('(selector) matched element :', () => {
+            it('occurs before current selection', () => {
+                const $selection = $orange.add('.apple');
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('is identical to the current selection', () => {
+                const $selection = $orange.add('.orange');
+                expect($selection).toHaveLength(1);
+                expect($selection[0]).toBe($orange[0]);
+            });
+            it('occurs after current selection', () => {
+                const $selection = $orange.add('.pear');
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($orange[0]);
+                expect($selection[1]).toBe($pear[0]);
+            });
+            it('contains the current selection', () => {
+                const $selection = $orange.add('#fruits');
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('is a child of the current selection', () => {
+                const $selection = $fruits.add('.orange');
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('is root object preserved', () => {
+                const $selection = $('<div></div>').add('#fruits');
+                expect($selection).toHaveLength(2);
+                expect($selection.eq(0).is('div')).toBe(true);
+                expect($selection.eq(1).is($fruits.eq(0))).toBe(true);
+            });
+        });
+        describe('(selector) matched elements :', () => {
+            it('occur before the current selection', () => {
+                const $selection = $pear.add('.apple, .orange');
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('include the current selection', () => {
+                const $selection = $pear.add('#fruits li');
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur after the current selection', () => {
+                const $selection = $apple.add('.orange, .pear');
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur within the current selection', () => {
+                const $selection = $fruits.add('#fruits li');
+                expect($selection).toHaveLength(4);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($apple[0]);
+                expect($selection[2]).toBe($orange[0]);
+                expect($selection[3]).toBe($pear[0]);
+            });
+        });
+        describe('(selector, context) :', () => {
+            it(', context)', () => {
+                const $selection = $fruits.add('li', '#vegetables');
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($('.carrot')[0]);
+                expect($selection[2]).toBe($('.sweetcorn')[0]);
+            });
+        });
+        describe('(element) honors document order when element occurs :', () => {
+            it('before the current selection', () => {
+                const $selection = $orange.add($apple[0]);
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('after the current selection', () => {
+                const $selection = $orange.add($pear[0]);
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($orange[0]);
+                expect($selection[1]).toBe($pear[0]);
+            });
+            it('within the current selection', () => {
+                const $selection = $fruits.add($orange[0]);
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('as an ancestor of the current selection', () => {
+                const $selection = $orange.add($fruits[0]);
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('does not insert an element already contained within the current selection', () => {
+                const $selection = $apple.add($apple[0]);
+                expect($selection).toHaveLength(1);
+                expect($selection[0]).toBe($apple[0]);
+            });
+        });
+        describe('([elements]) : elements', () => {
+            it('occur before the current selection', () => {
+                const $selection = $pear.add($('.apple, .orange').get());
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('include the current selection', () => {
+                const $selection = $pear.add($('#fruits li').get());
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur after the current selection', () => {
+                const $selection = $apple.add($('.orange, .pear').get());
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur within the current selection', () => {
+                const $selection = $fruits.add($('#fruits li').get());
+                expect($selection).toHaveLength(4);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($apple[0]);
+                expect($selection[2]).toBe($orange[0]);
+                expect($selection[3]).toBe($pear[0]);
+            });
+        });
+        /**
+         * Element order is undefined in this case, so it should not be asserted
+         * here.
+         *
+         * If the collection consists of elements from different documents or ones
+         * not in any document, the sort order is undefined.
+         *
+         * @see {@link https://api.jquery.com/add/}
+         */
+        it('(html) : correctly parses and adds the new elements', () => {
+            const $selection = $apple.add('<li class="banana">banana</li>');
+            expect($selection).toHaveLength(2);
+            expect($selection.is('.apple')).toBe(true);
+            expect($selection.is('.banana')).toBe(true);
+        });
+        describe('(selection) element in selection :', () => {
+            it('occurs before current selection', () => {
+                const $selection = $orange.add($('.apple'));
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('is identical to the current selection', () => {
+                const $selection = $orange.add($('.orange'));
+                expect($selection).toHaveLength(1);
+                expect($selection[0]).toBe($orange[0]);
+            });
+            it('occurs after current selection', () => {
+                const $selection = $orange.add($('.pear'));
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($orange[0]);
+                expect($selection[1]).toBe($pear[0]);
+            });
+            it('contains the current selection', () => {
+                const $selection = $orange.add($('#fruits'));
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+            it('is a child of the current selection', () => {
+                const $selection = $fruits.add($('.orange'));
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($orange[0]);
+            });
+        });
+        describe('(selection) elements in the selection :', () => {
+            it('occur before the current selection', () => {
+                const $selection = $pear.add($('.apple, .orange'));
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('include the current selection', () => {
+                const $selection = $pear.add($('#fruits li'));
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur after the current selection', () => {
+                const $selection = $apple.add($('.orange, .pear'));
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($apple[0]);
+                expect($selection[1]).toBe($orange[0]);
+                expect($selection[2]).toBe($pear[0]);
+            });
+            it('occur within the current selection', () => {
+                const $selection = $fruits.add($('#fruits li'));
+                expect($selection).toHaveLength(4);
+                expect($selection[0]).toBe($fruits[0]);
+                expect($selection[1]).toBe($apple[0]);
+                expect($selection[2]).toBe($orange[0]);
+                expect($selection[3]).toBe($pear[0]);
+            });
+        });
+        describe('(selection) :', () => {
+            it('modifying nested selections should not impact the parent [#834]', () => {
+                const apple_pear = $apple.add($pear);
+                // Applies red to apple and pear
+                apple_pear.addClass('red');
+                expect($apple.hasClass('red')).toBe(true); // This is true
+                expect($pear.hasClass('red')).toBe(true); // This is true
+                // Applies green to pear... AND should not affect apple
+                $pear.addClass('green');
+                expect($pear.hasClass('green')).toBe(true); // Currently this is true
+                expect($apple.hasClass('green')).toBe(false); // And this should be false!
+            });
+        });
+    });
+    describe('.addBack', () => {
+        describe('() :', () => {
+            it('includes siblings and self', () => {
+                const $selection = $('.orange').siblings().addBack();
+                expect($selection).toHaveLength(3);
+                expect($selection[0]).toBe($('.apple')[0]);
+                expect($selection[1]).toBe($('.orange')[0]);
+                expect($selection[2]).toBe($('.pear')[0]);
+            });
+            it('includes children and self', () => {
+                const $selection = $('#fruits').children().addBack();
+                expect($selection).toHaveLength(4);
+                expect($selection[0]).toBe($('#fruits')[0]);
+                expect($selection[1]).toBe($('.apple')[0]);
+                expect($selection[2]).toBe($('.orange')[0]);
+                expect($selection[3]).toBe($('.pear')[0]);
+            });
+            it('includes parent and self', () => {
+                const $selection = $('.apple').parent().addBack();
+                expect($selection).toHaveLength(2);
+                expect($selection[0]).toBe($('#fruits')[0]);
+                expect($selection[1]).toBe($('.apple')[0]);
+            });
+            it('includes parents and self', () => {
+                const q = load(food);
+                const $selection = q('.apple').parents().addBack();
+                expect($selection).toHaveLength(5);
+                expect($selection[0]).toBe(q('html')[0]);
+                expect($selection[1]).toBe(q('body')[0]);
+                expect($selection[2]).toBe(q('#food')[0]);
+                expect($selection[3]).toBe(q('#fruits')[0]);
+                expect($selection[4]).toBe(q('.apple')[0]);
+            });
+        });
+        it('(filter) : filters the previous selection', () => {
+            const $selection = $('li').eq(1).addBack('.apple');
+            expect($selection).toHaveLength(2);
+            expect($selection[0]).toBe($('.apple')[0]);
+            expect($selection[1]).toBe($('.orange')[0]);
+        });
+        it('() : fails gracefully when no args are passed', () => {
+            const $div = cheerio('<div>');
+            expect($div.addBack()).toBe($div);
+        });
+    });
+    describe('.is', () => {
+        it('() : should return false', () => {
+            expect($('li.apple').is()).toBe(false);
+        });
+        it('(true selector) : should return true', () => {
+            expect(cheerio('#vegetables', vegetables).is('ul')).toBe(true);
+        });
+        it('(false selector) : should return false', () => {
+            expect(cheerio('#vegetables', vegetables).is('div')).toBe(false);
+        });
+        it('(true selection) : should return true', () => {
+            const $vegetables = cheerio('li', vegetables);
+            expect($vegetables.is($vegetables.eq(1))).toBe(true);
+        });
+        it('(false selection) : should return false', () => {
+            const $vegetableList = cheerio(vegetables);
+            const $vegetables = $vegetableList.find('li');
+            expect($vegetables.is($vegetableList)).toBe(false);
+        });
+        it('(true element) : should return true', () => {
+            const $vegetables = cheerio('li', vegetables);
+            expect($vegetables.is($vegetables[0])).toBe(true);
+        });
+        it('(false element) : should return false', () => {
+            const $vegetableList = cheerio(vegetables);
+            const $vegetables = $vegetableList.find('li');
+            expect($vegetables.is($vegetableList[0])).toBe(false);
+        });
+        it('(true predicate) : should return true', () => {
+            const result = $('li').is(function () {
+                return this.tagName === 'li' && $(this).hasClass('pear');
+            });
+            expect(result).toBe(true);
+        });
+        it('(false predicate) : should return false', () => {
+            const result = $('li')
+                .last()
+                .is(function () {
+                return this.tagName === 'ul';
+            });
+            expect(result).toBe(false);
         });
     });
 });

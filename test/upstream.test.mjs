@@ -4,4 +4,5 @@ import './upstream/manipulation.mjs';
 import './upstream/forms.mjs';
 import './upstream/css.mjs';
 import './upstream/extract.mjs';
+import './upstream/static.mjs';
 import './upstream/jquery.mjs';

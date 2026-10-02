@@ -142,12 +142,13 @@ export const kernel = {
     try { input(state, html); check(state, runtime.gk_parse_profile(pointer)); return runtime.memory.buffer.byteLength; }
     finally { runtime.gk_delete(pointer); if (perDocument) release(runtime); }
   },
-  create(html, scripting, fragment) {
+  createXML(html, flags) { return this.create(html, true, false, flags); },
+  create(html, scripting, fragment, xmlFlags) {
     if (typeof scripting !== 'boolean' || typeof fragment !== 'boolean') fail('ERR_GROVEDOM_ARGUMENT', 'Expected parser flags');
     const runtime = shared ?? acquire(), pointer = runtime.gk_new();
     if (!pointer) fail('ERR_GROVEDOM_MEMORY', 'Owner allocation failed');
     const state = { runtime, pointer, bytes: null, words: null };
-    try { input(state, html); check(state, runtime.gk_parse(pointer, Number(scripting), Number(fragment))); }
+    try { input(state, html); check(state, xmlFlags === undefined ? runtime.gk_parse(pointer, Number(scripting), Number(fragment)) : runtime.gk_parse_xml(pointer, xmlFlags)); }
     catch (error) { runtime.gk_delete(pointer); if (perDocument) release(runtime); throw error; }
     const handle = Object.freeze({});
     owners.set(handle, state);

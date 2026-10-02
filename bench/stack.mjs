@@ -51,6 +51,22 @@ try {
   for (const depth of [20, 100, 500]) cases.push({ id: `selector-depth-${depth}`, source: '<p>text</p>',
     run(load, source) { const $ = load(source); try { $(':is('.repeat(depth) + 'p' + ')'.repeat(depth)); } finally { $.dispose(); } },
   });
+  for (const depth of [100, 1000, 5000]) cases.push({ id: `template-depth-${depth}`,
+    source: '<template>'.repeat(depth) + '<p>deep</p>' + '</template>'.repeat(depth),
+    run(load, source) {
+      const $ = load(source, {}, false);
+      try { $.root().children().clone().toString(); $('p').text('changed'); $.html(); $.root().empty(); $.flush(); }
+      finally { $.dispose(); }
+    },
+  });
+  for (const depth of [100, 1000, 5000]) cases.push({ id: `xml-depth-${depth}`,
+    source: '<?xml version="1.0"?><Root>' + '<Node A="&#xe9;">'.repeat(depth) + '<![CDATA[deep]]>' + '</Node>'.repeat(depth) + '</Root>',
+    run(load, source) {
+      const $ = load(source, { xml: true });
+      try { $('Root').clone().toString(); $(':root > Node').attr('A', 'changed'); $.xml(); $('Root').empty(); $.flush(); }
+      finally { $.dispose(); }
+    },
+  });
   if (process.env.GROVEDOM_HTML_MANIFEST) {
     const manifest = JSON.parse(readFileSync(process.env.GROVEDOM_HTML_MANIFEST, 'utf8'));
     for (const { id, path } of manifest) cases.push({ id, source: readFileSync(path, 'utf8'), run: replay });

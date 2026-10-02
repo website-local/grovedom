@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, beforeEach, afterEach } from 'node:test';
-import { load as groveLoad } from '../src/index.js';
+import { load as groveLoad, contains, merge } from '../src/index.js';
 export { describe, it, beforeEach };
 const documents = [];
 let fixture;
@@ -9,6 +9,7 @@ afterEach(() => { for (const $ of documents.splice(0)) $.dispose(); fixture = un
 function fixtureAPI() { return fixture ??= load('<div id="qunit-fixture"></div>'); }
 export const fixtureCheerio = Object.assign((input, context) => fixtureAPI()(input, context), {
   load,
+  contains, merge,
   parseHTML: (...args) => fixtureAPI().parseHTML(...args),
 });
 const example = groveLoad('');
@@ -45,7 +46,7 @@ export function expect(value, negate = false) {
     toHaveLength: length => check(() => assert.equal(value.length, length)),
     toHaveProperty: (key, expected) => check(() => { assert.ok(key in value); if (expected !== undefined) assert.deepEqual(value[key], expected); }),
     toBeInstanceOf: constructor => check(() => assert.ok(value instanceof constructor)),
-    toContain: item => check(() => assert.ok(value.includes(item))),
+    toContain: item => check(() => assert.ok(typeof value === 'string' ? value.includes(item) : Array.prototype.includes.call(value, item))),
     toMatch: pattern => check(() => assert.match(value, pattern)),
     toThrow: pattern => check(() => assert.throws(value, typeof pattern === 'string' ? error => error.message.includes(pattern) : pattern)),
   };

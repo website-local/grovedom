@@ -1,7 +1,7 @@
 // Adapted from Cheerio 1.2.0; see README.md and cheerio-LICENSE.
 import { describe, it, expect, beforeEach } from '../upstream-support.mjs';
 import { load } from '../upstream-support.mjs';
-import { cheerio, fruits, vegetables, food, chocolates, inputs, mixedText, } from './fixtures.mjs';
+import { cheerio, script, fruits, vegetables, food, chocolates, inputs, mixedText, } from './fixtures.mjs';
 function withClass(attr) {
     return cheerio(`<div class="${attr}"></div>`);
 }
@@ -135,12 +135,184 @@ describe('$(...)', () => {
             expect($('.pear').attr('foo')).toBeUndefined();
             expect($pear).toBeInstanceOf($);
         });
-        it.skip("(bool) shouldn't treat boolean attributes differently in XML mode", () => {
+        it("(bool) shouldn't treat boolean attributes differently in XML mode", () => {
             const $xml = $.load(`<input checked=checked disabled=yes />`, {
                 xml: true,
             })('input');
             expect($xml.attr('checked')).toBe('checked');
             expect($xml.attr('disabled')).toBe('yes');
+        });
+    });
+    describe('.prop', () => {
+        let $;
+        let checkbox;
+        beforeEach(() => {
+            $ = load(inputs);
+            checkbox = $('input[name=checkbox_on]');
+        });
+        it('(valid key) : valid prop should get value', () => {
+            expect(checkbox.prop('checked')).toBe(true);
+            checkbox.css('display', 'none');
+            expect(checkbox.prop('style')).toHaveProperty('display', 'none');
+            expect(checkbox.prop('style')).toHaveLength(1);
+            expect(checkbox.prop('style')).toContain('display');
+            expect(checkbox.prop('tagName')).toBe('INPUT');
+            expect(checkbox.prop('nodeName')).toBe('INPUT');
+        });
+        it('(valid key) : should return on empty collection', () => {
+            expect($(undefined).prop('checked')).toBeUndefined();
+            expect($(undefined).prop('style')).toBeUndefined();
+            expect($(undefined).prop('tagName')).toBeUndefined();
+            expect($(undefined).prop('nodeName')).toBeUndefined();
+        });
+        it('(invalid key) : invalid prop should get undefined', () => {
+            expect(checkbox.prop('lol')).toBeUndefined();
+            expect(checkbox.prop(4)).toBeUndefined();
+            expect(checkbox.prop(true)).toBeUndefined();
+        });
+        it('(key, value) : should set prop', () => {
+            expect(checkbox.prop('checked')).toBe(true);
+            checkbox.prop('checked', false);
+            expect(checkbox.prop('checked')).toBe(false);
+            checkbox.prop('checked', true);
+            expect(checkbox.prop('checked')).toBe(true);
+        });
+        it('(key, value) : should update attribute', () => {
+            expect(checkbox.prop('checked')).toBe(true);
+            expect(checkbox.attr('checked')).toBe('checked');
+            checkbox.prop('checked', false);
+            expect(checkbox.prop('checked')).toBe(false);
+            expect(checkbox.attr('checked')).toBeUndefined();
+            checkbox.prop('checked', true);
+            expect(checkbox.prop('checked')).toBe(true);
+            expect(checkbox.attr('checked')).toBe('checked');
+        });
+        it.skip('(key, value) : should update namespace', () => {
+            const imgs = $('<img>\n\n<img>\n\n<img>');
+            const nsHtml = 'http://www.w3.org/1999/xhtml';
+            imgs.prop('src', '#').prop('namespace', nsHtml);
+            expect(imgs.prop('namespace')).toBe(nsHtml);
+            imgs.prop('attribs', null);
+            expect(imgs.prop('src')).toBeUndefined();
+            expect(imgs.prop('data-foo')).toBeUndefined();
+        });
+        it('(key, value) : should ignore empty collection', () => {
+            expect($(undefined).prop('checked')).toBeUndefined();
+            $(undefined).prop('checked', true);
+            expect($(undefined).prop('checked')).toBeUndefined();
+        });
+        it('(map) : object map should set multiple props', () => {
+            checkbox.prop({
+                id: 'check',
+                checked: false,
+            });
+            expect(checkbox.prop('id')).toBe('check');
+            expect(checkbox.prop('checked')).toBe(false);
+        });
+        it.skip('(map, val) : should throw with wrong combination of arguments', () => {
+            expect(() => $('.apple').prop({
+                id: 'check',
+                checked: false,
+            }, () => '')).toThrow('Bad combination of arguments.');
+        });
+        it('(key, function) : should call the function and update the prop with the return value', () => {
+            checkbox.prop('checked', (index, value) => {
+                expect(index).toBe(0);
+                expect(value).toBe(true);
+                return false;
+            });
+            expect(checkbox.prop('checked')).toBe(false);
+        });
+        it('(key, value) : should support chaining after setting props', () => {
+            expect(checkbox.prop('checked', false)).toBe(checkbox);
+        });
+        it('(invalid element/tag) : prop should return undefined', () => {
+            expect($(undefined).prop('prop')).toBeUndefined();
+            expect($(null).prop('prop')).toBeUndefined();
+        });
+        it('("href") : should resolve links with `baseURI`', () => {
+            const $ = load(`
+          <a id="1" href="http://example.org">example1</a>
+          <a id="2" href="//example.org">example2</a>
+          <a id="3" href="/example.org">example3</a>
+          <a id="4" href="example.org">example4</a>
+        `, { baseURI: 'http://example.com/page/1' });
+            expect($('#1').prop('href')).toBe('http://example.org/');
+            expect($('#2').prop('href')).toBe('http://example.org/');
+            expect($('#3').prop('href')).toBe('http://example.com/example.org');
+            expect($('#4').prop('href')).toBe('http://example.com/page/example.org');
+            expect($(undefined).prop('href')).toBeUndefined();
+        });
+        it('("href") : should skip values without an href', () => {
+            const $ = load('<a id="1">example1</a>');
+            expect($('#1').prop('href')).toBeUndefined();
+        });
+        it('("src") : should resolve links with `baseURI`', () => {
+            const $ = load(`
+          <img id="1" src="http://example.org/image.png">
+          <iframe id="2" src="//example.org/page.html"></iframe>
+          <audio id="3" src="/example.org/song.mp3"></audio>
+          <source id="4" src="example.org/image.png">
+        `, { baseURI: 'http://example.com/page/1' });
+            expect($('#1').prop('src')).toBe('http://example.org/image.png');
+            expect($('#2').prop('src')).toBe('http://example.org/page.html');
+            expect($('#3').prop('src')).toBe('http://example.com/example.org/song.mp3');
+            expect($('#4').prop('src')).toBe('http://example.com/page/example.org/image.png');
+            expect($(undefined).prop('src')).toBeUndefined();
+        });
+        it('("outerHTML") : should render properly', () => {
+            const outerHtml = '<div><a></a></div>';
+            const $a = $(outerHtml);
+            expect($a.prop('outerHTML')).toBe(outerHtml);
+            expect($(undefined).prop('outerHTML')).toBeUndefined();
+        });
+        it('("outerHTML") : should support root nodes', () => {
+            const $ = load('<div></div>');
+            expect($.root().prop('outerHTML')).toBe('<html><head></head><body><div></div></body></html>');
+        });
+        it('("innerHTML") : should render properly', () => {
+            const $a = $('<div><a></a></div>');
+            expect($a.prop('innerHTML')).toBe('<a></a>');
+            expect($(undefined).prop('innerHTML')).toBeUndefined();
+        });
+        it('("textContent") : should render properly', () => {
+            expect($('select').children().prop('textContent')).toBe('Option not selected');
+            expect($(script).prop('textContent')).toBe('A  var foo = "bar";B');
+            expect($(undefined).prop('textContent')).toBeUndefined();
+        });
+        it('("textContent") : should include style and script tags', () => {
+            const $ = load('<body>Welcome <div>Hello, testing text function,<script>console.log("hello")</script></div><style type="text/css">.cf-hidden { display: none; }</style>End of message</body>');
+            expect($('body').prop('textContent')).toBe('Welcome Hello, testing text function,console.log("hello").cf-hidden { display: none; }End of message');
+            expect($('style').prop('textContent')).toBe('.cf-hidden { display: none; }');
+            expect($('script').prop('textContent')).toBe('console.log("hello")');
+        });
+        it('("innerText") : should render properly', () => {
+            expect($('select').children().prop('innerText')).toBe('Option not selected');
+            expect($(script).prop('innerText')).toBe('AB');
+            expect($(undefined).prop('innerText')).toBeUndefined();
+        });
+        it('("innerText") : should omit style and script tags', () => {
+            const $ = load('<body>Welcome <div>Hello, testing text function,<script>console.log("hello")</script></div><style type="text/css">.cf-hidden { display: none; }</style>End of message</body>');
+            expect($('body').prop('innerText')).toBe('Welcome Hello, testing text function,End of message');
+            expect($('style').prop('innerText')).toBe('');
+            expect($('script').prop('innerText')).toBe('');
+        });
+        it.skip('(inherited properties) : prop should support inherited properties', () => {
+            expect($('select').prop('childNodes')).toBe($('select')[0].childNodes);
+        });
+        it('(key) : should skip text nodes', () => {
+            const $text = load(mixedText);
+            const $body = $text($text('body')[0].children);
+            expect($text($body[1]).prop('tagName')).toBeUndefined();
+            $body.prop('test-name', () => 'tester');
+            expect($text('body').html()).toBe('<a test-name="tester">1</a>TEXT<b test-name="tester">2</b>');
+        });
+        it("(bool) shouldn't treat boolean attributes differently in XML mode", () => {
+            const $xml = $.load(`<input checked=checked disabled=yes />`, {
+                xml: true,
+            })('input');
+            expect($xml.prop('checked')).toBe('checked');
+            expect($xml.prop('disabled')).toBe('yes');
         });
     });
     describe('.data', () => {

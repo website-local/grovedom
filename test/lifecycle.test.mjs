@@ -100,9 +100,9 @@ test('warmed repeated text and attribute writes need no new native backing alloc
 test('repeated unobserved subtree replacement returns nodes to document pools', () => {
   const $ = load('<main></main>', { execution: 'direct' }), main = $('main');
   try {
-    for (let i = 0; i < 100; i++) main.html('<p>replacement</p>');
+    for (let i = 0; i < 100; i++) main.html('<p id="item" class="replacement">replacement</p>');
     const before = kernel.stats();
-    for (let i = 0; i < 1000; i++) main.html('<p>replacement</p>');
+    for (let i = 0; i < 1000; i++) main.html('<p id="item" class="replacement">replacement</p>');
     const after = kernel.stats();
     assert.equal(after.liveBytes, before.liveBytes);
     assert.equal(main.text(), 'replacement');

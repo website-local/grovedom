@@ -111,15 +111,18 @@ static napi_value gd_value(napi_env env, gd_document *doc, const gd_result *valu
     if (status != napi_ok) result = gd_error(env, "ERR_GROVEDOM_MEMORY", "Result materialization failed");
     return gd_finish(env, doc, result);
 }
-static napi_value gd_create(napi_env env, napi_callback_info info) {
+static napi_value gd_create_impl(napi_env env, napi_callback_info info, int xml) {
     napi_value args[3], owner;
-    bool scripting, fragment;
-    if (!gd_arguments(env, info, 3, args)) return NULL;
-    if (napi_get_value_bool(env, args[1], &scripting) != napi_ok || napi_get_value_bool(env, args[2], &fragment) != napi_ok) return gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected parser flags");
+    bool scripting = true, fragment = false;
+    uint32_t flags = 0;
+    if (!gd_arguments(env, info, xml ? 2 : 3, args)) return NULL;
+    if (xml) {
+        if (napi_get_value_uint32(env, args[1], &flags) != napi_ok) return gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected XML flags");
+    } else if (napi_get_value_bool(env, args[1], &scripting) != napi_ok || napi_get_value_bool(env, args[2], &fragment) != napi_ok) return gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected parser flags");
     gd_document *doc = gk_new();
     if (!doc) return gd_error(env, "ERR_GROVEDOM_MEMORY", "Owner allocation failed");
     if (!gd_string(env, doc, args[0])) goto failed;
-    if (!gk_parse(doc, scripting, fragment)) { gd_error(env, doc->error_code, doc->error_message); goto failed; }
+    if (!(xml ? gk_parse_xml(doc, flags) : gk_parse(doc, scripting, fragment))) { gd_error(env, doc->error_code, doc->error_message); goto failed; }
     if (napi_create_object(env, &owner) != napi_ok || napi_type_tag_object(env, owner, &gd_owner_tag) != napi_ok ||
         napi_wrap(env, owner, doc, gd_finalize, NULL, NULL) != napi_ok) goto failed;
     return gd_finish(env, doc, owner);
@@ -129,6 +132,8 @@ failed:
     napi_is_exception_pending(env, &pending);
     return pending ? NULL : gd_error(env, "ERR_GROVEDOM_MEMORY", "Document creation failed");
 }
+static napi_value gd_create(napi_env env, napi_callback_info info) { return gd_create_impl(env, info, 0); }
+static napi_value gd_create_xml(napi_env env, napi_callback_info info) { return gd_create_impl(env, info, 1); }
 
 static napi_value gd_dispose(napi_env env, napi_callback_info info) {
     napi_value args[1], result;
@@ -254,6 +259,7 @@ NAPI_MODULE_INIT() {
         { "profileProbe", NULL, gd_profile_probe, NULL, NULL, NULL, napi_default, NULL },
 #endif
         { "create", NULL, gd_create, NULL, NULL, NULL, napi_default, NULL },
+        { "createXML", NULL, gd_create_xml, NULL, NULL, NULL, napi_default, NULL },
         { "dispose", NULL, gd_dispose, NULL, NULL, NULL, napi_default, NULL },
         { "query", NULL, gd_query, NULL, NULL, NULL, napi_default, NULL },
         { "read", NULL, gd_read, NULL, NULL, NULL, napi_default, NULL },

@@ -7,9 +7,8 @@
 #include <lexbor/selectors/selectors.h>
 #include "profile.h"
 enum { SET_ATTR = 1, REMOVE_ATTR, SET_TEXT, SET_HTML, APPEND_HTML, REMOVE_NODE };
-enum { READ_ATTR = 1, READ_TEXT, READ_HTML, READ_OUTER, READ_NAME, READ_TYPE, READ_ATTRS, READ_DATA, READ_INNER_TEXT, READ_ALL_OUTER };
+enum { READ_ATTR = 1, READ_TEXT, READ_HTML, READ_OUTER, READ_NAME, READ_TYPE, READ_ATTRS, READ_DATA, READ_INNER_TEXT, READ_ALL_OUTER, READ_XML };
 #define PLAN_COUNT 32
-#define GD_UNSUPPORTED ((lxb_status_t) 0x10001)
 
 enum { GD_UNDEFINED, GD_STRING, GD_NUMBER, GD_IDS, GD_NULL };
 typedef struct { uint32_t kind; const void *data; size_t length; uint32_t number; } gd_result;
@@ -31,15 +30,22 @@ struct gd_document {
     uint32_t *results;
     size_t result_count, result_capacity;
     uint32_t mark;
-    gd_buffer input, output, transfer;
+    gd_buffer input, output, transfer, xml_name;
     gd_result result;
     const char *error_code, *error_message;
     char error_buffer[96];
     size_t bytes;
     int64_t accounted;
-    int closed;
+    int closed, templates, xml;
+    unsigned xml_flags;
 };
 
+/* Shared implementation helpers. Hidden by both builds; not binding exports. */
+int gd_reserve(void **data, size_t *capacity, size_t needed, size_t item_size);
+int gd_set_error(gd_document *doc, const char *code, const char *message);
+lxb_status_t gd_write(const lxb_char_t *data, size_t length, void *context);
+lxb_dom_attr_t *gd_attribute(lxb_dom_node_t *node, const lxb_char_t *name, size_t length);
+void gd_destroy_subtree(lxb_dom_node_t *root);
 
 void gk_init(void);
 #ifdef __wasm__
@@ -51,6 +57,7 @@ void gk_delete(gd_document *doc);
 void *gk_input(gd_document *doc, size_t length);
 void *gk_transfer(gd_document *doc, size_t length);
 int gk_parse(gd_document *doc, int scripting, int fragment);
+int gk_parse_xml(gd_document *doc, unsigned flags);
 const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, int match);
 const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *ids, size_t count);
 const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count, uint32_t axis);

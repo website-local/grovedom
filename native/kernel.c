@@ -1,7 +1,10 @@
 #include "kernel.h"
+#include "xml.h"
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <lexbor/dom/interfaces/processing_instruction.h>
+#include <lexbor/html/interfaces/template_element.h>
 
 /* Track Lexbor backing allocations, not individual arena slots. The library is
  * statically linked with hidden symbols; these hooks affect only this kernel.
@@ -77,7 +80,7 @@ void gk_init(void) {
     lexbor_memory_setup(gd_malloc, gd_realloc, gd_calloc, gd_free);
 }
 
-static int gd_reserve(void **data, size_t *capacity, size_t needed, size_t item_size) {
+int gd_reserve(void **data, size_t *capacity, size_t needed, size_t item_size) {
     if (needed <= *capacity) return 1;
     size_t next = *capacity ? *capacity : 128;
     while (next < needed) {
@@ -93,7 +96,7 @@ static int gd_reserve(void **data, size_t *capacity, size_t needed, size_t item_
 }
 
 
-static int gd_error(gd_document *doc, const char *code, const char *message) {
+int gd_set_error(gd_document *doc, const char *code, const char *message) {
     doc->error_code = code;
     doc->error_message = message;
     return 0;
@@ -111,11 +114,11 @@ static void gd_mutation_error(gd_document *doc, size_t operation) {
     memcpy(next, prefix, sizeof(prefix) - 1); next += sizeof(prefix) - 1;
     while (count) *next++ = digits[--count];
     memcpy(next, suffix, sizeof(suffix));
-    gd_error(doc, "ERR_GROVEDOM_MUTATION", doc->error_buffer);
+    gd_set_error(doc, "ERR_GROVEDOM_MUTATION", doc->error_buffer);
 }
 static int gd_begin(gd_document *doc) {
     doc->error_code = doc->error_message = NULL;
-    if (doc->closed) return gd_error(doc, "ERR_GROVEDOM_DISPOSED", "Document has been disposed");
+    if (doc->closed) return gd_set_error(doc, "ERR_GROVEDOM_DISPOSED", "Document has been disposed");
     gd_active = doc;
     return 1;
 }
@@ -144,12 +147,13 @@ static void gd_release(gd_document *doc) {
     gd_free(doc->input.data);
     gd_free(doc->output.data);
     gd_free(doc->transfer.data);
+    gd_free(doc->xml_name.data);
     doc->html = NULL;
     doc->css = NULL;
     doc->selectors = NULL;
     doc->nodes = NULL;
     doc->results = NULL;
-    doc->input.data = doc->output.data = doc->transfer.data = NULL;
+    doc->input.data = doc->output.data = doc->transfer.data = doc->xml_name.data = NULL;
     gd_live_documents--;
 }
 
@@ -158,7 +162,7 @@ void gk_delete(gd_document *doc) { if (doc) { gd_release(doc); free(doc); } }
 void *gk_input(gd_document *doc, size_t length) {
     if (!gd_begin(doc)) return NULL;
     if (length >= UINT32_MAX || !gd_reserve((void **) &doc->input.data, &doc->input.capacity, length + 1, 1)) {
-        gd_error(doc, "ERR_GROVEDOM_MEMORY", "Input allocation failed"); gd_active = NULL; return NULL;
+        gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Input allocation failed"); gd_active = NULL; return NULL;
     }
     doc->input.length = length;
     doc->input.data[length] = 0;
@@ -168,7 +172,7 @@ void *gk_input(gd_document *doc, size_t length) {
 void *gk_transfer(gd_document *doc, size_t length) {
     if (!gd_begin(doc)) return NULL;
     if (!gd_reserve((void **) &doc->transfer.data, &doc->transfer.capacity, length ? length : 1, 1)) {
-        gd_error(doc, "ERR_GROVEDOM_MEMORY", "Transfer allocation failed"); gd_active = NULL; return NULL;
+        gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Transfer allocation failed"); gd_active = NULL; return NULL;
     }
     gd_active = NULL;
     return doc->transfer.data;
@@ -177,7 +181,7 @@ void *gk_transfer(gd_document *doc, size_t length) {
 static int gd_valid_ids(gd_document *doc, const uint32_t *ids, size_t count) {
     for (size_t i = 0; i < count; i++) {
         if (!ids[i] || ids[i] > doc->node_count) {
-            gd_error(doc, "ERR_GROVEDOM_HANDLE", "Invalid node handle");
+            gd_set_error(doc, "ERR_GROVEDOM_HANDLE", "Invalid node handle");
             return 0;
         }
     }
@@ -216,7 +220,7 @@ static lxb_status_t gd_collect(lxb_dom_node_t *node, lxb_css_selector_specificit
     return LXB_STATUS_OK;
 }
 
-static lxb_status_t gd_write(const lxb_char_t *data, size_t length, void *context) {
+lxb_status_t gd_write(const lxb_char_t *data, size_t length, void *context) {
     GD_PROFILE_ADD(GP_OUTPUT_CHUNKS, 1); GD_PROFILE_ADD(GP_OUTPUT_BYTES, length);
     gd_buffer *buffer = context;
     if (length > SIZE_MAX - buffer->length ||
@@ -234,7 +238,7 @@ static lxb_status_t gd_text(gd_document *doc, lxb_dom_node_t *root, int inner_te
             lxb_status_t status = gd_write(data->data, data->length, &doc->output);
             if (status != LXB_STATUS_OK) return status;
         }
-        if (node->first_child && !(inner_text && node->type == LXB_DOM_NODE_TYPE_ELEMENT && (node->local_name == LXB_TAG_SCRIPT || node->local_name == LXB_TAG_STYLE))) { node = node->first_child; continue; }
+        if (node->first_child && !(inner_text && !doc->xml && node->type == LXB_DOM_NODE_TYPE_ELEMENT && (node->local_name == LXB_TAG_SCRIPT || node->local_name == LXB_TAG_STYLE))) { node = node->first_child; continue; }
         while (node != root && !node->next) node = node->parent;
         if (node == root) break;
         node = node->next;
@@ -242,7 +246,7 @@ static lxb_status_t gd_text(gd_document *doc, lxb_dom_node_t *root, int inner_te
     return LXB_STATUS_OK;
 }
 
-static lxb_dom_attr_t *gd_attribute(lxb_dom_node_t *node, const lxb_char_t *name, size_t length) {
+lxb_dom_attr_t *gd_attribute(lxb_dom_node_t *node, const lxb_char_t *name, size_t length) {
     if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return NULL;
     for (lxb_dom_attr_t *attr = lxb_dom_interface_element(node)->first_attr; attr; attr = attr->next) {
         size_t nlen;
@@ -268,10 +272,10 @@ static lxb_status_t gd_json(gd_document *doc, const lxb_char_t *data, size_t len
     return gd_write((const lxb_char_t *) "\"", 1, &doc->output);
 }
 
-static int gd_subtree_flag(lxb_dom_node_t *root, int handles) {
+static int gd_subtree_flag(lxb_dom_node_t *root) {
     lxb_dom_node_t *node = root;
     while (node) {
-        if (handles ? node->user != NULL : (node->type == LXB_DOM_NODE_TYPE_ELEMENT && node->local_name == LXB_TAG_TEMPLATE)) return 1;
+        if (node->user) return 1;
         if (node->first_child) { node = node->first_child; continue; }
         while (node != root && !node->next) node = node->parent;
         if (node == root) break;
@@ -280,13 +284,184 @@ static int gd_subtree_flag(lxb_dom_node_t *root, int handles) {
     return 0;
 }
 
+void gd_destroy_subtree(lxb_dom_node_t *root) {
+    lxb_dom_node_t *node = root;
+    while (node) {
+        if (node->first_child) { node = node->first_child; continue; }
+        lxb_dom_node_t *next = node == root ? NULL : node->next ? node->next : node->parent;
+        /* Lexbor's specialized HTML destructors free the interface but omit
+         * its attributes. Return them explicitly before freeing that interface. */
+        if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+            lxb_dom_element_t *element = lxb_dom_interface_element(node);
+            while (element->first_attr) {
+                lxb_dom_attr_t *attr = element->first_attr;
+                lxb_dom_element_attr_remove(element, attr);
+                lxb_dom_attr_interface_destroy(attr);
+            }
+        }
+        lxb_dom_node_destroy(node);
+        node = next;
+    }
+}
+
 static void gd_clear_children(lxb_dom_node_t *node) {
     while (node->first_child) {
         lxb_dom_node_t *child = node->first_child;
         lxb_dom_node_remove(child);
         // Retain any subtree with exposed handles. Return others to Lexbor pools.
-        if (!gd_subtree_flag(child, 1)) lxb_dom_node_destroy_deep(child);
+        if (!gd_subtree_flag(child)) gd_destroy_subtree(child);
     }
+}
+
+static int gd_template(lxb_dom_node_t *node) {
+    return node->type == LXB_DOM_NODE_TYPE_ELEMENT && node->ns == LXB_NS_HTML && node->local_name == LXB_TAG_TEMPLATE;
+}
+
+/* Cheerio represents template content as an ordinary fragment child. Leave
+ * Lexbor's private content fragment empty and owned by its template interface;
+ * exposed fragments then use normal cloning, retention and destruction. */
+static int gd_templates(gd_document *doc, lxb_dom_node_t *root) {
+    lxb_dom_node_t *node = root;
+    while (node) {
+        if (gd_template(node)) {
+            doc->templates = 1;
+            lxb_dom_node_t *content = &lxb_html_interface_template(node)->content->node;
+            lxb_dom_node_t *fragment = lxb_dom_interface_node(lxb_dom_document_create_document_fragment(&doc->html->dom_document));
+            if (!fragment) return 0;
+            while (content->first_child) {
+                lxb_dom_node_t *child = content->first_child;
+                lxb_dom_node_remove(child);
+                lxb_dom_node_insert_child(fragment, child);
+            }
+            lxb_dom_node_insert_child(node, fragment);
+        }
+        if (node->first_child) { node = node->first_child; continue; }
+        while (node != root && !node->next) node = node->parent;
+        if (node == root) break;
+        node = node->next;
+    }
+    return 1;
+}
+
+typedef struct { gd_buffer *output; int value; } gd_attribute_output;
+static lxb_status_t gd_attribute_write(const lxb_char_t *data, size_t length, void *context) {
+    gd_attribute_output *output = context;
+    /* Lexbor emits escaping entities as separate chunks. HTML attributes
+     * preserve angle brackets in Cheerio/parse5. Names and text keep their
+     * original serialization; literal entity text still escapes its ampersand. */
+    if (output->value) {
+        if (length == 4 && memcmp(data, "&lt;", 4) == 0) return gd_write((const lxb_char_t *) "<", 1, output->output);
+        if (length == 4 && memcmp(data, "&gt;", 4) == 0) return gd_write((const lxb_char_t *) ">", 1, output->output);
+        if (length == 1 && data[0] == '"') output->value = 0;
+    } else if (length >= 2 && data[length - 2] == '=' && data[length - 1] == '"') output->value = 1;
+    return gd_write(data, length, output->output);
+}
+
+/* Reuse Lexbor's escaping and opening-tag serializer. Iterative traversal
+ * bounds linear-stack use even for deeply nested templates; no temporary heap
+ * allocation is needed per node. */
+static lxb_status_t gd_serialize_tree(gd_document *doc, lxb_dom_node_t *root) {
+    if (doc->xml) return gd_xml_serialize(doc, root, doc->xml_flags);
+    lxb_dom_node_t *node = root;
+    gd_attribute_output output = { &doc->output, 0 };
+    while (node) {
+        lxb_status_t status;
+        if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) status = lxb_html_serialize_cb(node, gd_attribute_write, &output);
+        else status = node->type == LXB_DOM_NODE_TYPE_DOCUMENT || node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT ? LXB_STATUS_OK : lxb_html_serialize_cb(node, gd_write, &doc->output);
+        if (status != LXB_STATUS_OK) return status;
+        lxb_dom_node_t *child = node->first_child;
+        if (gd_template(node)) child = child ? child->first_child : NULL;
+        if (!lxb_html_node_is_void(node) && child) { node = child; continue; }
+        for (;;) {
+            if (node->type == LXB_DOM_NODE_TYPE_ELEMENT && !lxb_html_node_is_void(node)) {
+                size_t length;
+                const lxb_char_t *name = lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length);
+                if (!name || gd_write((const lxb_char_t *) "</", 2, &doc->output) != LXB_STATUS_OK ||
+                    gd_write(name, length, &doc->output) != LXB_STATUS_OK ||
+                    gd_write((const lxb_char_t *) ">", 1, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+            }
+            if (node == root) return LXB_STATUS_OK;
+            if (node->next) { node = node->next; break; }
+            node = node->parent;
+            if (node != root && node->parent && gd_template(node->parent)) node = node->parent;
+        }
+    }
+    return LXB_STATUS_OK;
+}
+
+static lxb_status_t gd_serialize(gd_document *doc, lxb_dom_node_t *node, int inner) {
+    if (!inner) return gd_serialize_tree(doc, node);
+    for (node = node->first_child; node; node = node->next) {
+        lxb_status_t status = gd_serialize_tree(doc, node);
+        if (status != LXB_STATUS_OK) return status;
+    }
+    return LXB_STATUS_OK;
+}
+
+static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
+    while (node && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) node = node->parent;
+    return node;
+}
+
+static int gd_template_plan(lxb_css_selector_list_t *list) {
+    /* Lexbor's child-sensitive pseudos use its own fragment-skipping walk.
+     * Reject those plans on template documents instead of returning partial
+     * matches. Walk nested plans without recursion or additional storage. */
+    lxb_css_selector_t *selector = list->first;
+    while (selector) {
+        lxb_css_selector_list_t *nested = NULL;
+        if (selector->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && selector->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) return 0;
+        if (selector->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) {
+            unsigned type = selector->u.pseudo.type;
+            if (type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) return 0;
+            if (type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_IS || type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NOT || type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_WHERE) nested = selector->u.pseudo.data;
+            else if (type >= LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NTH_CHILD && type <= LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NTH_OF_TYPE && selector->u.pseudo.data) nested = ((lxb_css_selector_anb_of_t *) selector->u.pseudo.data)->of;
+        }
+        if (nested && nested->first) { selector = nested->first; continue; }
+        for (;;) {
+            if (selector->next) { selector = selector->next; break; }
+            if (selector->list->next) { selector = selector->list->next->first; break; }
+            selector = selector->list->parent;
+            if (!selector) return 1;
+        }
+    }
+    return 1;
+}
+
+static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lxb_dom_node_t *boundary, lxb_css_selector_list_t *plan) {
+    /* Selector ancestry stops at the fragment, while raw parent identity stays
+     * connected. No JS callback can run during this synchronous kernel call. */
+    lxb_dom_node_t *parent = boundary ? boundary->parent : NULL;
+    if (boundary) boundary->parent = NULL;
+    lxb_status_t status = lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+    if (boundary) boundary->parent = parent;
+    return status;
+}
+
+static lxb_status_t gd_find_templates(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan) {
+    /* Cheerio find() starts at element children, then visits all descendants,
+     * including fragments. Lexbor's normal find skips fragment subtrees. */
+    for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
+        if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+        lxb_dom_node_t *node = start;
+        lxb_dom_node_t *boundary = gd_fragment_boundary(start->parent);
+        for (;;) {
+            if (node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) boundary = node;
+            if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+                lxb_status_t status = gd_match_template(doc, node, boundary, plan);
+                if (status != LXB_STATUS_OK) return status;
+            }
+            if (node->first_child) { node = node->first_child; continue; }
+            while (node != start && !node->next) {
+                if (node == boundary) boundary = gd_fragment_boundary(node->parent);
+                node = node->parent;
+            }
+            if (node == start) break;
+            if (node == boundary) boundary = gd_fragment_boundary(node->parent);
+            node = node->next;
+        }
+    }
+    return LXB_STATUS_OK;
 }
 
 static void gd_plans_clean(gd_document *doc) {
@@ -319,7 +494,12 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     int valid = list && doc->css->status == LXB_STATUS_OK && lxb_css_log_length(doc->css->log) == 0;
     if (!valid) {
         gd_plans_clean(doc);
-        gd_error(doc, "ERR_GROVEDOM_SELECTOR", "Invalid or unsupported CSS selector");
+        gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Invalid or unsupported CSS selector");
+        return NULL;
+    }
+    if (doc->xml && !gd_xml_plan(doc, list)) {
+        gd_plans_clean(doc);
+        if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Unsupported XML selector");
         return NULL;
     }
     char *key = lexbor_mraw_alloc(doc->css->memory->mraw, doc->input.length + 1);
@@ -329,7 +509,7 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     *plan = (gd_plan) { key, doc->input.length, list };
     return list;
 memory_error:
-    gd_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed");
+    gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed");
     return NULL;
 }
 
@@ -354,7 +534,7 @@ gd_document *gk_new(void) {
 static int gd_parse(gd_document *doc, int scripting, int fragment, int allow_templates) {
     GD_PROFILE_SCOPE(GP_PARSE);
     if (!gd_begin(doc)) return 0;
-    if (doc->node_count) { gd_error(doc, "ERR_GROVEDOM_ARGUMENT", "Document already parsed"); goto failed; }
+    if (doc->node_count) { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Document already parsed"); goto failed; }
     lxb_html_document_scripting_set(doc->html, scripting);
     lxb_dom_node_t *root = lxb_dom_interface_node(doc->html);
     if (fragment) {
@@ -370,16 +550,39 @@ static int gd_parse(gd_document *doc, int scripting, int fragment, int allow_tem
         }
         lxb_dom_node_destroy(parsed);
     } else if (lxb_html_document_parse(doc->html, doc->input.data, doc->input.length) != LXB_STATUS_OK) goto failed;
-    if (!allow_templates && gd_subtree_flag(root, 0)) { gd_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Template contents are not supported by this prototype"); goto failed; }
+    if (!allow_templates && !gd_templates(doc, root)) goto failed;
     gd_free(doc->input.data);
     doc->input = (gd_buffer) {0};
     if (!gd_id(doc, root)) goto failed;
     gd_active = NULL;
     return 1;
 failed:
-    if (!doc->error_code) gd_error(doc, "ERR_GROVEDOM_MEMORY", "Document creation failed");
+    if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Document creation failed");
     gd_active = NULL;
     return 0;
+}
+int gk_parse_xml(gd_document *doc, unsigned flags) {
+    GD_PROFILE_SCOPE(GP_PARSE);
+    if (!gd_begin(doc)) return 0;
+    if (doc->node_count) { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Document already parsed"); gd_active = NULL; return 0; }
+    doc->xml = 1; doc->xml_flags = flags;
+    lxb_dom_document_t *dom = &doc->html->dom_document;
+    dom->type = LXB_DOM_DOCUMENT_DTYPE_XML;
+    dom->clone_interface = gd_xml_clone_interface;
+    dom->destroy_interface = lxb_dom_interface_destroy;
+    lxb_dom_node_t *fragment = gd_xml_parse(doc, doc->input.data, doc->input.length);
+    if (!fragment) goto failed;
+    while (fragment->first_child) {
+        lxb_dom_node_t *child = fragment->first_child;
+        lxb_dom_node_remove(child); lxb_dom_node_insert_child(&dom->node, child);
+    }
+    lxb_dom_node_destroy(fragment);
+    gd_free(doc->input.data); doc->input = (gd_buffer) {0};
+    if (!gd_id(doc, &dom->node)) goto failed;
+    gd_active = NULL; return 1;
+failed:
+    if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "XML document creation failed");
+    gd_active = NULL; return 0;
 }
 int gk_parse(gd_document *doc, int scripting, int fragment) { return gd_parse(doc, scripting, fragment, 0); }
 #ifdef GROVEDOM_PROFILE_GROWTH
@@ -393,12 +596,16 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
     lxb_css_selector_list_t *plan = gd_plan_get(doc);
     if (!plan) return gd_failed();
+    if (doc->templates && !gd_template_plan(plan)) {
+        gd_set_error(doc, "ERR_GROVEDOM_UNSUPPORTED", ":has and :empty selectors on template documents are not supported");
+        return gd_failed();
+    }
     gd_results_reset(doc);
     for (size_t i = 0; i < count; i++) {
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
-        lxb_status_t status = match ? lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc) : lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
-        if (status != LXB_STATUS_OK) { gd_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
+        lxb_status_t status = match ? (doc->templates ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc)) : doc->templates ? gd_find_templates(doc, node, plan) : lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
+        if (status != LXB_STATUS_OK) { gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
     }
     return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
 }
@@ -419,7 +626,8 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
         }
         if (!data) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
     } else if (operation == READ_NAME) {
-        if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) data = lxb_dom_element_local_name(lxb_dom_interface_element(node), &length);
+        if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) data = doc->xml ? lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length) : lxb_dom_element_local_name(lxb_dom_interface_element(node), &length);
+        else if (node && node->type == LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION) data = lxb_dom_processing_instruction_target(lxb_dom_interface_processing_instruction(node), &length);
         if (!data) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
     } else if (operation == READ_ATTRS) {
         if (!node || node->type != LXB_DOM_NODE_TYPE_ELEMENT) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
@@ -434,18 +642,20 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
         }
         if (status == LXB_STATUS_OK) status = gd_write((const lxb_char_t *) "}", 1, &doc->output);
     } else if (operation == READ_DATA) {
-        if (!node || (node->type != LXB_DOM_NODE_TYPE_TEXT && node->type != LXB_DOM_NODE_TYPE_COMMENT && node->type != LXB_DOM_NODE_TYPE_CDATA_SECTION)) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
+        if (!node || (node->type != LXB_DOM_NODE_TYPE_TEXT && node->type != LXB_DOM_NODE_TYPE_COMMENT && node->type != LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION)) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
         lexbor_str_t *str = &lxb_dom_interface_character_data(node)->data;
         data = str->data; length = str->length;
     } else if (operation == READ_TEXT || operation == READ_INNER_TEXT) {
         for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_text(doc, doc->nodes[ids[i]].node, operation == READ_INNER_TEXT);
+    } else if (operation == READ_XML) {
+        for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_xml_serialize(doc, doc->nodes[ids[i]].node, doc->xml ? doc->xml_flags : XML_DECODE);
     } else if (operation == READ_ALL_OUTER) {
-        for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = lxb_html_serialize_tree_cb(doc->nodes[ids[i]].node, gd_write, &doc->output);
+        for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_serialize(doc, doc->nodes[ids[i]].node, 0);
     } else if (operation == READ_HTML || operation == READ_OUTER) {
-        if (!node || (operation == READ_HTML && node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT)) return gd_result_set(doc, GD_NULL, NULL, 0, 0);
-        status = operation == READ_HTML ? lxb_html_serialize_deep_cb(node, gd_write, &doc->output) : lxb_html_serialize_tree_cb(node, gd_write, &doc->output);
-    } else { gd_error(doc, "ERR_GROVEDOM_ARGUMENT", "Unknown read operation"); return gd_failed(); }
-    if (status != LXB_STATUS_OK) { gd_error(doc, "ERR_GROVEDOM_MEMORY", "Output allocation failed"); return gd_failed(); }
+        if (!node || (operation == READ_HTML && node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_result_set(doc, GD_NULL, NULL, 0, 0);
+        status = gd_serialize(doc, node, operation == READ_HTML);
+    } else { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Unknown read operation"); return gd_failed(); }
+    if (status != LXB_STATUS_OK) { gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Output allocation failed"); return gd_failed(); }
     if (!data) { data = doc->output.data; length = doc->output.length; }
     return gd_result_set(doc, GD_STRING, data, length, 0);
 }
@@ -453,7 +663,7 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
     GD_PROFILE_SCOPE(GP_TRAVERSE);
     if (!gd_begin(doc)) return NULL;
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
-    if (axis < 1 || axis > 12) { gd_error(doc, "ERR_GROVEDOM_ARGUMENT", "Invalid traversal axis"); return gd_failed(); }
+    if (axis < 1 || axis > 12) { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Invalid traversal axis"); return gd_failed(); }
     gd_results_reset(doc);
     for (size_t i = 0; i < count; i++) {
         lxb_dom_node_t *origin = doc->nodes[ids[i]].node, *node = origin;
@@ -465,9 +675,9 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
         while (node) {
             int eligible = node != origin && (axis == 3 || axis >= 10 || node->type == LXB_DOM_NODE_TYPE_ELEMENT);
             if (eligible && gd_collect(node, 0, doc) != LXB_STATUS_OK) {
-                gd_error(doc, "ERR_GROVEDOM_MEMORY", "Traversal allocation failed"); return gd_failed();
+                gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Traversal allocation failed"); return gd_failed();
             }
-            if (axis == 2 || axis >= 10 || (eligible && (axis == 4 || axis == 5))) break;
+            if (axis == 2 || (axis == 9 && node->type != LXB_DOM_NODE_TYPE_ELEMENT) || axis >= 10 || (eligible && (axis == 4 || axis == 5))) break;
             node = axis == 9 ? node->parent : (axis == 5 || axis == 7) ? node->prev : node->next;
         }
     }
@@ -475,14 +685,15 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
 }
 
 static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_node) {
+    if (doc->xml) return gd_xml_parse(doc, doc->input.data, doc->input.length);
     int temporary = !context_node || context_node->type != LXB_DOM_NODE_TYPE_ELEMENT;
     lxb_dom_element_t *context = temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(context_node);
     if (!context) return NULL;
     lxb_dom_node_t *fragment = lxb_html_document_parse_fragment(doc->html, context, doc->input.data, doc->input.length);
     if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));
-    if (fragment && gd_subtree_flag(fragment, 0)) {
-        lxb_dom_node_destroy_deep(fragment);
-        gd_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Template contents are not supported by this prototype");
+    if (fragment && !gd_templates(doc, fragment)) {
+        gd_destroy_subtree(fragment);
+        gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Template allocation failed");
         return NULL;
     }
     return fragment;
@@ -506,9 +717,9 @@ static int gd_insert(gd_document *doc, lxb_dom_node_t *target, lxb_dom_node_t *c
     lxb_dom_node_t *parent = position < 2 ? target : target->parent;
     if (!parent) return 1;
     for (lxb_dom_node_t *node = parent; node; node = node->parent) {
-        if (node == child) return gd_error(doc, "ERR_GROVEDOM_MUTATION", "Insertion would create a node cycle");
+        if (node == child) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Insertion would create a node cycle");
     }
-    if (child->type == LXB_DOM_NODE_TYPE_DOCUMENT || (parent->type != LXB_DOM_NODE_TYPE_ELEMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_error(doc, "ERR_GROVEDOM_MUTATION", "Invalid insertion target");
+    if (child->type == LXB_DOM_NODE_TYPE_DOCUMENT || (parent->type != LXB_DOM_NODE_TYPE_ELEMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Invalid insertion target");
     if (child == *anchor && position == 1) *anchor = child->next;
     lxb_dom_node_remove(child);
     if (position == 0 || (position == 1 && !*anchor)) lxb_dom_node_insert_child(parent, child);
@@ -549,12 +760,12 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
         lxb_dom_node_t *fragment = gd_fragment(doc, count ? doc->nodes[ids[0]].node : NULL);
         if (!fragment) goto failed;
         lxb_dom_node_t *root = lxb_dom_interface_node(lxb_dom_document_create_document_fragment(&doc->html->dom_document));
-        if (!root) { lxb_dom_node_destroy_deep(fragment); goto failed; }
+        if (!root) { gd_destroy_subtree(fragment); goto failed; }
         while (fragment->first_child) {
             lxb_dom_node_t *child = fragment->first_child;
             lxb_dom_node_remove(child);
             lxb_dom_node_insert_child(root, child);
-            if (gd_collect(child, 0, doc) != LXB_STATUS_OK) { lxb_dom_node_destroy_deep(fragment); goto failed; }
+            if (gd_collect(child, 0, doc) != LXB_STATUS_OK) { gd_destroy_subtree(fragment); goto failed; }
         }
         lxb_dom_node_destroy(fragment);
     } else if (operation == 2 || operation == 13) {
@@ -578,16 +789,17 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
             }
             qsort(doc->results, doc->result_count, sizeof(uint32_t), gd_order_compare);
         }
-    } else if (operation >= 3 && operation <= 10) {
-        unsigned position = operation <= 7 ? (operation == 7 ? 2 : operation - 3) : operation - 7;
+    } else if ((operation >= 3 && operation <= 10) || operation == 14 || operation == 15) {
+        if (operation >= 14) for (size_t j = 0; j < other_count; j++) lxb_dom_node_remove(doc->nodes[other[j]].node);
+        unsigned position = operation >= 14 ? operation - 12 : operation <= 7 ? (operation == 7 ? 2 : operation - 3) : operation - 7;
         for (size_t i = 0; i < count; i++) {
             lxb_dom_node_t *target = doc->nodes[ids[i]].node;
             if (position >= 2 && !target->parent) continue;
             lxb_dom_node_t *anchor = position == 1 ? target->first_child : target;
-            if (operation <= 7) {
+            if (operation <= 7 || operation >= 14) {
                 for (size_t j = 0; j < other_count; j++) {
                     lxb_dom_node_t *child = doc->nodes[other[j]].node;
-                    if (i + 1 < count) child = gd_clone(child);
+                    if (operation >= 14 || i + 1 < count) child = gd_clone(child);
                     if (!child || !gd_insert(doc, target, child, position, &anchor, collect)) goto failed;
                 }
                 if (operation == 7) {
@@ -600,7 +812,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                 if (!fragment) goto failed;
                 while (fragment->first_child) {
                     lxb_dom_node_t *child = fragment->first_child;
-                    if (!gd_insert(doc, target, child, position, &anchor, 0)) { lxb_dom_node_destroy_deep(fragment); goto failed; }
+                    if (!gd_insert(doc, target, child, position, &anchor, 0)) { gd_destroy_subtree(fragment); goto failed; }
                 }
                 lxb_dom_node_destroy(fragment);
             }
@@ -609,15 +821,15 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
         for (size_t i = 0; i < count; i++) {
             lxb_dom_node_t *node = doc->nodes[ids[i]].node;
             if (operation == 12) {
-                if (node->type == LXB_DOM_NODE_TYPE_TEXT || node->type == LXB_DOM_NODE_TYPE_COMMENT || node->type == LXB_DOM_NODE_TYPE_CDATA_SECTION) {
+                if (node->type == LXB_DOM_NODE_TYPE_TEXT || node->type == LXB_DOM_NODE_TYPE_COMMENT || node->type == LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION) {
                     lxb_dom_character_data_t *data = lxb_dom_interface_character_data(node);
                     if (lxb_dom_character_data_replace(data, doc->input.data, doc->input.length, 0, data->data.length) != LXB_STATUS_OK) goto failed;
                 }
             } else if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
-                lxb_dom_element_t *element = lxb_dom_document_create_element(&doc->html->dom_document, doc->input.data, doc->input.length, NULL);
+                lxb_dom_element_t *element = doc->xml ? gd_xml_element(doc, doc->input.data, doc->input.length, 0) : lxb_dom_document_create_element(&doc->html->dom_document, doc->input.data, doc->input.length, NULL);
                 if (!element) goto failed;
                 lxb_dom_node_t *replacement = lxb_dom_interface_node(element);
-                if (replacement->local_name == LXB_TAG_TEMPLATE) { lxb_dom_node_destroy(replacement); gd_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Template contents are not supported by this prototype"); goto failed; }
+                if (gd_template(replacement)) doc->templates = 1;
                 lxb_dom_element_t *old = lxb_dom_interface_element(node);
                 while (old->first_attr) {
                     lxb_dom_attr_t *attr = old->first_attr;
@@ -633,17 +845,17 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                 // Keep that detached interface in its document arena until disposal.
             }
         }
-    } else { gd_error(doc, "ERR_GROVEDOM_ARGUMENT", "Unknown edit operation"); return gd_failed(); }
+    } else { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Unknown edit operation"); return gd_failed(); }
     return gd_result_set(doc, operation == 1 || operation == 2 || operation == 13 || collect ? GD_IDS : GD_UNDEFINED, doc->results, doc->result_count, 0);
 failed:
-    if (!doc->error_code) gd_error(doc, "ERR_GROVEDOM_MEMORY", "Edit allocation failed");
+    if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Edit allocation failed");
     return gd_failed();
 }
 
 static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node_t *node,
                              const lxb_char_t *a, size_t alen, const lxb_char_t *b, size_t blen) {
     if (operation == REMOVE_NODE) { lxb_dom_node_remove(node); return LXB_STATUS_OK; }
-    if (node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT) return LXB_STATUS_OK;
+    if (node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) return LXB_STATUS_OK;
     if (operation == SET_ATTR || operation == REMOVE_ATTR) {
         if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return LXB_STATUS_OK;
         if (!alen) return LXB_STATUS_ERROR_WRONG_ARGS;
@@ -661,7 +873,7 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
         }
         attr = lxb_dom_attr_interface_create(&doc->html->dom_document);
         if (!attr) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        if (lxb_dom_attr_set_name(attr, a, alen, false) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, b, blen) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
+        if ((doc->xml ? gd_xml_attr_name(doc, attr, a, alen, 0) : lxb_dom_attr_set_name(attr, a, alen, false)) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, b, blen) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
         return lxb_dom_element_attr_append(lxb_dom_interface_element(node), attr);
     }
     if (operation == SET_TEXT) {
@@ -681,12 +893,16 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
     if (operation == SET_HTML || operation == APPEND_HTML) {
         /* Detach old nodes instead of Lexbor's inner_html_set, which destroys
          * them and would invalidate selections that still refer to them. */
-        lxb_dom_element_t *context = node->type == LXB_DOM_NODE_TYPE_ELEMENT ? lxb_dom_interface_element(node) : lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL);
-        if (!context) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        lxb_dom_node_t *fragment = lxb_html_document_parse_fragment(doc->html, context, a, alen);
-        if (node->type == LXB_DOM_NODE_TYPE_DOCUMENT) lxb_dom_node_destroy(lxb_dom_interface_node(context));
+        lxb_dom_node_t *fragment;
+        if (doc->xml) fragment = gd_xml_parse(doc, a, alen);
+        else {
+            lxb_dom_element_t *context = node->type == LXB_DOM_NODE_TYPE_ELEMENT ? lxb_dom_interface_element(node) : lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL);
+            if (!context) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+            fragment = lxb_html_document_parse_fragment(doc->html, context, a, alen);
+            if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) lxb_dom_node_destroy(lxb_dom_interface_node(context));
+        }
         if (!fragment) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        if (gd_subtree_flag(fragment, 0)) { lxb_dom_node_destroy_deep(fragment); return GD_UNSUPPORTED; }
+        if (!doc->xml && !gd_templates(doc, fragment)) { gd_destroy_subtree(fragment); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
         if (operation == SET_HTML) gd_clear_children(node);
         while (fragment->first_child) {
             lxb_dom_node_t *child = fragment->first_child;
@@ -717,7 +933,6 @@ int gk_execute(gd_document *doc, const uint32_t *words, size_t length, const uns
         for (size_t i = 0; i < count; i++) {
             lxb_status_t status = gd_mutate(doc, op, doc->nodes[ids[i]].node, a, al, b, bl);
             if (status != LXB_STATUS_OK) {
-                if (status == GD_UNSUPPORTED) { gd_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Template contents are not supported by this prototype"); goto failed; }
                 gd_mutation_error(doc, operation_index); goto failed;
             }
         }
@@ -727,7 +942,7 @@ int gk_execute(gd_document *doc, const uint32_t *words, size_t length, const uns
     gd_active = NULL;
     return 1;
 invalid:
-    gd_error(doc, "ERR_GROVEDOM_COMMAND", "Invalid command or payload bounds");
+    gd_set_error(doc, "ERR_GROVEDOM_COMMAND", "Invalid command or payload bounds");
 failed:
     gd_active = NULL;
     return 0;

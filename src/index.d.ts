@@ -1,7 +1,11 @@
 import type { CheerioOptions, FilterFunction } from 'cheerio';
+import type { Buffer } from 'node:buffer';
 export type { FilterFunction, SelectorType } from 'cheerio';
 
-export interface LoadOptions extends Pick<CheerioOptions, 'scriptingEnabled' | 'baseURI'> {
+export type XMLOptions = Pick<Exclude<CheerioOptions['xml'], boolean | undefined>,
+  'decodeEntities' | 'lowerCaseTags' | 'lowerCaseAttributeNames' | 'selfClosingTags' | 'emptyAttrs' | 'encodeEntities' | 'recognizeSelfClosing' | 'recognizeCDATA'> & { xmlMode?: true };
+export interface LoadOptions extends Pick<CheerioOptions, 'scriptingEnabled' | 'baseURI' | 'xmlMode'> {
+  xml?: boolean | XMLOptions;
   execution?: 'buffered' | 'direct';
 }
 /** Document-owned identity. Handles are not domhandler AnyNode objects. */
@@ -50,6 +54,7 @@ export interface MappedCollection<T> extends Iterable<T> {
   end(): Selection | MappedCollection<unknown> | undefined;
 }
 export interface Selection extends Iterable<NodeHandle> {
+  readonly cheerio: string;
   [index: number]: NodeHandle | undefined;
   readonly length: number;
   get(): NodeHandle[];
@@ -59,6 +64,7 @@ export interface Selection extends Iterable<NodeHandle> {
   first(): Selection;
   last(): Selection;
   slice(start?: number, end?: number): Selection;
+  splice(start?: number, deleteCount?: number, ...items: NodeHandle[]): NodeHandle[];
   end(): Selection;
   find(selector: string | NodeInput): Selection;
   children(selector?: Filter): Selection;
@@ -116,7 +122,7 @@ export interface Selection extends Iterable<NodeHandle> {
   detach(selector?: Filter): this;
   clone(): Selection;
   prop(name: 'tagName' | 'nodeName'): string | undefined;
-  prop(name: 'innerHTML' | 'outerHTML' | 'textContent' | 'innerText'): string | null;
+  prop(name: 'innerHTML' | 'outerHTML' | 'textContent' | 'innerText'): string | null | undefined;
   prop<K extends keyof NodeHandle>(name: K): NodeHandle[K] | undefined;
   prop(name: string): unknown;
   prop(name: string, value: unknown): this;
@@ -141,15 +147,19 @@ export interface GroveDOMAPI {
   (selector?: string | NodeInput | null, context?: string | NodeInput | Record<string, unknown>): Selection;
   root(): Selection;
   html(input?: string | NodeInput): string;
+  xml(input?: string | NodeInput): string;
   text(input?: string | NodeInput): string;
   contains(container: NodeHandle, contained: NodeHandle): boolean;
   parseHTML(html: string, keepScripts?: boolean): NodeHandle[] | null;
   parseHTML(html: string, context: unknown, keepScripts?: boolean): NodeHandle[] | null;
   extract<M extends ExtractMap>(map: M): ExtractedMap<M>;
   load: typeof load;
+  merge: typeof merge;
   /** Apply all queued operations in issue order. */
   flush(): void;
   /** Discard pending operations and free the document; safe to call repeatedly. */
   dispose(): void;
 }
-export function load(content: string, options?: LoadOptions | null, isDocument?: boolean): GroveDOMAPI;
+export function load(content: string | Buffer, options?: LoadOptions | null, isDocument?: boolean): GroveDOMAPI;
+export function contains(container: NodeHandle, contained: NodeHandle): boolean;
+export const merge: typeof import('cheerio').merge;

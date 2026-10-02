@@ -1,69 +1,28 @@
 {
   "exclusions": {
+    "attributes:(key, value) : should update namespace": "Arbitrary namespace changes and null domhandler attribute maps are outside the supported handle API.",
+    "attributes:(inherited properties) : prop should support inherited properties": "Child arrays are snapshots; writable live domhandler arrays are not supported.",
+    "traversing:should throw a TypeError if given invalid input": "Exact invalid-input error compatibility is not a performance gate.",
+    "traversing:should throw an Error if given an invalid selector": "Exact invalid-input error compatibility is not a performance gate.",
     "attributes:(map, val) : should throw with wrong combination of arguments": "Invalid-input error compatibility is not a performance gate.",
-    "attributes:(bool) shouldn't treat boolean attributes differently in XML mode": "XML is outside the HTML prototype.",
     "attributes:(invalid) : should be a no-op for invalid inputs": "Invalid-input behavior is outside the compatibility target.",
     "attributes:(key, value) : should set data attribute": "Includes an invalid numeric data key; normal data writes have separate coverage.",
     "traversing:(selector) : should throw an Error if given an invalid selector": "Exact selector error messages are not a compatibility target.",
-    "manipulation:() : should pass options": "XML is outside the HTML prototype.",
-    "manipulation:() : should preserve parsing options": "XML is outside the HTML prototype.",
     "css:(any, val): should ignore unsupported prop types": "Invalid property types are outside the compatibility target."
   },
   "cheerio": {
     "version": "1.2.0",
     "groups": {
-      "attributes": [
-        ".attr",
-        ".removeAttr",
-        ".hasClass",
-        ".addClass",
-        ".removeClass",
-        ".toggleClass",
-        ".val",
-        ".data"
-      ],
-      "traversing": [
-        ".children",
-        ".contents",
-        ".next",
-        ".nextAll",
-        ".prev",
-        ".prevAll",
-        ".siblings",
-        ".parent",
-        ".closest",
-        ".each",
-        ".map",
-        ".filter",
-        ".not",
-        ".has",
-        ".first",
-        ".last",
-        ".eq",
-        ".get",
-        ".index",
-        ".slice",
-        ".end() :"
-      ],
-      "manipulation": [
-        ".append",
-        ".prepend",
-        ".appendTo",
-        ".prependTo",
-        ".remove",
-        ".empty",
-        ".html",
-        ".toString",
-        ".text",
-        ".clone",
-        ".wrap",
-        ".before",
-        ".after",
-        ".replaceWith"
-      ],
+      "attributes": null,
+      "traversing": null,
+      "manipulation": null,
       "forms": null,
       "css": null,
-      "extract": null
+      "extract": null,
+      "static": [
+        ".contains",
+        ".merge"
+      ]
     }
   },
   "jquery": {

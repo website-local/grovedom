@@ -126,7 +126,54 @@ function query(state, selector, roots, match = false) {
       return ids.filter((_, i) => kind === 'even' ? i % 2 === 0 : kind === 'odd' ? i % 2 === 1 : kind === 'lt' ? i < index : i > index);
     }
   }
+  const first = selector.charCodeAt(0);
+  if (first === 62 || first === 43 || first === 126 || selector.startsWith(':scope') || first <= 32) {
+    const relative = relativeQuery(state, selector.trimStart(), roots, match);
+    if (relative !== null) return relative;
+  }
   return kernel.query(state.owner, selector, roots, match);
+}
+
+// Scan only the relative-selector path. Brackets, arguments, quotes and CSS
+// escapes keep embedded combinators from becoming traversal boundaries.
+function selectorBoundary(selector, separators) {
+  let depth = 0, quote = '';
+  for (let i = 0; i < selector.length; i++) {
+    const char = selector[i];
+    if (char === '\\') { i++; continue; }
+    if (quote) { if (char === quote) quote = ''; continue; }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === '(' || char === '[') depth++;
+    else if (char === ')' || char === ']') depth--;
+    else if (!depth && separators.includes(char)) return i;
+  }
+  return selector.length;
+}
+function relativeQuery(state, selector, roots, match) {
+  if (!/^(?:[>+~]|:scope\b)/.test(selector)) return null;
+  if (match) unsupported('Relative selectors in filter/is are not supported.');
+  roots = kernel.query(state.owner, '*', roots, true);
+  const comma = selectorBoundary(selector, ',');
+  if (comma < selector.length) {
+    if (selector[0] !== '+' && selector[0] !== '~' && /^[+~]/.test(selector.slice(comma + 1).trimStart())) unsupported('Mixed child/sibling relative selector lists are not supported.');
+    const left = query(state, selector.slice(0, comma), roots), right = query(state, selector.slice(comma + 1).trimStart(), roots);
+    const both = new Uint32Array(left.length + right.length); both.set(left); both.set(right, left.length);
+    return edit(state, 13, both);
+  }
+  let candidates, rest;
+  if (selector.startsWith(':scope')) {
+    candidates = roots; rest = selector.slice(6);
+    const end = selectorBoundary(rest, ' >+~\t\r\n\f');
+    if (end) { candidates = query(state, rest.slice(0, end), candidates, true); rest = rest.slice(end); }
+  } else {
+    const axis = selector[0] === '>' ? 1 : selector[0] === '+' ? 4 : 6;
+    candidates = kernel.traverse(state.owner, roots, axis);
+    rest = selector.slice(1).trimStart();
+    const end = selectorBoundary(rest, ' >+~\t\r\n\f');
+    candidates = query(state, rest.slice(0, end) || '*', candidates, true); rest = rest.slice(end);
+  }
+  rest = rest.trimStart();
+  return rest ? query(state, rest, candidates) : candidates;
 }
 function selection(state, ids, previous) {
   const value = { state, ids, previous };
@@ -182,8 +229,8 @@ class NodeHandle {
   get type() {
     const { state, ids } = nodes.get(this);
     const type = read(state, ids, 6);
-    if (type === 1) { const name = read(state, ids, 5); return name === 'script' || name === 'style' ? name : 'tag'; }
-    return ({ 3: 'text', 4: 'cdata', 8: 'comment', 9: 'root', 10: 'directive', 11: 'root' })[type];
+    if (type === 1) { if (state.xml) return 'tag'; const name = read(state, ids, 5); return name === 'script' || name === 'style' ? name : 'tag'; }
+    return ({ 3: 'text', 4: 'cdata', 7: 'directive', 8: 'comment', 9: 'root', 10: 'directive', 11: 'root' })[type];
   }
 }
 
@@ -191,6 +238,7 @@ class Selection {
   #state;
   constructor(state) { this.#state = state; }
   static state(target) { return #state in target ? target.#state : undefined; }
+  get cheerio() { return '[cheerio object]'; }
   get length() { return entry(this).ids.length; }
   get(index) {
     const { state, ids } = entry(this);
@@ -214,6 +262,14 @@ class Selection {
   first() { return this.eq(0); }
   last() { return this.eq(-1); }
   slice(start, end) { const { state, ids } = entry(this); return selection(state, ids.subarray(start, end), this); }
+  splice(start, deleteCount, ...items) {
+    const record = entry(this);
+    if (!arguments.length) return [];
+    const ids = Array.from(record.ids);
+    const removed = arguments.length === 1 ? ids.splice(start) : ids.splice(start, deleteCount, ...inputIds(record.state, items));
+    record.ids = Uint32Array.from(ids);
+    return removed.map(id => wrap(record.state, id));
+  }
   find(selector) {
     const { state, ids } = entry(this);
     if (!selector) return selection(state, empty, this);
@@ -230,7 +286,7 @@ class Selection {
     const { state, ids } = entry(this);
     flush(state);
     let resultIds = kernel.traverse(state.owner, ids, axis);
-    if (axis === 8 && ids.length > 1) resultIds = edit(state, 13, resultIds);
+    if ((axis === 8 || axis === 9) && ids.length > 1) { resultIds = edit(state, 13, resultIds); if (axis === 9) resultIds.reverse(); }
     const result = selection(state, resultIds, this);
     return selector === undefined ? result : result.filter(selector);
   }
@@ -274,7 +330,7 @@ class Selection {
     if (!name || /[\s\0"'<>/=]/.test(name)) throw new TypeError('Invalid attribute name');
     if (arguments.length === 1) {
       const result = read(state, ids, 1, name);
-      return result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
+      return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
     }
     if (value === undefined) return this;
     if (typeof value === 'function') {
@@ -319,7 +375,7 @@ class Selection {
   closest(selector, context) {
     const { state } = entry(this), result = [];
     if (selector) this.each(function () {
-      for (let node = this; node && node !== context; node = node.parent) {
+      for (let node = this; node && node !== context && node.type !== 'root'; node = node.parent) {
         if (state.api(node).is(selector)) { if (!result.includes(node)) result.push(node); break; }
       }
     });
@@ -335,7 +391,7 @@ class Selection {
     const joined = new Uint32Array(ids.length + next.length); joined.set(ids); joined.set(next, ids.length);
     return selection(state, edit(state, 13, joined), this);
   }
-  addBack(selector) { const previous = this.end(); return this.add(selector ? previous.filter(selector) : previous); }
+  addBack(selector) { if (!entry(this).previous) return this; const previous = this.end(); return this.add(selector ? previous.filter(selector) : previous); }
   index(value) {
     const { state } = entry(this);
     if (!this.length) return -1;
@@ -353,8 +409,8 @@ class Selection {
   after(...values) { return content(this, 3, values); }
   appendTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 3 | 256, entry(state.api(target)).ids, ids), this); }
   prependTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 4 | 256, entry(state.api(target)).ids, ids), this); }
-  insertBefore(target) { const { state, ids } = entry(this); return selection(state, edit(state, 5 | 256, entry(state.api(target)).ids, ids), this); }
-  insertAfter(target) { const { state, ids } = entry(this); return selection(state, edit(state, 6 | 256, entry(state.api(target)).ids, ids), this); }
+  insertBefore(target) { const { state, ids } = entry(this); return selection(state, edit(state, 14 | 256, entry(state.api(target)).ids, ids), this); }
+  insertAfter(target) { const { state, ids } = entry(this); return selection(state, edit(state, 15 | 256, entry(state.api(target)).ids, ids), this); }
   clone() { const { state, ids } = entry(this); return selection(state, edit(state, 2, ids), this); }
   empty() { const { state, ids } = entry(this); enqueue(state, ids, 3, ''); return this; }
   remove(selector) { const { state, ids } = entry(selector ? this.filter(selector) : this); enqueue(state, ids, 6); return this; }
@@ -378,28 +434,14 @@ class Selection {
     const { state } = entry(this);
     if (!this.length) return this;
     if (typeof wrapper === 'function') wrapper = wrapper.call(this[0], 0, this[0]);
-    let root = state.api(wrapper).first();
-    if (typeof wrapper === 'string' && !wrapper.trimStart().startsWith('<')) root = root.clone();
-    if (!root.length) return this;
-    if (root[0].nodeType !== 1) return this;
-    this.first().before(root);
-    let inner = root;
+    const inserted = state.api(wrapper).insertBefore(this.first());
+    let inner = inserted.filter(function () { return this.type === 'tag'; }).last();
     while (inner.children().length) inner = inner.children().first();
-    inner.append(this);
+    if (inner.length) inner.append(this);
     return this;
   }
-  wrap(wrapper) {
-    const { state, ids } = entry(this);
-    return this.each(function (i, node) {
-      if (node.type === 'root') return;
-      const value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : typeof wrapper !== 'string' && i + 1 < ids.length ? state.api(wrapper).clone() : wrapper;
-      state.api(node).wrapAll(value);
-    });
-  }
-  wrapInner(wrapper) { const { state } = entry(this); return this.each(function (i, node) {
-    const one = state.api(node), value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : wrapper;
-    if (one.contents().length) one.contents().wrapAll(value); else one.append(value);
-  }); }
+  wrap(wrapper) { return wrapping(this, wrapper, false); }
+  wrapInner(wrapper) { return wrapping(this, wrapper, true); }
   unwrap(selector) {
     const { state } = entry(this);
     this.parent(selector).not('body').each(function () { const one = state.api(this); one.replaceWith(one.contents()); });
@@ -410,18 +452,20 @@ class Selection {
     if (name && typeof name === 'object') { for (const [key, val] of Object.entries(name)) this.prop(key, val); return this; }
     if (value !== undefined) {
       if (typeof value === 'function') return this.each(function (i, node) { const one = state.api(node); one.prop(name, value.call(node, i, one.prop(name))); });
+      if (name === 'namespace') unsupported('Changing node namespaces is not supported.');
+      if (name === 'attribs') return this.each(function () { const one = state.api(this); one.removeAttr(Object.keys(one.attr() ?? {}).join(' ')); if (value) one.attr(value); });
       if (name === 'tagName' || name === 'nodeName' || name === 'name') { edit(state, 11, ids, empty, String(value)); return this; }
       if (name === 'innerHTML') return this.html(value);
       if (name === 'textContent' || name === 'innerText') return this.text(value);
-      return this.attr(name, typeof value === 'boolean' && boolAttributes.has(name) ? value ? '' : null : value);
+      return this.attr(name, !state.xml && typeof value === 'boolean' && boolAttributes.has(name) ? value ? '' : null : value);
     }
-    if (!ids.length) return name === 'innerHTML' || name === 'outerHTML' || name === 'innerText' || name === 'textContent' ? null : undefined;
+    if (!ids.length || typeof name !== 'string') return undefined;
     if (name === 'tagName' || name === 'nodeName') return read(state, ids, 5)?.toUpperCase();
     if (name === 'innerHTML') return this.html();
     if (name === 'outerHTML') return read(state, ids, 4);
     if (name === 'textContent' || name === 'innerText') return read(state, ids.subarray(0, 1), name === 'innerText' ? 9 : 2);
     if (name === 'style') { const values = this.css(); if (!values) return undefined; const keys = Object.keys(values); return Object.assign(values, keys, { length: keys.length }); }
-    if (boolAttributes.has(name)) return this.attr(name) !== undefined;
+    if (!state.xml && boolAttributes.has(name)) return this.attr(name) !== undefined;
     if (['name', 'type', 'children', 'childNodes', 'parent', 'parentNode', 'next', 'prev', 'data', 'attribs', 'nodeType'].includes(name)) return this[0][name];
     const result = this.attr(name);
     if (result !== undefined && (name === 'href' || name === 'src') && state.baseURI) { try { return new URL(result, state.baseURI).href; } catch {} }
@@ -519,7 +563,7 @@ const originalName = Object.getOwnPropertyDescriptor(NodeHandle.prototype, 'name
 Object.defineProperties(NodeHandle.prototype, {
   name: { get: originalName, set(value) { const { state, ids } = nodes.get(this); edit(state, 11, ids, empty, String(value)); } },
   tagName: { get: originalName, set(value) { this.name = value; } },
-  nodeType: { get() { const { state, ids } = nodes.get(this); return read(state, ids, 6); } },
+  nodeType: { get() { const { state, ids } = nodes.get(this); const type = read(state, ids, 6); return type === 11 ? 9 : type; } },
   parent: { get() { return rawAxis(this, 10); } },
   parentNode: { get() { return this.parent; } },
   next: { get() { return rawAxis(this, 11); } },
@@ -579,7 +623,9 @@ function until(source, axis, stop, selector) {
       if (!result.includes(node)) result.push(node);
     }
   }
-  const value = selection(state, inputIds(state, result), source);
+  let resultIds = inputIds(state, result);
+  if (axis === 9 && ids.length > 1) resultIds = edit(state, 13, resultIds).reverse();
+  const value = selection(state, resultIds, source);
   return selector ? value.filter(selector) : value;
 }
 const classTokens = value => typeof value === 'string' ? value.match(/[^\x20\t\r\n\f]+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
@@ -607,6 +653,27 @@ function classes(source, action, value, force, argc) {
     }
     const updated = tokens.join(' ');
     if (old !== updated) one.attr('class', updated);
+  });
+}
+function wrapping(source, wrapper, inside) {
+  const { state, ids } = entry(source);
+  return source.each(function (i, node) {
+    if (inside ? node.nodeType !== 1 && node.type !== 'root' : node.type === 'root') return;
+    const one = state.api(node);
+    const value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : wrapper;
+    let root = state.api(value).first();
+    if (!root.length || root[0].nodeType !== 1 || root[0] === node) return;
+    if (i + 1 < ids.length || (typeof value === 'string' && !value.trimStart().startsWith('<'))) root = root.clone();
+    let inner = root;
+    while (inner.children().length) inner = inner.children().first();
+    if (inside) {
+      const contents = one.contents();
+      inner.empty().append(contents);
+      one.empty().append(root);
+    } else {
+      one.before(root);
+      inner.empty().append(one);
+    }
   });
 }
 function content(source, position, values) {
@@ -640,16 +707,41 @@ function camel(value) { return value.replace(/-([a-z])/g, (_, letter) => letter.
 
 
 
+function xmlFlags(options) {
+  const value = typeof options.xml === 'object' && options.xml !== null ? options.xml : {};
+  let flags = 1;
+  for (const key of Object.keys(value)) {
+    if (!['decodeEntities', 'lowerCaseTags', 'lowerCaseAttributeNames', 'selfClosingTags', 'emptyAttrs', 'encodeEntities', 'xmlMode', 'recognizeSelfClosing', 'recognizeCDATA'].includes(key)) unsupported(`Unsupported XML option: ${key}`);
+    if (key !== 'encodeEntities' && typeof value[key] !== 'boolean') throw new TypeError(`Expected XML ${key} boolean`);
+  }
+  if (value.xmlMode === false) unsupported('The htmlparser2 HTML parser mode is not supported.');
+  if (value.decodeEntities === false) flags = 16;
+  if (value.lowerCaseTags) flags |= 2;
+  if (value.lowerCaseAttributeNames) flags |= 4;
+  if (value.selfClosingTags === false) flags |= 8;
+  if (value.encodeEntities !== undefined) {
+    if (![true, false, 'utf8'].includes(value.encodeEntities)) throw new TypeError('Expected encodeEntities boolean or utf8');
+    flags &= ~16;
+    if (value.encodeEntities === false) flags |= 16;
+  }
+  return flags;
+}
+
 export function load(content, options = {}, isDocument = true) {
-  if (typeof content !== 'string') unsupported('load currently accepts HTML strings only.');
+  if (Buffer.isBuffer(content)) content = content.toString('utf8');
+  if (typeof content !== 'string') unsupported('load accepts HTML strings or UTF-8 Buffers.');
   options ??= {};
   if (typeof options !== 'object' || Array.isArray(options)) throw new TypeError('Expected parser options');
-  for (const key of Object.keys(options)) if (!['scriptingEnabled', 'execution', 'baseURI'].includes(key)) unsupported(`Unsupported parser option: ${key}`);
+  for (const key of Object.keys(options)) if (!['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xmlMode'].includes(key)) unsupported(`Unsupported parser option: ${key}`);
   if (options.scriptingEnabled !== undefined && typeof options.scriptingEnabled !== 'boolean') throw new TypeError('Expected scriptingEnabled boolean');
   if (typeof isDocument !== 'boolean') throw new TypeError('Expected isDocument boolean');
   if (options.execution !== undefined && !['buffered', 'direct'].includes(options.execution)) throw new TypeError('Expected buffered or direct execution');
+  if (options.xmlMode !== undefined && typeof options.xmlMode !== 'boolean') throw new TypeError('Expected xmlMode boolean');
+  if (options.xml !== undefined && typeof options.xml !== 'boolean' && (!options.xml || typeof options.xml !== 'object' || Array.isArray(options.xml))) throw new TypeError('Expected xml boolean or options');
+  const xml = Boolean(options.xml || options.xmlMode);
   const state = {
-    owner: kernel.create(content, options.scriptingEnabled ?? true, !isDocument),
+    owner: xml ? kernel.createXML(content, xmlFlags(options)) : kernel.create(content, options.scriptingEnabled ?? true, !isDocument),
+    xml,
     closed: false, direct: options.execution === 'direct', wrappers: new Map(), data: new Map(), baseURI: options.baseURI,
     words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
   };
@@ -684,11 +776,14 @@ export function load(content, options = {}, isDocument = true) {
     if (options !== undefined || (input && typeof input === 'object' && !nodes.has(input) && !selections.has(input) && !Array.isArray(input))) unsupported('Serializer options are not supported.');
     return input === undefined ? read(state, rootIds, 3) : read(state, entry($(input)).ids, 10);
   };
+  $.xml = input => {
+    alive(state);
+    return selections.has(input) ? input.toString() : read(state, input === undefined ? rootIds : entry($(input)).ids, 11);
+  };
   $.text = input => read(state, input === undefined ? rootIds : entry($(input)).ids, 2);
   $.contains = (container, contained) => {
-    inputIds(state, container); inputIds(state, contained);
-    for (let node = contained.parent; node; node = node.parent) if (node === container) return true;
-    return false;
+    alive(state);
+    return contains(container, contained);
   };
   $.parseHTML = (html, context, keepScripts) => {
     if (typeof html !== 'string' || !html) return null;
@@ -698,6 +793,7 @@ export function load(content, options = {}, isDocument = true) {
     return parsed.not('script').get();
   };
   $.extract = map => $.root().extract(map);
+  $.merge = merge;
   $.load = load;
   $.flush = () => flush(state);
   $.dispose = () => {
@@ -710,4 +806,34 @@ export function load(content, options = {}, isDocument = true) {
     state.data.clear();
   };
   return $;
+}
+
+export function contains(container, contained) {
+  const a = nodes.get(container), b = nodes.get(contained);
+  if (!a || !b) throw new TypeError('Expected GroveDOM node handles');
+  alive(a.state); alive(b.state);
+  if (a.state !== b.state) return false;
+  for (let node = contained.parent; node; node = node.parent) if (node === container) return true;
+  return false;
+}
+
+export function merge(first, second) {
+  const arrayLike = value => {
+    if (Array.isArray(value) || selections.has(value)) return true;
+    if (value === null || typeof value !== 'object' || !Number.isSafeInteger(value.length) || value.length < 0) return false;
+    for (let i = 0; i < value.length; i++) if (!(i in value)) return false;
+    return true;
+  };
+  if (!arrayLike(first) || !arrayLike(second)) return undefined;
+  if (selections.has(first)) {
+    const record = entry(first), added = inputIds(record.state, selections.has(second) ? second : Array.from(second));
+    const ids = new Uint32Array(record.ids.length + added.length);
+    ids.set(record.ids); ids.set(added, record.ids.length); record.ids = ids;
+  } else {
+    let length = first.length;
+    const count = second.length;
+    for (let i = 0; i < count; i++) first[length++] = second[i];
+    first.length = length;
+  }
+  return first;
 }

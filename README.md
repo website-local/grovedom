@@ -2,9 +2,9 @@
 
 DOM transformations through ordered operations.
 
-GroveDOM is an experimental JavaScript-facing HTML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
+GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. The API is partial; the full-workload performance and adoption gates remain unproven.** See the [prototype guide](docs/prototype.md) for build commands, tested behavior, and limitations.
+**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. The API is partial; the full-workload performance and adoption gates remain unproven.** See the [prototype guide](docs/prototype.md) for build commands, tested behavior, and limitations, and the [compatibility inventory](docs/compatibility.md) for the public API boundary.
 
 ## Objective
 

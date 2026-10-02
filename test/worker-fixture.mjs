@@ -20,6 +20,12 @@ if (workerData.mode === 'replay') {
   for (let i = 0; i < 60; i++) {
     const create = source => load(source, { execution: i % 2 ? 'buffered' : 'direct' });
     assert.equal(replay(create, workerData.source), workerData.expected);
+    const xml = load('<svg viewBox="0 0 10 10"><Path/></svg>', { xml: true });
+    try {
+      xml('Path').attr('id', `worker-${workerData.id}`);
+      assert.equal(xml('path').length, 0);
+      assert.equal(xml.xml(), `<svg viewBox="0 0 10 10"><Path id="worker-${workerData.id}"/></svg>`);
+    } finally { xml.dispose(); }
     assert.throws(() => $('['), { code: 'ERR_GROVEDOM_SELECTOR' });
     assert.equal($(node).text(), `worker ${workerData.id}`);
     assert.equal(kernel.stats().liveDocuments, 1);
@@ -37,7 +43,7 @@ if (workerData.mode === 'replay') {
   // them even though explicit disposal and ordinary reachability GC do not run.
   globalThis.retainedDocuments = [$];
   for (let i = 0; i < 12; i++) {
-    const doc = load(workerData.source);
+    const doc = i % 2 ? load('<svg><Path/></svg>', { xml: true }) : load(workerData.source);
     doc('a').attr('data-pending', 'value');
     globalThis.retainedDocuments.push(doc);
   }

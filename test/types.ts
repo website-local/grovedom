@@ -1,4 +1,4 @@
-import { load, type FilterFunction, type NodeHandle, type SelectorType } from 'grovedom';
+import { load, merge, contains, type FilterFunction, type NodeHandle, type SelectorType } from 'grovedom';
 const $ = load('<p>Hello</p>', { scriptingEnabled: true });
 const selector: SelectorType = 'p';
 const filter: FilterFunction<NodeHandle> = function (i, node) { return this === node && i === 0; };
@@ -8,8 +8,12 @@ $(selector).each(function (i, node) { $(node).attr('data-i', i); });
 const first = $(selector)[0];
 if (first) $(first).html('<b>x</b>');
 const children: NodeHandle[] | undefined = first?.children;
-// @ts-expect-error XML mode is not implemented.
-load('<x/>', { xmlMode: true });
+const xml = load('<x/>', { xmlMode: true });
+const serializedXML: string = xml.xml();
+xml.dispose();
+load('<Root/>', { xml: { lowerCaseTags: false, xmlMode: true, recognizeSelfClosing: true } }).dispose();
+// @ts-expect-error XML callbacks are not supported.
+load('<x/>', { xml: { onopentag() {} } });
 $(selector).wrap('<div/>');
 $(selector).prop('tagName', 'div');
 const names: (string | undefined)[] = $('p').map((i, node) => node.name).get();
@@ -20,3 +24,11 @@ $('input').val('x').data('saved', true).css('color', 'red');
 // @ts-expect-error Handles are not mutable domhandler trees.
 if (first) first.parent = null;
 $.dispose();
+const buffered = load(Buffer.from('<template><p>Hello</p></template>'));
+const marker: string = buffered('p').cheerio;
+const html: string | null | undefined = buffered('p').prop('innerHTML');
+const combined: ArrayLike<number> | undefined = merge([1], [2]);
+const fragment = buffered('template').contents()[0]!;
+const included: boolean = contains(buffered('template')[0]!, fragment);
+const removed: NodeHandle[] = buffered('p').splice(0, 1);
+buffered.dispose();

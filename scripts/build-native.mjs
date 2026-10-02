@@ -52,7 +52,7 @@ run(compiler, ['-std=c11', `-O${optimize}`, '-Wall', '-Wextra', ...flags, '-shar
   ...(lto !== 'off' ? ['-fuse-ld=lld', `-Wl,--threads=${jobs}`] : []),
   ...(profile ? ['-DGROVEDOM_PROFILE', '-D_POSIX_C_SOURCE=200809L', join(root, 'native/profile.c')] : []),
   '-DBUILDING_NODE_EXTENSION', '-I', headers, '-I', join(source, 'source'),
-  join(root, 'native', 'addon.c'), join(root, 'native', 'kernel.c'), join(lexborBuild, 'liblexbor_static.a'),
+  join(root, 'native', 'addon.c'), join(root, 'native', 'kernel.c'), join(root, 'native', 'xml.c'), join(lexborBuild, 'liblexbor_static.a'),
   '-Wl,--exclude-libs,ALL', '-o', join(build, 'grovedom.node')]);
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 writeFileSync(join(build, 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, sanitize, profile, optimize, lto }) + '\n');

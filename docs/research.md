@@ -146,3 +146,18 @@ The compatibility review uses Cheerio 1.2.0 and domhandler 5.0.3 declarations: C
 - `CheerioOptions` includes parse5 and selector extension points; blindly aliasing it would promise unsupported parser-specific behavior.
 
 The prototype uses public type-only imports/re-exports and local declarations for its narrower handles and supported methods. Representative declaration fixtures compile, but the full consumer adapter and unchanged engine replay remain necessary before declaring migration trivial.
+
+## XML and template implementation findings
+
+The current XML path is GroveDOM-owned iterative tokenization into the pinned Lexbor document arenas, shared by native and Wasm. It is compiled as `native/xml.c` with a private `xml.h`; allocator/buffer helpers shared with `kernel.c` remain hidden implementation symbols. This avoids adding another parser dependency or syscall-bearing runtime. It is a practical Cheerio-compatible DOM contract, not a validating XML implementation; see [the supported behavior](compatibility.md#xml-svg-and-sitemaps).
+
+Several details in the pinned Lexbor source require explicit handling without patching the dependency:
+
+- XML dtype does not disable lowercasing in element creation, type-selector lookup or attribute-selector lookup. GroveDOM preserves static lowercase IDs, and maps other local names to an impossible XML name containing lowercase hex. Qualified names keep the public spelling. The cached selector AST receives the same mapping, including nested lists. A reusable document buffer serves name conversion; unique names and plans use the existing arenas.
+- `lxb_dom_element_qualified_name_set` is exported by the pinned source but omitted from its header. GroveDOM declares its exact signature locally. This is a private dependency coupling, not a public ABI promise.
+- The document CDATA helper rejects XML dtype. Direct CDATA interface construction supplies the Cheerio-style wrapper with a text child. Its clone uses the matching interface; the generic clone would allocate only a node-sized record.
+- Generic element cloning omits the qualified-name field. The XML clone callback copies this interned field within the same document; cross-document adoption remains unsupported.
+- Lexbor's XML `:root` resolves to the first document child, which can be a declaration. GroveDOM maps this pseudo to `:not(* > *)` in the XML plan arena, matching elements without an element parent, including multiple fragment roots.
+- Specialized HTML destructors omit common element attribute destruction. The shared subtree recycler explicitly returns attributes before destroying interfaces. Repeated attribute-bearing replacement now plateaus after warmup, including template and XML cases; exposed subtrees remain retained until disposal.
+
+Parser, serializer and subtree cleanup walks are iterative. The XML additions preserve import-free release Wasm and the existing stack/heap defaults. Sanitizers, deep-tree tests and backing-allocation counters provide evidence for the exercised paths; allocation-failure injection, fuzzing and sustained allocator-fragmentation budgets remain open.

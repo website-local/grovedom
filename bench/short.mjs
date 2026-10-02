@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { page, replay } from '../test/fixtures.mjs';
+import * as authored from '../test/fixtures.mjs';
 
 const manifest = JSON.parse(readFileSync(process.env.GROVEDOM_AB_MANIFEST, 'utf8'));
+const { page, replay } = manifest.workload ? await import(pathToFileURL(manifest.workload).href) : authored;
 if (manifest.variants?.length !== 2) throw new Error('Expected exactly two isolated source/artifact variants.');
 const rounds = Number(process.env.GROVEDOM_BENCH_ROUNDS ?? 60);
 const iterations = Number(process.env.GROVEDOM_BENCH_ITERATIONS ?? 12);

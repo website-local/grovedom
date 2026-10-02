@@ -75,7 +75,7 @@ Cover:
 - `iframe[srcdoc]`, nested documents, clone/wrap/move/replace sequences.
 - Malformed HTML, tables, templates, `noscript`, entities, inline SVG/MathML.
 - Attribute read/write loops and asynchronous URL-hook order.
-- Standalone SVG/XML/sitemap paths once their contract is chosen.
+- Standalone SVG/XML/sitemap paths, including case-sensitive selectors and output.
 
 Replay real engine/MDN transformations as well as smaller diagnostic cases. Do not run a full network download to establish a DOM benchmark.
 
@@ -449,3 +449,43 @@ The final authored 120-article comparison with Cheerio 1.2.0 used nine rounds an
 | Wasm pooled | 1.647 | 5.639 | 5.464 | 3.655 | 3.42× / 2.22× |
 
 The 462-case matrix passes on Node 22: native 447 passes/15 skips, shared Wasm 449/13, fresh Wasm 450/12, and pooled Wasm 453/9. Native and pooled Wasm also pass on Node 24. Type checks and native ASan/UBSan with leak detection pass; no sanitizer reports were emitted. Release Wasm remains import-free and has no diagnostic stack exports. The final CPU profile still shows transfer handling, selection creation, parsing, queries, and allocation work; template support and the real engine adapter should expose the next representative workloads before further broad optimization claims.
+
+## Cheerio feature expansion and XML diagnostics
+
+This pass expands the selection-method suites, adds templates and relative queries, and fixes retained attribute storage during subtree recycling. All eight selected unmodified MDN pages match Cheerio/parse5 on parsing and the authored replay, including four newly enabled template pages of roughly 94–150 KB. This remains an authored operation sequence, not the engine's complete transformation pipeline. htmlparser2 produces different bytes on those four pages; their semantic acceptability has not been audited, so byte differences alone do not disqualify that baseline.
+
+Before XML was added, three alternating process blocks measured baseline/candidate ratios of 0.996 and 1.018 for native at 120/600 articles, with identical-code controls of 0.977 and 1.010. Pooled Wasm measured 0.967 and 0.999, with controls of 0.904 and 0.997. Longer pooled 120-article process repeats were inconsistent across Node 22/24. Three Node 22 short-run repeats measured 0.984, 0.996 and 0.984, against an identical-code control of 0.994; Node 24 repeats ranged from 0.945 to 1.136. These results do not establish strict absence of a small regression.
+
+The expanded HTML diagnostic at 120 articles measured:
+
+| Backend | GroveDOM (ms) | Current Cheerio (ms) | Explicit parse5 defaults (ms) | htmlparser2 (ms) | Speedup vs current / htmlparser2 |
+|---|---:|---:|---:|---:|---:|
+| Native buffered | 1.394 | 5.852 | 5.581 | 3.903 | 4.20× / 2.80× |
+| Wasm pooled | 1.790 | 6.243 | 5.817 | 3.806 | 3.49× / 2.13× |
+
+Each backend used a separate process, nine rounds and 30 replays per batch on Node 22. These rows are not a controlled native-versus-Wasm ranking. One ABBA process block on each newly enabled MDN page, with 100 warmups and 15 batches of six replays, measured 4.18–4.97× native and 3.39–4.43× pooled Wasm versus parse5. They establish runnable paths and diagnostic speed, not the full-workload adoption gate.
+
+XML adds a shared iterative tokenizer, XML serializer and cached case-sensitive selector-name mapping. No additional dependency, compiler or host import is introduced. Cheerio `{ xml: true }` uses htmlparser2; parse5 cannot provide an XML baseline. The authored `bench/xml-fixtures.mjs` workloads include load, selectors, attribute/text callbacks, mutations, serialization and explicit disposal. Exact output is checked before timing.
+
+Initial Node 22 short-run results used 200 warmups per variant, 24 balanced ABBA/BAAB blocks and six replays per batch. The unchanged CPU-probe filter rejects a whole block only for max/min probe spread above 1.5. All raw blocks remain in local evidence; candidate times and ratios do not determine retention.
+
+| XML workload | Backend | Raw speedup | Filtered speedup | Retained blocks |
+|---|---|---:|---:|---:|
+| Sitemap, 600 entries | Native | 2.426× | 2.386× | 23/24 |
+| SVG, 300 groups | Native | 1.395× | 1.414× | 22/24 |
+| Sitemap, 600 entries | Wasm pooled | 2.071× | 2.071× | 23/24 |
+| SVG, 300 groups | Wasm pooled | 1.315× | 1.315× | 24/24 |
+
+These initial XML measurements favor the candidate, but do not meet 3× in isolation or establish full-engine performance. The adoption target remains the complete required DOM workload. Host interference, GC, starting order and compilation behavior limit precision; no universal backend ranking follows from these results.
+
+The expanded stack diagnostic covers all eight MDN pages, deep HTML/templates and XML with declarations, attributes, CDATA, cloning and root selectors at depths 100, 1,000 and 5,000. Across 112 instrumented stack assignments, the largest observed linear-memory stack-pointer depth is still 96 bytes and the largest written watermark is 68 bytes. Every case restores its pointer and completes without error. These are observed depths, not worst-case guarantees, and exclude the Wasm engine's machine stack. Defaults remain 64 KiB stack, 1 MiB initial memory and 16 KiB shared synchronous transfer scratch.
+
+Adding XML requires another HTML regression check. Against the pre-expansion checkpoint, initial Node 22 short runs (30 balanced blocks, eight replays per batch) measured filtered baseline/candidate ratios of 0.990/0.997 for native at 120/600 articles and 0.876/0.984 for pooled Wasm. Raw ratios were 0.966/0.997 and 0.880/0.975. The small pooled case therefore remains a concern, not a passed non-regression gate.
+
+An isolated comparison with the immediately preceding HTML-expanded candidate measured 0.973 in 60 short blocks; its identical-code control measured 0.977. Separate-process comparisons measured 0.923 against a 0.971 control, but the two process blocks ranged from 0.895 to 0.950. Preventing XML helper inlining did not give a reliable improvement: the direct tuning comparison measured 0.981, and three fresh-process comparisons against the HTML-expanded candidate ranged from 0.875 to 1.034. That compiler annotation experiment was not retained. Existing O3/ThinLTO and target-feature defaults remain unchanged. These conflicting results leave strict HTML non-regression unresolved; they must not be averaged into a claim of parity.
+
+A longer final repeat at 120 articles used six balanced process blocks, 400 warmups and 30 batches of 12 replays. Pooled Wasm measured 0.989 against the pre-expansion checkpoint; an identical-code control measured 0.974. Individual A/B blocks still ranged from 0.897 to 1.077, and A/A blocks from 0.957 to 1.087. This does not reproduce the initial 12% slowdown consistently, but the remaining spread prevents a strict non-regression claim.
+
+Splitting XML into standard `xml.c`/`xml.h` translation units preserves the test results, zero Wasm imports and the measured stack watermarks. At 120 HTML articles, the before/after pooled-Wasm ratio was 1.008 in three separate-process blocks (1.007–1.030), while a mixed-implementation short run measured 0.896 with 29/30 blocks retained. This disagreement reinforces the runtime/order limitation; no performance advantage is claimed for the source-file layout.
+
+Repeating the XML diagnostics with the final separate translation units and the same settings measured filtered speedups of 2.393× for native sitemap, 1.434× for native SVG, 2.135× for pooled-Wasm sitemap and 1.273× for pooled-Wasm SVG. Raw estimates were 2.406×, 1.434×, 2.167× and 1.298×; retained blocks were 23/24, 24/24, 23/24 and 23/24. These remain diagnostic workload results, with the same full-engine and noise limitations.

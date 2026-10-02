@@ -165,7 +165,9 @@ Important migration details:
 
 HTML parsing with inline SVG support is not general XML parsing. The engine also processes sitemaps and standalone SVG, and exposes Cheerio parse/serialization options.
 
-Decide whether these paths use a separate XML backend, a documented compatibility path, or a restricted supported contract. Do not silently treat XML mode as HTML mode. Expat is a potential XML event parser, not an HTML DOM replacement. Any retained Cheerio fallback must be visible in benchmark results and migration status.
+XML is a required part of the current implementation, including standalone SVG and sitemaps. Both bindings use a GroveDOM-owned iterative XML tokenizer feeding the existing document arenas. It supports qualified and case-sensitive names, entities, CDATA, declarations, fragment mutations and XML serialization. XML uses the same selection, buffering and disposal contracts as HTML; it adds no toolchain, runtime dependency or Cheerio fallback. See the [implemented XML contract](compatibility.md#xml-svg-and-sitemaps).
+
+This is a Cheerio-style XML DOM, not a validating XML processor. Preserve declarations without fetching external resources or expanding DTD entities. Malformed-input recovery need not match htmlparser2 exactly. XML selector names are adapted in the bounded plan cache because Lexbor's normal name lookup folds case even for XML documents. Keep this work off the ordinary HTML query path, and measure XML against Cheerio's htmlparser2 XML mode, including bindings and disposal.
 
 ## Kernel candidates
 
