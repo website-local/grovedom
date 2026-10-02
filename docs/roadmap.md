@@ -10,7 +10,7 @@ The deeper profiling pass adds optional phase/counter instrumentation, paired re
 
 The Wasm feature sweep now covers bulk memory, SIMD, relaxed SIMD, tail calls, and nontrapping conversions. Results vary by workload and runtime, so extra target features remain opt-in. Release Wasm is import-free after removing the kernel's stdio formatting dependency, with a build check preventing accidental I/O imports.
 
-The allocation pass shares selector plans/keys in one document-owned arena and reuses Wasm transfer views. Authored-replay backing allocation requests fall about 41–43%, with lower peak tracked memory. Timing samples from that pass were taken under high host load and do not establish a further speedup; repeat paired release benchmarks on a quiet host. Full consumer performance and memory gates remain open.
+The allocation pass shares selector plans/keys in one document-owned arena and reuses Wasm transfer views. Authored-replay backing allocation requests fall about 41–43%, with lower peak tracked memory. Initial timings under high host load remain provisional. A subsequent short-batch harness uses balanced orders, a fixed CPU-probe filter, raw results, identical-code controls, and fresh-process repetitions. It shows modest gains in some cases and mixed results elsewhere; precise universal speedups and full consumer performance/memory gates remain unproven.
 
 ## First implementation milestone
 

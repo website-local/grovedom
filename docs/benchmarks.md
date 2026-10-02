@@ -275,7 +275,7 @@ The next profile-guided pass replaces separate per-selector arenas with one docu
 
 The Wasm adapter reuses whole-memory byte/word views for transfers and result descriptors, refreshes them after heap growth, and clears them on disposal. Returned arrays and strings still own their data. Short ASCII names avoid temporary encoder views/results, and typed-array validation uses fixed types while retaining ordinary-buffer checks. A separate proxy-index experiment was reverted after mixed results.
 
-**Elapsed-time samples from this pass were collected under high host load and are provisional. They do not establish a further speedup.** Repeat paired release measurements on a quiet host before drawing throughput conclusions or changing backend/compiler defaults. The retained changes have a directly measurable allocation benefit; their complete-workload timing effect remains open.
+**The initial elapsed-time samples from this pass were collected under high host load and do not establish a further speedup.** The follow-up below uses repeated short blocks with a fixed control-based filter. The original samples remain excluded from throughput conclusions. The retained changes have a directly measurable allocation benefit; their complete-workload timing effect remains open.
 
 One authored 120-article replay in a fresh process, including disposal, produced these backing-allocator counters compared with the preceding import-free checkpoint:
 
@@ -289,3 +289,26 @@ Requests decreased about **41–43%**, and peak tracked bytes about **27–30%**
 Reproduce current counters with `node bench/allocations.mjs`, or `GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=global node bench/allocations.mjs`. Use a fresh process for each source/artifact pair. The shared-heap counter records the actual core high-water mark; fresh/pooled statistics sample live bytes only and cannot measure a completed lifecycle's peak from a single final sample.
 
 Exact before/after outputs matched for the authored replay and four unmodified compatible MDN examples. The 459-case matrix passes on Node 22: native 445 passes/14 skips, shared Wasm 446/13, fresh Wasm 447/12, and pooled Wasm 450/9. Native and pooled Wasm also pass on Node 24; ASan/UBSan with leak detection reports no findings. Added regressions cover cache resets, repeated invalid queries, preserved snapshots, Unicode transfers after heap growth, and collection of released heap buffers while disposed selections remain reachable. Release Wasm still has zero imports. The full engine replay and fastest-compatible-Cheerio adoption gates remain unverified.
+
+## Repeated short runs under variable load
+
+`bench/short.mjs` compares the preceding import-free checkpoint with the allocation changes using short timed batches. Each block contains both ABBA and BAAB halves; each variant gets the first position after an event-loop yield. This matters because identical-code controls showed a first-batch penalty that a single ABBA half did not cancel. A separate integer-loop probe surrounds each batch. The fixed filter rejects the entire balanced block only if maximum/minimum probe time exceeds 1.5. Candidate times, ratios, and GC events are never used to choose retained samples. All raw data and both summaries remain available.
+
+The reported experiment used 40 fresh Node processes: three comparisons, one identical-code control, and one reversed-import comparison for each case below. Each process used 200 warmups per variant and 60 balanced blocks. Batches contained 12 replays at 120 articles or three at 600, including parsing, queries, mutations, serialization, and disposal. Output matched exactly before timing. Filter rules were finalized using controls before the reported candidate measurements; no runs were discarded because of their speedup result.
+
+The filter retained **2,355 of 2,400 blocks**, including **1,414 of 1,440** blocks in the three main comparisons. It changed their median speedup estimates by less than 0.5 percentage points. The table reports medians of the three process estimates and their range, not confidence intervals. All speedups use the preceding implementation as denominator. The reversed-import check is normalized to the same direction and reported separately.
+
+| Runtime / backend / articles | Raw median | Filtered median | Three filtered estimates, min–max | Identical-code control | Reversed-import check |
+|---|---:|---:|---:|---:|---:|
+| Node 22 / Node-API / 120 | 1.028× | 1.030× | 1.006–1.030× | 0.974× | 1.039× |
+| Node 22 / Node-API / 600 | 1.026× | 1.021× | 1.008–1.032× | 0.995× | 1.031× |
+| Node 22 / Wasm pooled / 120 | 1.032× | 1.032× | 1.029–1.038× | 0.998× | 1.091× |
+| Node 22 / Wasm pooled / 600 | 1.045× | 1.044× | 0.976–1.071× | 1.022× | 1.055× |
+| Node 24 / Node-API / 120 | 1.015× | 1.014× | 0.998–1.015× | 0.974× | 1.100× |
+| Node 24 / Node-API / 600 | 0.998× | 1.000× | 0.980–1.033× | 1.012× | 1.023× |
+| Node 24 / Wasm pooled / 120 | 1.008× | 1.008× | 0.966–1.048× | 1.018× | 1.011× |
+| Node 24 / Wasm pooled / 600 | 1.036× | 1.038× | 1.012–1.040× | 0.995× | 1.078× |
+
+The strongest repeatable directions are modest gains for Node 22 native at 600 articles, Node 22 pooled Wasm at 120, and Node 24 pooled Wasm at 600. Several other cases span parity or a regression, and identical-code controls retain offsets as large as about 2.6%. Reversing import order in an additional process also changes some estimates substantially. That check runs at a different time, so it cannot separate loading order from host/runtime variability. Do not generalize the larger individual estimates or claim a precise universal speedup.
+
+Short repetitions and filtering permit useful progress under variable load, but filtering does not remove steady interference, every interruption, or runtime effects. The allocation reductions remain stronger evidence than a blanket throughput claim. Backend/compiler defaults and the unverified complete-engine adoption gates are unchanged.
