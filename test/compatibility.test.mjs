@@ -101,7 +101,7 @@ test('unsupported options and foreign nodes fail explicitly; markup and rename w
     a('p').prop('tagName', 'div');
     assert.equal(a('div')[0], node);
     a('div').prop('tagName', 'p');
-    assert.throws(() => a.html({}), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+    assert.throws(() => a.html({ treeAdapter: {} }), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
     a('p').html('<template>x</template>');
     a.flush();
     assert.equal(a('p').text(), 'x');

@@ -87,7 +87,7 @@ test('template replacement reuses pools and releases every backing allocation', 
     const before = kernel.stats();
     for (let i = 0; i < 1000; i++) main.html(source);
     assert.equal(kernel.stats().liveBytes, before.liveBytes);
-    assert.equal(main.find('b').text(), 'C');
+    assert.equal($('b').text(), 'C');
   } finally { $.dispose(); }
   assert.equal(kernel.stats().liveBytes, 0);
 });
@@ -102,12 +102,32 @@ test('deep template cloning and serialization do not recurse on the C stack', ()
   } finally { $.dispose(); }
 });
 
-test('unsupported template-sensitive pseudos fail explicitly, including nested plans', () => {
+test('template-sensitive pseudos, nested plans and fragment ancestry match Cheerio', () => {
   const $ = load(source);
+  const c = cheerio(source);
   try {
-    for (const selector of ['template:has(p)', ':empty', ':not(:empty)', ':is(main, :has(p))', ':nth-child(1 of :empty)']) {
-      assert.throws(() => $(selector), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+    for (const selector of ['template:has(p)', ':empty', ':not(:empty)', ':is(main, :has(p))', 'main:has(b)', 'main:has(template b)', 'template:has(> p)', 'template:has(template)', 'template:has(+ p)', 'template:has(~ p)', ':not(:has(:empty))']) {
+      assert.deepEqual($(selector).map((_, n) => n.name + (n.attribs.id ?? '')).get(), c(selector).map((_, n) => n.name + (n.attribs.id ?? '')).get(), selector);
     }
-    assert.equal($('b').text(), 'C');
+    assert.equal($(':nth-child(1 of :empty)').length, 3);
+    const retained = $('#outer').remove();
+    assert.equal(retained.is(':has(b)'), true);
+    assert.equal(retained.contents().find('b').text(), 'C');
+  } finally { $.dispose(); }
+});
+
+test('subtree scans merge template matches in preorder across overlapping query roots', () => {
+  const html = '<main><p id=a></p><template><i id=b></i><template><b id=c></b></template><i id=d></i></template><p id=e></p></main>';
+  const $ = load(html), c = cheerio(html);
+  try {
+    for (const selector of ['*', '[id]', 'i,b,p', ':not(template)', 'main i', 'i + template', 'i ~ i']) {
+      const read = dom => dom('main, main template').find(selector).map((_, n) => n.name + (n.attribs.id ?? '')).get();
+      assert.deepEqual(read($), read(c), selector);
+    }
+    const mixed = dom => dom.root().add(dom('template').first().contents()).find('[id]').map((_, n) => n.attribs.id).get();
+    assert.deepEqual(mixed($), mixed(c));
+    $('main').append($('template').first().remove());
+    c('main').append(c('template').first().remove());
+    assert.deepEqual($('[id]').map((_, n) => n.attribs.id).get(), c('[id]').map((_, n) => n.attribs.id).get());
   } finally { $.dispose(); }
 });

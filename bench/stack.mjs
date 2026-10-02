@@ -31,7 +31,7 @@ try {
     stackRuntimes.push(runtime);`);
   writeFileSync(join(temporary, 'package.json'), readFileSync(new URL('../package.json', import.meta.url)));
   mkdirSync(join(temporary, 'src'));
-  for (const file of ['index.js', 'kernel.js']) writeFileSync(join(temporary, 'src', file), readFileSync(new URL(`../src/${file}`, import.meta.url)));
+  for (const file of ['index.js', 'kernel.js', 'selectors.js']) writeFileSync(join(temporary, 'src', file), readFileSync(new URL(`../src/${file}`, import.meta.url)));
   writeFileSync(join(temporary, 'src', 'wasm-kernel.js'), `let stackPattern = 0xa5;
   export const stackRuntimes = [];
   export function stackReset(pattern) { stackRuntimes.length = 0; stackPattern = pattern; }
@@ -50,6 +50,13 @@ try {
   });
   for (const depth of [20, 100, 500]) cases.push({ id: `selector-depth-${depth}`, source: '<p>text</p>',
     run(load, source) { const $ = load(source); try { $(':is('.repeat(depth) + 'p' + ')'.repeat(depth)); } finally { $.dispose(); } },
+  });
+  for (const depth of [1, 20, 63, 64, 100]) cases.push({ id: `compatibility-selector-depth-${depth}`, source: '<template><p>text</p></template>',
+    run(load, source) { const $ = load(source); try { $(':is('.repeat(depth) + ':contains(text)' + ')'.repeat(depth)); } finally { $.dispose(); } },
+  });
+  for (const depth of [1, 20, 63, 64]) cases.push({ id: `has-selector-depth-${depth}`,
+    source: '<template></template><main>' + '<div>'.repeat(depth) + '<p>text</p>' + '</div>'.repeat(depth) + '</main>',
+    run(load, source) { const $ = load(source); try { $('main').is(':has('.repeat(depth) + 'p' + ')'.repeat(depth)); } finally { $.dispose(); } },
   });
   for (const depth of [100, 1000, 5000]) cases.push({ id: `template-depth-${depth}`,
     source: '<template>'.repeat(depth) + '<p>deep</p>' + '</template>'.repeat(depth),

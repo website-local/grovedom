@@ -10,6 +10,10 @@ if (first) $(first).html('<b>x</b>');
 const children: NodeHandle[] | undefined = first?.children;
 const xml = load('<x/>', { xmlMode: true });
 const serializedXML: string = xml.xml();
+const renderedXML: string = xml.html({ xml: { selfClosingTags: false, encodeEntities: true } });
+const renderedNodes: string = xml.html(xml('x').get(), { xmlMode: true });
+// @ts-expect-error Parser callbacks are not per-call serializer options.
+xml.html({ onopentag() {} });
 xml.dispose();
 load('<Root/>', { xml: { lowerCaseTags: false, xmlMode: true, recognizeSelfClosing: true } }).dispose();
 // @ts-expect-error XML callbacks are not supported.

@@ -1,4 +1,5 @@
 import { kernel } from './kernel.js';
+import { expandSelector } from './selectors.js';
 
 const selections = new WeakMap();
 const nodes = {
@@ -125,6 +126,14 @@ function query(state, selector, roots, match = false) {
       if (kind === 'eq' || kind === 'nth') return index >= 0 && index < ids.length ? ids.slice(index, index + 1) : empty;
       return ids.filter((_, i) => kind === 'even' ? i % 2 === 0 : kind === 'odd' ? i % 2 === 1 : kind === 'lt' ? i < index : i > index);
     }
+    let expanded = state.selectorAliases?.get(selector);
+    if (expanded === undefined) {
+      expanded = expandSelector(selector);
+      state.selectorAliases ??= new Map();
+      if (state.selectorAliases.size === 32) state.selectorAliases.clear();
+      state.selectorAliases.set(selector, expanded);
+    }
+    selector = expanded;
   }
   const first = selector.charCodeAt(0);
   if (first === 62 || first === 43 || first === 126 || selector.startsWith(':scope') || first <= 32) {
@@ -330,6 +339,11 @@ class Selection {
     if (!name || /[\s\0"'<>/=]/.test(name)) throw new TypeError('Invalid attribute name');
     if (arguments.length === 1) {
       const result = read(state, ids, 1, name);
+      if (result === undefined && name === 'value' && ids.length) {
+        const tag = read(state, ids, 5);
+        if (tag === 'option') return read(state, ids.subarray(0, 1), 2);
+        if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type'))) return 'on';
+      }
       return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
     }
     if (value === undefined) return this;
@@ -468,7 +482,10 @@ class Selection {
     if (!state.xml && boolAttributes.has(name)) return this.attr(name) !== undefined;
     if (['name', 'type', 'children', 'childNodes', 'parent', 'parentNode', 'next', 'prev', 'data', 'attribs', 'nodeType'].includes(name)) return this[0][name];
     const result = this.attr(name);
-    if (result !== undefined && (name === 'href' || name === 'src') && state.baseURI) { try { return new URL(result, state.baseURI).href; } catch {} }
+    if (result !== undefined && (name === 'href' || name === 'src') && state.baseURI) {
+      const tag = read(state, ids, 5);
+      if ((name === 'href' ? ['a', 'link'] : ['img', 'iframe', 'audio', 'video', 'source']).includes(tag)) { try { return new URL(result, state.baseURI).href; } catch {} }
+    }
     return result;
   }
   css(name, value) {
@@ -513,13 +530,12 @@ class Selection {
       if (!this.length) return undefined;
       const one = this.first(), name = one[0].name;
       if (name === 'textarea') return one.text();
-      if (name === 'option') return one.attr('value') ?? one.text().trim();
       if (name === 'select') {
-        const options = one.find('option'), selected = options.filter('[selected]');
-        if (one.attr('multiple') !== undefined) return selected.map(function () { return state.api(this).val(); }).get();
-        return (selected.length ? selected : options).first().val();
+        const selected = one.find('option:selected');
+        if (one.attr('multiple') !== undefined) return selected.map(function () { return state.api(this).text(); }).get();
+        return selected.attr('value');
       }
-      return one.attr('value') ?? (name === 'input' ? ['checkbox', 'radio'].includes(one.attr('type')) ? 'on' : '' : undefined);
+      return ['input', 'button', 'option'].includes(name) ? one.attr('value') : undefined;
     }
     return this.each(function (i, node) {
       const one = state.api(node), next = typeof value === 'function' ? value.call(node, i, one.val()) : value;
@@ -537,8 +553,8 @@ class Selection {
     for (const node of fields) {
       const field = state.api(node), name = field.attr('name'), type = field.attr('type') ?? '';
       if (!name || field.attr('disabled') !== undefined || !['input', 'select', 'textarea', 'keygen'].includes(node.name) || /^(?:submit|button|image|reset|file)$/i.test(type) || (/^(?:checkbox|radio)$/i.test(type) && field.attr('checked') === undefined)) continue;
-      const value = field.val();
-      for (const item of Array.isArray(value) ? value : value == null ? [] : [value]) result.push({ name, value: String(item).replace(/\r?\n/g, '\r\n') });
+      const value = field.val() ?? '';
+      for (const item of Array.isArray(value) ? value : [value]) result.push({ name, value: String(item).replace(/\r?\n/g, '\r\n') });
     }
     return result;
   }
@@ -727,6 +743,26 @@ function xmlFlags(options) {
   return flags;
 }
 
+function serializerOptions(state, options) {
+  if (!options || typeof options !== 'object' || Array.isArray(options)) throw new TypeError('Expected serializer options');
+  const flat = { ...options };
+  if (flat.xml && typeof flat.xml === 'object') Object.assign(flat, flat.xml);
+  for (const key of Object.keys(flat)) {
+    if (!['xml', 'xmlMode', 'decodeEntities', 'encodeEntities', 'selfClosingTags', 'emptyAttrs'].includes(key)) unsupported(`Unsupported serializer option: ${key}`);
+    if (key === 'xml') {
+      if (typeof flat.xml !== 'boolean' && (!flat.xml || typeof flat.xml !== 'object' || Array.isArray(flat.xml))) throw new TypeError('Expected xml boolean or serializer options');
+    } else if (key === 'encodeEntities') {
+      if (![true, false, 'utf8'].includes(flat[key])) throw new TypeError('Expected encodeEntities boolean or utf8');
+    } else if (typeof flat[key] !== 'boolean') throw new TypeError(`Expected ${key} boolean`);
+  }
+  if (!state.xml && !flat.xml && !flat.xmlMode) return null;
+  delete flat.xml;
+  delete flat.xmlMode;
+  // Cheerio retains its nested xml options when applying top-level render
+  // options. A new xml object (or boolean) replaces that nested precedence.
+  return xmlFlags({ xml: { ...state.serialization, ...flat, ...(options.xml === undefined ? state.serialization : typeof options.xml === 'object' ? options.xml : {}) } }) & 24;
+}
+
 export function load(content, options = {}, isDocument = true) {
   if (Buffer.isBuffer(content)) content = content.toString('utf8');
   if (typeof content !== 'string') unsupported('load accepts HTML strings or UTF-8 Buffers.');
@@ -742,6 +778,7 @@ export function load(content, options = {}, isDocument = true) {
   const state = {
     owner: xml ? kernel.createXML(content, xmlFlags(options)) : kernel.create(content, options.scriptingEnabled ?? true, !isDocument),
     xml,
+    serialization: typeof options.xml === 'object' ? { ...options.xml } : undefined,
     closed: false, direct: options.execution === 'direct', wrappers: new Map(), data: new Map(), baseURI: options.baseURI,
     words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
   };
@@ -773,7 +810,12 @@ export function load(content, options = {}, isDocument = true) {
   $.prototype = Selection.prototype;
   $.root = () => { alive(state); return selection(state, rootIds); };
   $.html = (input, options) => {
-    if (options !== undefined || (input && typeof input === 'object' && !nodes.has(input) && !selections.has(input) && !Array.isArray(input))) unsupported('Serializer options are not supported.');
+    if (input && typeof input === 'object' && !nodes.has(input) && !selections.has(input) && !Array.isArray(input)) { options = input; input = undefined; }
+    if (options !== undefined) {
+      const flags = serializerOptions(state, options);
+      if (selections.has(input)) return input.toString();
+      if (flags !== null) return read(state, input == null ? rootIds : entry($(input)).ids, 12 | (flags << 8));
+    }
     return input === undefined ? read(state, rootIds, 3) : read(state, entry($(input)).ids, 10);
   };
   $.xml = input => {
@@ -804,6 +846,7 @@ export function load(content, options = {}, isDocument = true) {
     state.words = state.payload = null;
     state.wrappers.clear();
     state.data.clear();
+    state.selectorAliases?.clear();
   };
   return $;
 }

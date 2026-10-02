@@ -8,7 +8,8 @@ import { instrument } from './instrument-kernel.mjs';
 if (!process.env.TMPDIR) throw new Error('Set disk-backed TMPDIR for the instrumented facade.');
 if (!kernel.profile) throw new Error('Build with GROVEDOM_PROFILE=1; use global heap for Wasm core timing.');
 const temporary = join(process.env.TMPDIR, `grovedom-phase-facade-${process.pid}.mjs`);
-const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8')
+  .replace("'./selectors.js'", JSON.stringify(new URL('../src/selectors.js', import.meta.url).href));
 const instrumented = source.replace("import { kernel } from './kernel.js';", `import { kernel as raw } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
 import { instrument } from ${JSON.stringify(new URL('./instrument-kernel.mjs', import.meta.url).href)};
 export const measurement = instrument(raw);

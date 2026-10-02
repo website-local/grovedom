@@ -1,11 +1,11 @@
 import { performance } from 'node:perf_hooks';
-export function instrument(base) {
+export function instrument(base, { queryDetails = false } = {}) {
   const rows = new Map(), kernel = {};
   const observed = new Set(['create', 'dispose', 'query', 'read', 'observe', 'traverse', 'edit', 'execute']);
   for (const name of Object.getOwnPropertyNames(base)) {
     if (!observed.has(name)) { kernel[name] = base[name]; continue; }
     kernel[name] = (...args) => {
-      const key = name === 'read' || name === 'observe' || name === 'edit' ? `${name}:${args[1]}` : name;
+      const key = name === 'read' || name === 'observe' || name === 'edit' || (queryDetails && name === 'query') ? `${name}:${args[1]}` : name;
       let row = rows.get(key);
       if (!row) { row = { calls: 0, milliseconds: 0, inputCharacters: 0, resultCharacters: 0 }; rows.set(key, row); }
       row.calls++;
@@ -19,5 +19,5 @@ export function instrument(base) {
       } finally { row.milliseconds += performance.now() - start; }
     };
   }
-  return { kernel, reset() { rows.clear(); }, snapshot() { return Object.fromEntries(rows); } };
+  return { kernel, reset() { rows.clear(); }, snapshot() { return Object.fromEntries(Array.from(rows, ([key, row]) => [key, { ...row }])); } };
 }

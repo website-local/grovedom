@@ -8,6 +8,9 @@ export interface LoadOptions extends Pick<CheerioOptions, 'scriptingEnabled' | '
   xml?: boolean | XMLOptions;
   execution?: 'buffered' | 'direct';
 }
+export type SerializerOptions = Pick<CheerioOptions, 'xmlMode'> & Pick<XMLOptions, 'decodeEntities' | 'encodeEntities' | 'selfClosingTags' | 'emptyAttrs'> & {
+  xml?: boolean | Pick<XMLOptions, 'decodeEntities' | 'encodeEntities' | 'selfClosingTags' | 'emptyAttrs'>;
+};
 /** Document-owned identity. Handles are not domhandler AnyNode objects. */
 export interface NodeHandle {
   name: string | undefined;
@@ -146,7 +149,8 @@ export interface Selection extends Iterable<NodeHandle> {
 export interface GroveDOMAPI {
   (selector?: string | NodeInput | null, context?: string | NodeInput | Record<string, unknown>): Selection;
   root(): Selection;
-  html(input?: string | NodeInput): string;
+  html(options?: SerializerOptions): string;
+  html(input: string | NodeInput | undefined, options?: SerializerOptions): string;
   xml(input?: string | NodeInput): string;
   text(input?: string | NodeInput): string;
   contains(container: NodeHandle, contained: NodeHandle): boolean;

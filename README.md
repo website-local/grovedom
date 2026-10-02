@@ -38,7 +38,7 @@ Performance on normal successful workloads is the first priority. Exact invalid-
 5. [Contributing and public repository policy](CONTRIBUTING.md)
 6. [Runnable prototype and compatibility inventory](docs/prototype.md)
 
-With the prototype's existing-toolchain prerequisites and disk-backed environment configured, run `npm run build:native`, `npm test`, `npm run test:types`, and `npm run bench`. The benchmark uses authored deterministic fixtures and both Cheerio parsers; it is not the complete engine/MDN replay. The production backend remains undecided.
+With the prototype's existing-toolchain prerequisites and disk-backed environment configured, run `npm run build:native`, `npm test`, `npm run test:types`, and `npm run bench`. The default benchmark uses authored deterministic fixtures and both Cheerio parsers. An [isolated engine/MDN replay](docs/integration.md) also runs real transforms with deterministic resource I/O; it is not a complete crawl. The production backend remains undecided.
 
 ## Initial package boundary
 

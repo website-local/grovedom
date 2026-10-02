@@ -7,7 +7,7 @@
 #include <lexbor/selectors/selectors.h>
 #include "profile.h"
 enum { SET_ATTR = 1, REMOVE_ATTR, SET_TEXT, SET_HTML, APPEND_HTML, REMOVE_NODE };
-enum { READ_ATTR = 1, READ_TEXT, READ_HTML, READ_OUTER, READ_NAME, READ_TYPE, READ_ATTRS, READ_DATA, READ_INNER_TEXT, READ_ALL_OUTER, READ_XML };
+enum { READ_ATTR = 1, READ_TEXT, READ_HTML, READ_OUTER, READ_NAME, READ_TYPE, READ_ATTRS, READ_DATA, READ_INNER_TEXT, READ_ALL_OUTER, READ_XML, READ_XML_OPTIONS };
 #define PLAN_COUNT 32
 
 enum { GD_UNDEFINED, GD_STRING, GD_NUMBER, GD_IDS, GD_NULL };
@@ -18,7 +18,7 @@ _Static_assert(sizeof(gd_result) == 16 && offsetof(gd_result, data) == 4 && offs
 typedef struct gd_document gd_document;
 typedef struct { unsigned char *data; size_t capacity, length; } gd_buffer;
 typedef struct { lxb_dom_node_t *node; uint32_t mark, order; } gd_node;
-typedef struct { char *key; size_t length; lxb_css_selector_list_t *list; } gd_plan;
+typedef struct { char *key; size_t length; lxb_css_selector_list_t *list; unsigned flags; } gd_plan;
 struct gd_document {
     lxb_html_document_t *html;
     lxb_css_parser_t *css;
@@ -38,6 +38,8 @@ struct gd_document {
     int64_t accounted;
     int closed, templates, xml;
     unsigned xml_flags;
+    unsigned selector_flags;
+    int selector_custom;
 };
 
 /* Shared implementation helpers. Hidden by both builds; not binding exports. */

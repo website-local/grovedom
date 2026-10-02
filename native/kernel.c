@@ -1,4 +1,5 @@
 #include "kernel.h"
+#include "selectors.h"
 #include "xml.h"
 #include <stdlib.h>
 #include <string.h>
@@ -403,44 +404,19 @@ static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
     return node;
 }
 
-static int gd_template_plan(lxb_css_selector_list_t *list) {
-    /* Lexbor's child-sensitive pseudos use its own fragment-skipping walk.
-     * Reject those plans on template documents instead of returning partial
-     * matches. Walk nested plans without recursion or additional storage. */
-    lxb_css_selector_t *selector = list->first;
-    while (selector) {
-        lxb_css_selector_list_t *nested = NULL;
-        if (selector->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && selector->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) return 0;
-        if (selector->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) {
-            unsigned type = selector->u.pseudo.type;
-            if (type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) return 0;
-            if (type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_IS || type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NOT || type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_WHERE) nested = selector->u.pseudo.data;
-            else if (type >= LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NTH_CHILD && type <= LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NTH_OF_TYPE && selector->u.pseudo.data) nested = ((lxb_css_selector_anb_of_t *) selector->u.pseudo.data)->of;
-        }
-        if (nested && nested->first) { selector = nested->first; continue; }
-        for (;;) {
-            if (selector->next) { selector = selector->next; break; }
-            if (selector->list->next) { selector = selector->list->next->first; break; }
-            selector = selector->list->parent;
-            if (!selector) return 1;
-        }
-    }
-    return 1;
-}
-
 static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lxb_dom_node_t *boundary, lxb_css_selector_list_t *plan) {
     /* Selector ancestry stops at the fragment, while raw parent identity stays
      * connected. No JS callback can run during this synchronous kernel call. */
     lxb_dom_node_t *parent = boundary ? boundary->parent : NULL;
     if (boundary) boundary->parent = NULL;
-    lxb_status_t status = lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+    lxb_status_t status = doc->selector_custom ? (gd_selector_match(doc, node, plan) ? gd_collect(node, 0, doc) : doc->error_code ? LXB_STATUS_ERROR : LXB_STATUS_OK) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
     if (boundary) boundary->parent = parent;
     return status;
 }
 
-static lxb_status_t gd_find_templates(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan) {
-    /* Cheerio find() starts at element children, then visits all descendants,
-     * including fragments. Lexbor's normal find skips fragment subtrees. */
+static lxb_status_t gd_find_compatibility(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan, int cross_fragments) {
+    /* Cheerio queries start at element children. Only global/non-element
+     * scopes cross fragments; element-only scopes stop at those boundaries. */
     for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
         if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         lxb_dom_node_t *node = start;
@@ -451,13 +427,63 @@ static lxb_status_t gd_find_templates(gd_document *doc, lxb_dom_node_t *root, lx
                 lxb_status_t status = gd_match_template(doc, node, boundary, plan);
                 if (status != LXB_STATUS_OK) return status;
             }
-            if (node->first_child) { node = node->first_child; continue; }
+            if (node->first_child && (cross_fragments || node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) { node = node->first_child; continue; }
             while (node != start && !node->next) {
                 if (node == boundary) boundary = gd_fragment_boundary(node->parent);
                 node = node->parent;
             }
             if (node == start) break;
             if (node == boundary) boundary = gd_fragment_boundary(node->parent);
+            node = node->next;
+        }
+    }
+    return LXB_STATUS_OK;
+}
+
+static lxb_status_t gd_mark_match(lxb_dom_node_t *node, lxb_css_selector_specificity_t specificity, void *context) {
+    (void) specificity;
+    gd_document *doc = context;
+    uint32_t id = gd_id(doc, node);
+    if (!id) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    if (doc->nodes[id].mark != doc->mark) {
+        doc->nodes[id].mark = doc->mark;
+        doc->nodes[id].order = 1;
+    }
+    return LXB_STATUS_OK;
+}
+
+static lxb_status_t gd_find_fragment(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan, lxb_selectors_cb_f collect) {
+    lxb_dom_node_t *boundary = gd_fragment_boundary(root);
+    lxb_dom_node_t *parent = boundary ? boundary->parent : NULL;
+    if (boundary) boundary->parent = NULL;
+    lxb_status_t status = lxb_selectors_find(doc->selectors, root, plan, collect, doc);
+    if (boundary) boundary->parent = parent;
+    return status;
+}
+
+static lxb_status_t gd_find_templates(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan) {
+    // Keep Lexbor's evaluator alive for each ordinary subtree. It skips fragment
+    // subtrees; visit those separately, then emit marked matches in one preorder
+    // walk. No sorting, temporary node arrays, or per-element evaluator restart.
+    lxb_status_t status = gd_find_fragment(doc, root, plan, gd_mark_match);
+    if (status != LXB_STATUS_OK) return status;
+    for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
+        if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+        lxb_dom_node_t *node = start;
+        for (;;) {
+            if (node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) {
+                status = gd_find_fragment(doc, node, plan, gd_mark_match);
+                if (status != LXB_STATUS_OK) return status;
+            }
+            uint32_t id = (uint32_t) (uintptr_t) node->user;
+            if (id && doc->nodes[id].mark == doc->mark && doc->nodes[id].order) {
+                if (!gd_reserve((void **) &doc->results, &doc->result_capacity, doc->result_count + 1, sizeof(uint32_t))) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+                doc->results[doc->result_count++] = id;
+                doc->nodes[id].order = 0;
+            }
+            if (node->first_child) { node = node->first_child; continue; }
+            while (node != start && !node->next) node = node->parent;
+            if (node == start) break;
             node = node->next;
         }
     }
@@ -477,7 +503,7 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     for (size_t i = 0; i < doc->plan_count; i++) {
         gd_plan *plan = &doc->plans[i];
         if (plan->length == doc->input.length &&
-            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); return plan->list; }
+            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); doc->selector_flags = plan->flags; return plan->list; }
     }
     GD_PROFILE_ADD(GP_PLAN_MISSES, 1);
     if (doc->plan_count == PLAN_COUNT) gd_plans_clean(doc);
@@ -506,7 +532,8 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     if (!key) { gd_plans_clean(doc); goto memory_error; }
     memcpy(key, doc->input.data, doc->input.length + 1);
     gd_plan *plan = &doc->plans[doc->plan_count++];
-    *plan = (gd_plan) { key, doc->input.length, list };
+    doc->selector_flags = gd_selector_flags(list);
+    *plan = (gd_plan) { key, doc->input.length, list, doc->selector_flags };
     return list;
 memory_error:
     gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed");
@@ -596,16 +623,21 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
     lxb_css_selector_list_t *plan = gd_plan_get(doc);
     if (!plan) return gd_failed();
-    if (doc->templates && !gd_template_plan(plan)) {
-        gd_set_error(doc, "ERR_GROVEDOM_UNSUPPORTED", ":has and :empty selectors on template documents are not supported");
-        return gd_failed();
+    doc->selector_custom = (doc->selector_flags & GD_SELECTOR_TEXT) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+    int cross_fragments = 0;
+    if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
+        if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
     }
     gd_results_reset(doc);
     for (size_t i = 0; i < count; i++) {
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
-        lxb_status_t status = match ? (doc->templates ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc)) : doc->templates ? gd_find_templates(doc, node, plan) : lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
-        if (status != LXB_STATUS_OK) { gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
+        lxb_status_t status;
+        if (match) status = (doc->templates || doc->selector_custom) ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+        else if (doc->selector_custom) status = gd_find_compatibility(doc, node, plan, cross_fragments);
+        else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
+        else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
+        if (status != LXB_STATUS_OK) { if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
     }
     return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
 }
@@ -647,6 +679,8 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
         data = str->data; length = str->length;
     } else if (operation == READ_TEXT || operation == READ_INNER_TEXT) {
         for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_text(doc, doc->nodes[ids[i]].node, operation == READ_INNER_TEXT);
+    } else if ((operation & 255) == READ_XML_OPTIONS && !(operation & ~(255u | ((XML_PAIRED | XML_RAW) << 8)))) {
+        for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_xml_serialize(doc, doc->nodes[ids[i]].node, operation >> 8);
     } else if (operation == READ_XML) {
         for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_xml_serialize(doc, doc->nodes[ids[i]].node, doc->xml ? doc->xml_flags : XML_DECODE);
     } else if (operation == READ_ALL_OUTER) {

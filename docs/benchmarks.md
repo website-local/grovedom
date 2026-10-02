@@ -489,3 +489,39 @@ A longer final repeat at 120 articles used six balanced process blocks, 400 warm
 Splitting XML into standard `xml.c`/`xml.h` translation units preserves the test results, zero Wasm imports and the measured stack watermarks. At 120 HTML articles, the before/after pooled-Wasm ratio was 1.008 in three separate-process blocks (1.007–1.030), while a mixed-implementation short run measured 0.896 with 29/30 blocks retained. This disagreement reinforces the runtime/order limitation; no performance advantage is claimed for the source-file layout.
 
 Repeating the XML diagnostics with the final separate translation units and the same settings measured filtered speedups of 2.393× for native sitemap, 1.434× for native SVG, 2.135× for pooled-Wasm sitemap and 1.273× for pooled-Wasm SVG. Raw estimates were 2.406×, 1.434×, 2.167× and 1.298×; retained blocks were 23/24, 24/24, 23/24 and 23/24. These remain diagnostic workload results, with the same full-engine and noise limitations.
+
+## Engine integration pass after d29bb5f
+
+`d29bb5f` is the accepted implementation baseline for this pass. Cheerio remains the external performance baseline. The [isolated consumer replay](integration.md) now runs installed engine 0.9.1 and tracked MDN 0.7.4 transforms. Seven authored scenarios and eight saved MDN pages match Cheerio/parse5's serialized resource bodies and ordered discovery events on native and all three Wasm modes. The adapter includes deterministic disposal of nested loads. Resource I/O and URL policies are deterministic stand-ins; this is not the complete downloader or a universal adoption result.
+
+Profiling identified repeated selector-evaluator initialization on template-bearing pages. Ordinary CSS now scans each fragment-free subtree through Lexbor, then merges fragment matches in preorder through existing node records/result storage. No temporary node array, sort, per-node JavaScript callback, or Lexbor patch is required. Special template/text pseudos retain a separate compatibility evaluator. In a diagnostic 50-replay comparison on the larger page, exclusive kernel query time fell from about 894 ms to 509 ms. This phase measurement supports the identified bottleneck; release timings below establish the practical effect. Long comma-separated removal selectors remain a substantial query cost.
+
+Final release timings use Node 22, separate child processes, three balanced ABBA/BAAB blocks, 40 warmups and six batches of six replays per child. Startup and warmup are excluded. The table reports median baseline/candidate ratios; values above 1 mean faster. Each measured replay includes parse, facade/kernel calls, transformations, serialization, lifecycle cleanup and the deterministic URL/async work.
+
+| Input | Native vs d29bb5f | Pooled Wasm vs d29bb5f | Native vs Cheerio/parse5 | Pooled Wasm vs Cheerio/parse5 |
+|---|---:|---:|---:|---:|
+| MDN-5, 94,642 bytes | 1.105× | 1.280× | 3.078× | 2.620× |
+| MDN-8, 150,384 bytes | 1.232× | 1.461× | 4.626× | 3.899× |
+
+All three blocks passed the independent CPU-probe filter except pooled Wasm against parse5 on MDN-5, where two passed; its unfiltered ratio was 2.745×. Other table entries have equal raw and filtered estimates. Raw samples are retained in private reports. The filter rejects entire balanced blocks only when max/min probe time exceeds 1.5; it never selects by implementation speed or ratio. Steady interference and GC can still affect precision.
+
+The fastest baseline must also be considered. Using Cheerio's slim/htmlparser2 entry, both measured pages preserve equivalent reparsed HTML and identical resource events. Normalization runs outside timed child processes. Their byte serialization differs, and targeted generated-example/fragment cases still fail equivalence, so htmlparser2 is acceptable only for the demonstrated subset.
+
+| Input | Native vs Cheerio/htmlparser2 slim | Pooled Wasm vs Cheerio/htmlparser2 slim |
+|---|---:|---:|
+| MDN-5 | 2.431× | 2.136× |
+| MDN-8 | 3.202× | 2.850× |
+
+All three blocks were retained for these comparisons. The initial root-entry experiment using only the private `_useHtmlParser2` flag lost parser settings during serialization; it is not an acceptable reference configuration and supplies no performance claim. The supported `xml: { xmlMode: false }` configuration and slim entry were subsequently checked.
+
+The first feature-only timing pass appeared to slow native replay by roughly 8–11%, but crossed glue/kernel runs were rejected by control noise and an identical-code control also varied substantially. That signal is not a confirmed regression. The profiled template optimization above is retained based on final output checks and balanced release improvements. These selected large-page results meet 3× for native; pooled Wasm does not reach 3× on both. The full representative-workload gate remains open.
+
+The ordinary authored HTML regression check uses six separate-process blocks, 400 warmups and 30 batches of 12 replays at 120 articles. Baseline/candidate ratios are 1.015 for native and 0.995 for pooled Wasm, with all six blocks retained. Individual blocks range from 0.961–1.049 and 0.955–1.043 respectively. This is consistent with parity at the measured precision; it does not support the initial short-run Wasm slowdown as a repeatable result.
+
+XML regression diagnostics remain less precise. Short paired runs measured filtered native ratios of 0.946 for the 600-entry sitemap and 0.959 for the 300-group SVG, but their paired 10th–90th percentiles spanned roughly 0.78–1.24. The pooled-Wasm ratios were 1.032 and 0.985. A native repeat using four separate-process blocks, 200 warmups and 12 batches of eight replays measured raw ratios of 1.060/1.035 and filtered ratios of 1.128/1.079, retaining two/three blocks. The opposite directions do not establish a repeatable XML slowdown or speedup; small regressions cannot be excluded under this variability. All raw results remain available locally, including rejected blocks.
+
+The 695-case test matrix passes its applicable cases: native 678/17 skipped, shared Wasm 680/15, document Wasm 681/14, and pooled Wasm 684/11. Native and pooled Wasm also pass on Node 24. Type checks and native ASan/UBSan with leak detection pass. The imported upstream selection remains 607 active cases and 11 exclusions.
+
+Selector-cache churn and repeated text matching plateau after warmup. All four lifecycle diagnostics return tracked live bytes/documents to zero after disposal, including a large-then-small sequence and eight simultaneous owners disposed in varied order. Shared Wasm retains its grown linear memory; document heaps are released and pooled heaps remain under their configured idle limits, with trimming returning pooled backing memory to zero. These checks do not prove zero fragmentation or establish workload-specific retained-memory budgets.
+
+The expanded Wasm stack diagnostic instruments 114 stack assignments. Ordinary authored replay still reaches 96 bytes, but the compatibility selector evaluator now uses more stack: nested successful `:has` reaches 6,192 bytes reserved / 6,184 written; the depth-limit rejection reaches 6,240 bytes reserved. All cases restore the pointer. The former 96-byte maximum therefore no longer describes the whole API. Keep the 64 KiB stack, 1 MiB initial memory, 16 KiB shared transfer scratch and bounded pool defaults. Release Wasm remains import-free and has no diagnostic exports.

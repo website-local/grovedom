@@ -72,6 +72,10 @@ Choose one initial production kernel/binding based on speed, memory, and impleme
 
 Audit lifecycle hooks, HTML transformations, compatibility tables, interactive examples, URL rewriting, SVG/sitemaps, and save behavior. Include their focused regressions in the replay. Record public source/package revisions and recheck dependency resolution when freezing the benchmark; keep developer checkout locations and installation histories out of committed reports.
 
+The pass after accepted baseline `d29bb5f` implements an isolated engine/MDN replay and disposal adapter, template-aware `:has`/`:empty`, common Cheerio selector aliases and `:contains`, audited property/form corrections, and per-call XML serialization options. Profiling identified per-element selector restarts on template documents; ordinary selectors now scan subtrees and merge fragment matches in preorder. See [integration](integration.md), [compatibility](compatibility.md) and the latest [benchmark evidence](benchmarks.md).
+
+Cross-document adoption remains deferred: the audited consumers transfer markup strings and independent resources, not nodes. `loadBuffer` is explicitly deferred. Next adoption work is broader replay coverage, consumer TypeScript compilation, agreed retained-memory budgets/failure testing, and packaging/backend selection. Success on selected large pages does not establish the full workload gate.
+
 ## Deliberately deferred
 
 - Out-of-order execution and speculative optimizers.
