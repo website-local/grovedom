@@ -291,6 +291,8 @@ Choose using complete workload time, peak/retained memory, and code complexity. 
 
 Start with bounded selector-plan caching, name interning, whole-selection operations, compact storage, and bulk transfer. Add fusion only for a measured bottleneck and a small rule that preserves issue order; do not grow a general optimizer.
 
+Keep the Wasm kernel compute-only. Release artifacts require no host imports; diagnostic builds may import explicit clock/counter hooks. Avoid pulling general stdio into error formatting, and fail the build if a new I/O import appears. Additional Wasm target features are build-time experiments applied consistently to the core and dependency; retain the simplest default unless complete-workload measurements show a repeatable gain.
+
 Initial non-goals: a browser engine, layout, executing page scripts, full jQuery compatibility, internal parallel execution, library-managed worker pools, an out-of-order scheduler, transaction rollback, a stable internal ABI, or a JIT. Supporting independent documents in caller-managed workers is within scope.
 
 JIT research remains deferred. It does not eliminate JS observations or string conversion and is not part of the implementation or toolchain proposed here.

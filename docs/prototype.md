@@ -22,6 +22,7 @@ Set locations using environment variables; keep downloads, caches, build product
 | `GROVEDOM_LTO` | `off`, `thin` (default), or `full`, applied to kernel and Lexbor |
 | `GROVEDOM_BUILD_JOBS` | Positive compiler/linker concurrency limit; default two |
 | `GROVEDOM_PROFILE` | Set to `1` for diagnostic phase clocks/counters; omitted in release builds |
+| `GROVEDOM_WASM_FEATURES` | Optional comma-separated `bulk-memory`, `simd128`, `relaxed-simd`, `tail-call`, `nontrapping-fptoint`; default empty |
 
 The build verifies the reviewed Lexbor source fingerprint. This checks build inputs and adds nothing to the private command protocol. JS and kernel artifacts are paired using build/package metadata; there is no stable internal ABI or protocol version/checksum.
 
@@ -37,7 +38,7 @@ GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=pool npm test
 node bench/compare.mjs
 ```
 
-The native backend is the default. The Wasm adapter uses `WebAssembly.Module`/`Instance` directly, with no emulated Node-API layer or experimental Node WASI API. Its required libc descriptor imports return unavailable-descriptor errors; DOM operations perform no file I/O. The current JS adapter targets Node, not browsers.
+The native backend is the default. The Wasm adapter uses `WebAssembly.Module`/`Instance` directly, with no emulated Node-API layer or experimental Node WASI API. **Release Wasm modules have zero imports**, including no `wasi_snapshot_preview1` functions or descriptor stubs. The build checks this invariant; diagnostic builds may import only their explicit timing hooks. The current JS adapter targets Node, not browsers.
 
 ```js
 import { load } from 'grovedom';
@@ -97,7 +98,7 @@ Explicit disposal discards pending work and invalidates retained handles. GC fal
 
 ## Verification and diagnostics
 
-The tests include authored Cheerio differential cases, [selected upstream Cheerio/jQuery suites](../test/upstream/README.md), worker/lifecycle checks, and pool reuse/cap/GC tests. Run each Wasm mode explicitly. The current 455-case matrix passes: 443 tests on native/shared/fresh Wasm with 12 visible skips, and 446 on pooled Wasm with nine upstream exclusions. Three pool-specific cases run only in pool mode. Native and pooled Wasm also pass on Node 24; native ASan/UBSan with leak detection passes all 443 applicable tests. These checks cover the implemented paths; the exact Node 22.0.0 floor, allocation-failure injection, and broader fuzzing remain release work. Sanitizers do not establish absence of data races or allocator fragmentation.
+The tests include authored Cheerio differential cases, [selected upstream Cheerio/jQuery suites](../test/upstream/README.md), worker/lifecycle checks, and pool reuse/cap/GC tests. Run each Wasm mode explicitly. The current 456-case matrix passes: 444 tests on native/shared/fresh Wasm with 12 visible skips, and 447 on pooled Wasm with nine upstream exclusions. Three pool-specific cases run only in pool mode. Native and pooled Wasm also pass on Node 24; native ASan/UBSan with leak detection passes all 444 applicable tests. These checks cover the implemented paths; the exact Node 22.0.0 floor, allocation-failure injection, and broader fuzzing remain release work. Sanitizers do not establish absence of data races or allocator fragmentation.
 
 For sanitizer builds use a separate `GROVEDOM_BUILD_DIR`, set `GROVEDOM_SANITIZE=1`, and run with the matching existing Clang ASan runtime, leak detection, and disk-backed log locations. Keep sanitizer results separate from release timing.
 
@@ -112,6 +113,10 @@ The profile reports inclusive/exclusive phase time, boundary calls, commands, se
 `bench/ab.mjs` checks exact output before alternating release timing. Supply `GROVEDOM_AB_MANIFEST` with `variants: [{ name, entry, env }]`; every entry must point to an isolated source snapshot with its matching kernel artifact. An optional `corpus: [{ id, path }]` selects private input files. The default uses the authored replay. Reports emit labels and raw samples without paths. Configure rounds, iterations, and authored article count with `GROVEDOM_BENCH_ROUNDS`, `GROVEDOM_BENCH_ITERATIONS`, and `GROVEDOM_BENCH_ROWS`.
 
 The measured default is O3 plus ThinLTO. Native LTO uses lld; both builds resolve matching LLVM archive tools through Clang. `GROVEDOM_LTO=off` retains a straightforward non-LTO build for comparison. No CPU-specific instruction flags or profile-guided training corpus are baked into artifacts. See [the measurements](benchmarks.md#deep-profiling-and-compiler-tuning) for scope and variability.
+
+Wasm feature flags apply to both Lexbor and the kernel, including the LTO link. An empty `GROVEDOM_WASM_FEATURES` keeps compiler defaults; it does not disable features already present in the prebuilt libc. For example, `GROVEDOM_WASM_FEATURES=bulk-memory,simd128` enables explicit bulk operations and automatic vectorization in our sources. The [feature sweep](benchmarks.md#wasm-target-features-and-removal-of-wasi-imports) found no repeatable overall win, so additional features remain opt-in. There is no runtime feature dispatcher or extra artifact set.
+
+The former WASI descriptor imports came from the kernel's mutation-error `snprintf` call, which pulled in libc's general stdio implementation. A bounded integer formatter now writes into the existing document error buffer. The linker discards the unused stdio dependency; no permissive unresolved-symbol policy, syscall wrappers, or suppressed output are needed. Error codes, operation indices, and preceding mutation effects remain intact.
 
 For heap diagnostics, set `GROVEDOM_WASM_PROFILE_GROWTH=1` while building and running. This produces a separate instrumented module. `bench/heap-growth.mjs` reads `GROVEDOM_HTML_MANIFEST`, a private JSON array of `{ "id": "page-label", "path": "input-file" }`. File paths/content are not emitted. `GROVEDOM_HEAP_WORKLOAD=parse` uses a diagnostic-only entry point to parse unmodified pages including templates, then dispose; it does not expose a template DOM or establish facade compatibility. Default mode includes selection, mutation and serialization and reports unsupported pages explicitly. Rebuild for every initial-size setting. Release builds contain no growth-clock instrumentation or template-probe entry point.
 

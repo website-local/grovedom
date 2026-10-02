@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
-#include <stdio.h>
 
 /* Track Lexbor backing allocations, not individual arena slots. The library is
  * statically linked with hidden symbols; these hooks affect only this kernel.
@@ -91,6 +90,21 @@ static int gd_error(gd_document *doc, const char *code, const char *message) {
     doc->error_code = code;
     doc->error_message = message;
     return 0;
+}
+static void gd_mutation_error(gd_document *doc, size_t operation) {
+    /* snprintf pulls stdio and WASI descriptors into an otherwise compute-only
+     * module. Format this one integer in the existing document buffer instead. */
+    static const char prefix[] = "Mutation failed at operation ";
+    static const char suffix[] = "; preceding effects remain";
+    char digits[3 * sizeof(size_t)];
+    size_t count = 0;
+    _Static_assert(sizeof(((gd_document *) 0)->error_buffer) >= sizeof(prefix) - 1 + sizeof(digits) + sizeof(suffix), "mutation error capacity");
+    do { digits[count++] = (char) ('0' + operation % 10); operation /= 10; } while (operation);
+    char *next = doc->error_buffer;
+    memcpy(next, prefix, sizeof(prefix) - 1); next += sizeof(prefix) - 1;
+    while (count) *next++ = digits[--count];
+    memcpy(next, suffix, sizeof(suffix));
+    gd_error(doc, "ERR_GROVEDOM_MUTATION", doc->error_buffer);
 }
 static int gd_begin(gd_document *doc) {
     doc->error_code = doc->error_message = NULL;
@@ -682,8 +696,7 @@ int gk_execute(gd_document *doc, const uint32_t *words, size_t length, const uns
             lxb_status_t status = gd_mutate(doc, op, doc->nodes[ids[i]].node, a, al, b, bl);
             if (status != LXB_STATUS_OK) {
                 if (status == GD_UNSUPPORTED) { gd_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Template contents are not supported by this prototype"); goto failed; }
-                snprintf(doc->error_buffer, sizeof(doc->error_buffer), "Mutation failed at operation %zu; preceding effects remain", operation_index);
-                gd_error(doc, "ERR_GROVEDOM_MUTATION", doc->error_buffer); goto failed;
+                gd_mutation_error(doc, operation_index); goto failed;
             }
         }
         cursor += 6 + count;

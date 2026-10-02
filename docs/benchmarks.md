@@ -241,3 +241,30 @@ The final Node 22 comparison with Cheerio 1.2.0 used the existing nine-round, 30
 All rows matched exact output, including the explicit-parse5-default control. Fresh-Wasm process timings varied substantially from the earlier run, including its Cheerio baselines; neither run establishes a general win for fresh instances.
 
 The 455-case matrix passes on native/shared/fresh Wasm (443 passes, 12 skips) and pooled Wasm (446 passes, nine upstream exclusions). Native and pooled Wasm pass on Node 22 and 24. Native ASan/UBSan with leak detection reports no findings. Repeated lifetime tests return tracked live backing bytes to zero; the pool remains bounded and releases idle references on trim. Shared linear memory still retains its high-water capacity. This does not prove absence of fragmentation, and the full engine replay, memory budgets, and adoption gate remain open.
+
+## Wasm target features and removal of WASI imports
+
+The next experiment held O3/ThinLTO, the prebuilt libc, initial memory, pooled ownership, and JS behavior constant. Target features were applied to both Lexbor and the kernel, including the LTO link. The compiler's default feature set already appeared alongside bulk-memory, multivalue, and reference-types annotations from libc; those annotations alone did not enable the corresponding optimizations in GroveDOM's source compilation.
+
+All tested feature combinations loaded on the patched Node 22 and 24 runtimes without experimental runtime flags. Disassembly of the import-free builds confirmed actual code generation: explicit bulk memory raised the static `memory.copy`/`memory.fill` count from 3 to 678; SIMD enabled 352 vector instructions. The extended set added 12 tail calls and four nontrapping conversions, but emitted **zero relaxed-SIMD instructions**. More enabled features do not imply more useful instructions.
+
+The following paired speedups use the import-free default-feature build as the denominator. Each variant had 80 warmups and 17 alternating rounds: 80 replays at 120 articles, 40 at 600. Output matched exactly before timing.
+
+| Additional features | Node 22 / 120 | Node 22 / 600 | Node 24 / 120 | Node 24 / 600 |
+|---|---:|---:|---:|---:|
+| Bulk memory | 1.006× | 1.032× | 0.989× | 1.034× |
+| SIMD128 | 0.989× | 1.045× | 1.015× | 1.014× |
+| Bulk memory + SIMD128 | 0.995× | 0.998× | 1.011× | 1.041× |
+| Above + relaxed SIMD + tail calls + nontrapping conversions | 1.014× | 1.016× | 0.984× | 0.990× |
+
+A dedicated two-variant bulk-memory repeat reversed the apparent gain: **0.959× at 120 articles and 0.972× at 600** on Node 22. Four compatible MDN examples ranged from about 0.99× to 1.16× with bulk memory; the largest example benefited most. The overall evidence is mixed, so **no additional target features are enabled by default**. `GROVEDOM_WASM_FEATURES` retains explicit opt-in experiments without runtime dispatch, feature detection, or extra shipped variants. Atomics, shared memory, and memory64 are outside this experiment.
+
+### Why stdio was linked
+
+The linker's archive-extraction trace identified one kernel call: mutation-error `snprintf` pulled in `vsnprintf`, `vfprintf`, stderr support, and ultimately `fd_close`, `fd_seek`, and `fd_write` imports. This establishes a dependency chain, not evidence that ordinary DOM operations performed I/O or proof of a libc defect.
+
+The kernel now formats the operation index into its existing fixed-size error buffer, with a compile-time capacity check. Linker section garbage collection discards the unused stdio code. The JS descriptor stubs are removed. Release builds verify **zero imports**; diagnostic builds allow only their explicit clock/counter imports. Unresolved symbols and unexpected imports are not silently ignored.
+
+The default release module shrank from **833,010 to 764,031 bytes (8.3%)** and instantiates without an imports object. A paired before/after check on Node 22 measured about 1.03× for shared and pooled Wasm at 120 articles, 1.01× for fresh instances, and 1.02× for pooled Wasm at 600 articles. Node 24 pooled timing was near parity. Tiny MDN examples remained variable. These modest timings are diagnostic; the clear changes are the smaller artifact and removal of the host-I/O dependency.
+
+The final 456-case matrix passes: native/shared/fresh Wasm have 444 passes and 12 skips; pooled Wasm has 447 passes and nine upstream exclusions. Native and pooled Wasm pass on Node 22 and 24. Native ASan/UBSan with leak detection emits no findings. The added regression covers zero- and multi-digit error indices and preserved partial effects; experimental feature builds also pass it. A combined phase/growth diagnostic build imports only its three `env` timing functions and leaves tracked live bytes at zero after cleanup. The complete engine performance and memory gates remain open.

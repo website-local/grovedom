@@ -23,14 +23,9 @@ const owners = new WeakMap(), live = new Set();
 let retiredAllocations = 0, peakBytes = 0;
 
 function fail(code, message) { const error = new Error(message); error.code = code; throw error; }
-// Imports capture only module state. Reuse them across fresh and pooled
-// instances instead of allocating another set of callbacks for each document.
-const imports = { wasi_snapshot_preview1: {
-  fd_close: () => 8,
-  fd_seek: () => 8,
-  fd_write: () => 8,
-  proc_exit: code => { throw new Error(`Wasm kernel exited (${code})`); },
-} };
+// Release modules have no imports. Diagnostic callbacks capture only module
+// state and are reused across fresh and pooled instances.
+const imports = {};
 if (metadata.profile) imports.env = { profile_now: () => performance.now() * 1e6 };
 if (process.env.GROVEDOM_WASM_PROFILE_GROWTH === '1') {
   imports.env = { ...imports.env,
@@ -39,8 +34,6 @@ if (process.env.GROVEDOM_WASM_PROFILE_GROWTH === '1') {
   };
 }
 function instance() {
-  // DOM operations have no file or process I/O. These libc support imports only
-  // report unavailable descriptors; any unexpected process exit is an error.
   const runtime = new WebAssembly.Instance(module, imports).exports;
   runtime.gk_init();
   return runtime;

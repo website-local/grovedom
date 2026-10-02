@@ -8,6 +8,8 @@ Engine 0.9.1 parse/process/save/SVG/sitemap paths and representative MDN APIs ha
 
 The deeper profiling pass adds optional phase/counter instrumentation, paired release comparisons, and compiler/LTO experiments. Short ASCII command encoding, private node metadata, and combined write/read boundaries reduce facade overhead; the measured build default is O3/ThinLTO. These are diagnostic improvements with successful-output and lifecycle coverage, not completion of the consumer adoption gate.
 
+The Wasm feature sweep now covers bulk memory, SIMD, relaxed SIMD, tail calls, and nontrapping conversions. Results vary by workload and runtime, so extra target features remain opt-in. Release Wasm is import-free after removing the kernel's stdio formatting dependency, with a build check preventing accidental I/O imports.
+
 ## First implementation milestone
 
 Establish the actual API surface and a deterministic baseline replay before choosing the implementation backend.

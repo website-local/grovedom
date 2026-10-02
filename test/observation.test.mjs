@@ -43,3 +43,20 @@ test('combined write/read preserves partial effects and rejects unsafe buffers a
   assert.throws(() => kernel.observe(owner, 2, ids, '', new Uint32Array(), empty), { code: 'ERR_GROVEDOM_DISPOSED' });
   assert.equal(kernel.stats().liveBytes, 0);
 });
+
+test('mutation errors format operation indices without stdio and preserve prior effects', () => {
+  const owner = kernel.create('<p>initial</p>', true, false);
+  const ids = kernel.query(owner, 'p', Uint32Array.of(1), false);
+  try {
+    for (const index of [0, 9, 10, 99, 100]) {
+      const words = new Uint32Array((index + 1) * 7);
+      for (let i = 0; i < index; i++) words.set([3, 1, 0, 1, 0, 0, ids[0]], i * 7);
+      words.set([1, 1, 0, 0, 0, 0, ids[0]], index * 7); // Empty attribute name fails in the mutation primitive.
+      assert.throws(() => kernel.observe(owner, 2, ids, '', words, Uint8Array.of(65)), {
+        code: 'ERR_GROVEDOM_MUTATION', message: `Mutation failed at operation ${index}; preceding effects remain`,
+      });
+      assert.equal(kernel.read(owner, 2, ids, ''), index ? 'A' : 'initial');
+    }
+  } finally { kernel.dispose(owner); }
+  assert.equal(kernel.stats().liveBytes, 0);
+});
