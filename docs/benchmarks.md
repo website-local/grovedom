@@ -248,7 +248,7 @@ The next experiment held O3/ThinLTO, the prebuilt libc, initial memory, pooled o
 
 All tested feature combinations loaded on the patched Node 22 and 24 runtimes without experimental runtime flags. Disassembly of the import-free builds confirmed actual code generation: explicit bulk memory raised the static `memory.copy`/`memory.fill` count from 3 to 678; SIMD enabled 352 vector instructions. The extended set added 12 tail calls and four nontrapping conversions, but emitted **zero relaxed-SIMD instructions**. More enabled features do not imply more useful instructions.
 
-The following paired speedups use the import-free default-feature build as the denominator. Each variant had 80 warmups and 17 alternating rounds: 80 replays at 120 articles, 40 at 600. Output matched exactly before timing.
+The following paired speedups are default-feature elapsed time divided by feature-enabled elapsed time, using import-free builds. Each variant had 80 warmups and 17 alternating rounds: 80 replays at 120 articles, 40 at 600. Output matched exactly before timing.
 
 | Additional features | Node 22 / 120 | Node 22 / 600 | Node 24 / 120 | Node 24 / 600 |
 |---|---:|---:|---:|---:|
@@ -296,7 +296,7 @@ Exact before/after outputs matched for the authored replay and four unmodified c
 
 The reported experiment used 40 fresh Node processes: three comparisons, one identical-code control, and one reversed-import comparison for each case below. Each process used 200 warmups per variant and 60 balanced blocks. Batches contained 12 replays at 120 articles or three at 600, including parsing, queries, mutations, serialization, and disposal. Output matched exactly before timing. Filter rules were finalized using controls before the reported candidate measurements; no runs were discarded because of their speedup result.
 
-The filter retained **2,355 of 2,400 blocks**, including **1,414 of 1,440** blocks in the three main comparisons. It changed their median speedup estimates by less than 0.5 percentage points. The table reports medians of the three process estimates and their range, not confidence intervals. All speedups use the preceding implementation as denominator. The reversed-import check is normalized to the same direction and reported separately.
+The filter retained **2,355 of 2,400 blocks**, including **1,414 of 1,440** blocks in the three main comparisons. It changed their median speedup estimates by less than 0.5 percentage points. The table reports medians of the three process estimates and their range, not confidence intervals. All speedups are preceding-implementation elapsed time divided by updated-implementation elapsed time. The reversed-import check is normalized to the same direction and reported separately.
 
 | Runtime / backend / articles | Raw median | Filtered median | Three filtered estimates, min–max | Identical-code control | Reversed-import check |
 |---|---:|---:|---:|---:|---:|
@@ -312,3 +312,59 @@ The filter retained **2,355 of 2,400 blocks**, including **1,414 of 1,440** bloc
 The strongest repeatable directions are modest gains for Node 22 native at 600 articles, Node 22 pooled Wasm at 120, and Node 24 pooled Wasm at 600. Several other cases span parity or a regression, and identical-code controls retain offsets as large as about 2.6%. Reversing import order in an additional process also changes some estimates substantially. That check runs at a different time, so it cannot separate loading order from host/runtime variability. Do not generalize the larger individual estimates or claim a precise universal speedup.
 
 Short repetitions and filtering permit useful progress under variable load, but filtering does not remove steady interference, every interruption, or runtime effects. The allocation reductions remain stronger evidence than a blanket throughput claim. Backend/compiler defaults and the unverified complete-engine adoption gates are unchanged.
+
+## Wasm features with repeated short runs
+
+**Additional Wasm target features remain opt-in.** A fresh comparison on the allocation-optimized source at `6f3c36f` found no repeatable overall win. This is a new comparison against matching default-feature artifacts, not a timing comparison with the older source used in the first feature sweep.
+
+The experiment held JS source, kernel source, prebuilt libc, O3/ThinLTO, 32 initial memory pages, and pooled ownership constant. It used Node 22.22.2 and 24.18.0, with 120 and 600 authored articles. For each runtime/size, every feature received three fresh-process comparisons plus one shared identical-code control: **52 processes total**. Each process used 200 warmups per variant and 60 balanced blocks, with 12 replays per batch at 120 articles and three at 600. Output matched exactly before timing. The second comparison reversed import order; feature and size run order also varied between passes according to a fixed schedule.
+
+The existing probe-only filter retained **3,042 of 3,120 blocks**, including **2,808 of 2,880** feature-comparison blocks. No run was discarded based on its result, and no filter or candidate changes were made during measurement. Filtering changed individual process speedup estimates by at most 0.56 percentage points. All raw blocks, rejected blocks, and both summaries were retained locally.
+
+Every ratio below is **default elapsed / feature elapsed**; above one means faster. Reversed-import ratios are normalized from the raw block timings before aggregation. Medians and ranges describe the three process estimates, not confidence intervals. The reversed column shows the second estimate, which is also included in the median and range. `bulk` means bulk-memory, `simd` means SIMD128, and `extended` adds relaxed SIMD, tail calls, and nontrapping conversions to bulk-memory + SIMD128.
+
+| Node / articles | Features | Raw median | Filtered median | Filtered min–max | Reversed imports | Retained blocks |
+|---|---|---:|---:|---:|---:|---:|
+| 22 / 120 | bulk | 0.988× | 0.988× | 0.975–1.023× | 1.023× | 177/180 |
+| 22 / 120 | simd | 0.994× | 0.994× | 0.978–1.017× | 0.994× | 177/180 |
+| 22 / 120 | bulk-simd | 0.992× | 0.990× | 0.985–0.993× | 0.993× | 177/180 |
+| 22 / 120 | extended | 0.988× | 0.988× | 0.987–1.000× | 0.987× | 175/180 |
+| 22 / 600 | bulk | 0.989× | 0.988× | 0.986–0.994× | 0.988× | 177/180 |
+| 22 / 600 | simd | 1.000× | 0.995× | 0.993–1.011× | 1.011× | 173/180 |
+| 22 / 600 | bulk-simd | 1.003× | 1.003× | 0.976–1.009× | 0.976× | 176/180 |
+| 22 / 600 | extended | 1.008× | 1.011× | 0.986–1.012× | 1.011× | 176/180 |
+| 24 / 120 | bulk | 1.016× | 1.016× | 0.956–1.064× | 1.064× | 177/180 |
+| 24 / 120 | simd | 0.994× | 0.995× | 0.942–1.018× | 1.018× | 176/180 |
+| 24 / 120 | bulk-simd | 0.973× | 0.973× | 0.956–0.995× | 0.995× | 177/180 |
+| 24 / 120 | extended | 1.000× | 1.002× | 0.988–1.012× | 1.012× | 175/180 |
+| 24 / 600 | bulk | 0.975× | 0.975× | 0.965–0.986× | 0.965× | 174/180 |
+| 24 / 600 | simd | 0.998× | 1.001× | 0.976–1.017× | 1.001× | 175/180 |
+| 24 / 600 | bulk-simd | 0.968× | 0.968× | 0.961–0.974× | 0.974× | 173/180 |
+| 24 / 600 | extended | 0.953× | 0.951× | 0.950–0.960× | 0.950× | 173/180 |
+
+Identical-code controls show why small apparent gains remain inconclusive:
+
+| Node / articles | Raw control | Filtered control | Retained blocks |
+|---|---:|---:|---:|
+| 22 / 120 | 0.986× | 0.986× | 59/60 |
+| 22 / 600 | 0.995× | 0.994× | 59/60 |
+| 24 / 120 | 0.963× | 0.964× | 59/60 |
+| 24 / 600 | 0.997× | 0.996× | 57/60 |
+
+The Node 24 small-page control is particularly order-sensitive: retained blocks starting ABBA versus BAAB have median ratios of **1.000× versus 0.831×**, although every block contains both halves. Its overall 3.6% offset is therefore not a bound on measurement error. Probe stability does not establish absence of runtime or ordering effects. The larger Node 24 case consistently regresses for bulk, bulk-simd, and extended in these runs, while SIMD alone spans parity on every runtime/size. Neither isolated gains nor these conditional regressions establish a universal feature ranking.
+
+### What the compiler-generated SIMD contains
+
+Disassembly of the current artifacts confirms different instructions, but does not count their executions:
+
+| Additional features | Module bytes | Static memory.copy/fill | SIMD instructions | Tail calls | Relaxed SIMD | Nontrapping conversions |
+|---|---:|---:|---:|---:|---:|---:|
+| None | 764,755 | 3 | 0 | 0 | 0 | 0 |
+| bulk | 759,588 | 678 | 0 | 0 | 0 | 0 |
+| simd | 764,585 | 3 | 362 | 0 | 0 | 0 |
+| bulk-simd | 759,398 | 678 | 362 | 0 | 0 | 0 |
+| extended | 759,307 | 678 | 362 | 11 | 0 | 4 |
+
+The SIMD-only build's 362 vector instructions consist of **113 constants, 232 stores, 16 loads, and one byte shuffle**. It contains no vector byte comparisons. Enabling SIMD has generated mostly memory movement/initialization, not evidence of vectorized byte scanning. This comparison does not measure handwritten intrinsics, and its inconclusive SIMD timings do not rule out a targeted implementation. Any such experiment must stay in GroveDOM-owned code, preserve a scalar path and bounded memory access, and show a benefit including boundary/lifecycle costs. Lexbor remains unmodified; no SIMD fork is planned.
+
+All five builds retain **zero imports** and pass the pooled-Wasm suite on both runtimes: **459 cases, 450 passes and nine documented skips** per build/runtime. No runtime implementation or default flags changed in this repeat. The full engine replay, fastest-compatible-Cheerio comparison, and memory/adoption gates remain open.

@@ -293,6 +293,8 @@ Start with bounded selector-plan caching, name interning, whole-selection operat
 
 Keep the Wasm kernel compute-only. Release artifacts require no host imports; diagnostic builds may import explicit clock/counter hooks. Avoid pulling general stdio into error formatting, and fail the build if a new I/O import appears. Additional Wasm target features are build-time experiments applied consistently to the core and dependency; retain the simplest default unless complete-workload measurements show a repeatable gain.
 
+Enabling SIMD permits compiler vectorization; it does not establish that hot loops use useful vector operations. Inspect emitted instructions and measure the full operation, including transfers and lifecycle. Keep any handwritten Wasm intrinsics in GroveDOM-owned code with a scalar path, bounded memory accesses, and a separately measured benefit. Do not fork or patch Lexbor for SIMD, or interpret an inconclusive automatic-vectorization result as evidence against explicit intrinsics.
+
 Initial non-goals: a browser engine, layout, executing page scripts, full jQuery compatibility, internal parallel execution, library-managed worker pools, an out-of-order scheduler, transaction rollback, a stable internal ABI, or a JIT. Supporting independent documents in caller-managed workers is within scope.
 
 JIT research remains deferred. It does not eliminate JS observations or string conversion and is not part of the implementation or toolchain proposed here.
