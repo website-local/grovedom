@@ -12,7 +12,7 @@ equivalently: candidate time <= baseline time / 3
 
 This requirement concerns the DOM workload, not whole-download wall time. Network latency, archive packaging, and disk I/O can dominate a full crawl and are not the primary gate.
 
-The gate has not been met or tested yet. Boundary microbenchmarks and upstream parser benchmarks cannot pass it.
+The full-workload gate has not been met or tested yet. The [native prototype benchmark](prototype.md#verification-and-diagnostics) measures a runnable authored DOM replay against both Cheerio parsers, including bindings and explicit lifecycle cleanup. It is diagnostic, not the representative engine/MDN adoption replay. Boundary microbenchmarks and upstream parser benchmarks also cannot pass the gate.
 
 GroveDOM must also be faster than Cheerio using **either parse5 or htmlparser2**, comparing the best behaviorally acceptable configuration of each. On the same fixed full-workload replay:
 
@@ -83,6 +83,8 @@ Benchmark generic Node-API calls and direct Wasm exports using the actual final 
 
 All initial timing is single-threaded. Include multiple live documents with interleaved work and hook suspension on that thread; do not use worker pools or multithreaded throughput to establish a DOM speedup. Use Node-based fixture, replay, and reporting scripts; no Python dependency by default.
 
+Correctness tests separately cover callers using independent documents in concurrent Node workers. Supporting those callers does not change the single-thread performance denominator or introduce library-managed threads.
+
 ## Correctness gate
 
 Required before accepting performance results:
@@ -122,7 +124,7 @@ Microbenchmarks for scalar calls, string reads/writes, selection transfer, parsi
 
 ## Required memory comparison and gate
 
-For Node-API and both Wasm models, replay repeated parse/query/mutate/serialize/dispose cycles. Include:
+For Node-API and all three Wasm models, replay repeated parse/query/mutate/serialize/dispose cycles. Include:
 
 | Case | What it must establish |
 |---|---|
@@ -137,7 +139,7 @@ For Node-API and both Wasm models, replay repeated parse/query/mutate/serialize/
 | Explicit disposal followed by collection; disposal inside a callback | Release-once behavior, no finalizer double-free, safe deferred freeing until the active call unwinds |
 | Native arena growth and transferred output Buffers | Balanced external-memory accounting without per-node calls or double-counted output bytes |
 
-The Wasm matrix is one instance/global heap with document arenas versus one instance/heap per document, sharing only the compiled module. Hold kernel, workload, and semantics constant. Include sequential, interleaved, and nested documents without introducing threads. Track live allocations, allocated capacity, free-block sizes, unusable holes, per-instance page slack, JS references, linear-memory pages, RSS, and disposal/reclamation latency. Show when global memory is reusable but cannot shrink, and when per-document backing memory is awaiting host GC.
+The Wasm matrix covers shared/global memory, fresh per-document instances, and a bounded idle pool. All share the compiled module; pooled instances each host one checked-out document. Hold kernel, workload, and semantics constant. Include sequential, interleaved, and nested documents without introducing threads. Track live allocations, allocated capacity, free-block sizes, unusable holes, per-instance page slack, JS references, linear-memory pages, RSS, and disposal/reclamation latency. Show when global memory is reusable but cannot shrink, and when per-document backing memory is awaiting host GC.
 
 Memory acceptance requires no leaked allocations, no avoidable small general-heap allocations per node/command in hot loops, and no accumulating fragmentation that prevents reuse or drives unbounded growth for a bounded workload. Required new nodes and caller-visible strings/arrays are useful allocations; they must be pooled/materialized at the appropriate boundary and counted, not omitted from timing. Use a separate diagnostic run to identify allocation sites.
 
@@ -164,3 +166,78 @@ These gates supplement the performance requirement. They do not require supporti
 ## Present evidence
 
 No complete GroveDOM replay or accepted speedup is published. Call-boundary microbenchmarks and upstream parser results cannot establish a backend winner or pass the full-workload gate. Publish a reproducible harness, permitted corpus references, and reviewed results when those measurements exist; exclude private environment records and downloaded content without redistribution rights.
+
+## Wasm heap and profile diagnostics
+
+The runnable harness now compares Linux Node-API, shared Wasm, fresh per-document Wasm, and pooled Wasm through the same facade. A Node 22 run after API expansion and profiling used 120 authored articles, 15 warmups, and nine rounds of 30 replays. All cases produced identical output. Each row below comes from a separate process; use its own parser baselines rather than comparing absolute times across rows as a controlled backend ranking.
+
+| Candidate | Buffered ms | Current parse5 ms | htmlparser2 ms | Speedup over current / htmlparser2 |
+|---|---:|---:|---:|---:|
+| Node-API | 1.84 | 7.05 | 4.10 | 3.83× / 2.23× |
+| Wasm shared | 2.33 | 6.83 | 4.23 | 2.93× / 1.81× |
+| Wasm fresh per DOM | 4.48 | 6.73 | 4.30 | 1.50× / 0.96× |
+| Wasm pooled | 2.80 | 7.38 | 4.83 | 2.64× / 1.72× |
+
+Explicit parse5 defaults remain a control, not an optimization claim. Fresh-instance Wasm failed to beat htmlparser2 in this run. Shared and pooled results vary across processes; neither is a selected production winner. These authored results do not establish the complete engine/MDN adoption gate.
+
+### Initial heap sizing
+
+Eight unmodified local MDN HTML inputs, about 3.3–147 KiB, included examples and English/Chinese documentation. A diagnostic-only parsing entry point included template allocations, which the production facade currently rejects. The timed lifecycle included instance acquisition/creation, input conversion, parsing, and disposal. File reads were outside timing. A separate linker wrapper timed libc `sbrk` calls that actually grew linear memory; release builds contain no clock imports or wrapper.
+
+With 2 MiB initial memory, fresh-instance parsing spent approximately **0–7%** of elapsed time growing memory. The larger documents made 8–14 growth calls and reached roughly 2.7–3.1 MiB. Shared and pooled instances made **zero growth calls after warmup** for these bounded page sequences. Fixed 8 MiB and 16 MiB builds removed the growth calls but did not consistently improve complete lifetime time and retained more capacity. Consequently, **no HTML-size heuristic is enabled**. The default stays at 2 MiB; input size alone is also a weak predictor of node/attribute density.
+
+An initial imported-memory experiment was discarded: WASI libc's linker-defined initial allocation region did not expand just because the host supplied more initial pages. The corrected comparison links each initial size into its module. Any future dynamic-sizing implementation must account for this allocator behavior instead of reporting unused pages as usable initial heap.
+
+These observations apply to this small corpus and parsing diagnostic. Repeat on larger pages, denser markup, and real mutation workloads before generalizing. They do not justify custom allocator growth policies or another sizing framework now.
+
+### Retention and profiling
+
+The large-then-small probe grew shared Wasm to about 15.3 MiB; disposal returned live backing allocations to zero but retained that linear memory. Fresh instances reported no owned live memory after disposal, while a burst of 100 small lifecycles produced a transient external-memory sample around 202 MiB before later collection. Pooling reused capacity, respected its four-instance/16 MiB idle caps, and dropped idle references on trim. Host backing-memory reclamation still lagged trim. These are retention observations, not fragmentation proofs.
+
+Node CPU profiles showed substantial selection/wrapper allocation and GC cost. The facade now stores selection state in the target's private field and registers only the public proxy in its WeakMap, removing one WeakMap entry per selection. An alternating A/B probe over 13 rounds of 80 replays measured a median paired speedup of about **1.04× native** and **1.00× pooled Wasm**. The evidence supports a modest native improvement, not a general Wasm speedup. Unobserved edit operations also return no result array, avoiding unnecessary allocation on those paths.
+
+Normal successful workloads drive performance and compatibility decisions. Exact invalid-input behavior/error-message matching is excluded from adoption requirements; bounds, owner validation, cleanup, and successful output behavior remain required.
+
+## Deep profiling and compiler tuning
+
+The next pass used optional C phase instrumentation plus Node CPU sampling. Native x86 timing uses fenced reference-TSC reads calibrated against a monotonic clock. The final empty-scope probe recorded about 14 ns and cost about 42 ns wall time; the Wasm host-clock probe recorded about 318 ns and cost about 677 ns. These figures include instrumentation effects and are environment-specific. Reference ticks are not retired instructions or actual core cycles. Release artifacts contain no profiling clocks, counters, or imports.
+
+On the 120-article replay, the measured facade boundary count fell from **494 to 255 calls**, including combining 239 write/read pairs. The core still executed 485 commands affecting 961 nodes, with 120 attribute reads, 120 text reads, and seven selector compilations. The native backing allocator still received 451 requests, and output generation still made 11,082 callbacks for 33,309 bytes. These counters exclude JS allocations and the small native owner control record. The change reduced transfer/check overhead without omitting DOM work or increasing backing allocation requests.
+
+The retained changes are short ASCII command encoding without per-operand encoder views/results, private node metadata instead of per-node WeakMap entries, combined pending writes and following reads, and reusable Wasm import callbacks. Callback node identities remain snapshots; live getters observe preceding writes. The focused regressions cover nested callbacks, aliasing, current-value callbacks, unsafe buffers, disposed owners, and partial command failure.
+
+### Compiler choice
+
+Clang/LLVM 19 comparisons held JS and core behavior constant. Native tested O2/off, O3/off, O3/ThinLTO, and O3/full LTO; Wasm tested O3 with each LTO mode. Lexbor remained O3. Eleven alternating rounds used 60 replays at 120 articles and 30 at 600 articles, after 80 warmups per variant.
+
+ThinLTO initially improved native by about 11% at 120 articles; the 600-article result was near parity. A two-variant repeat over 17 rounds measured about 4% and 3% improvements respectively. Pooled Wasm improved about 9% and 10% with ThinLTO. Full LTO showed no clear small-workload advantage, although one larger Wasm run improved about 15%. The selected default is **O3/ThinLTO**, with explicit off/full options retained for experiments. This is a workload-dependent choice, not a universal optimum.
+
+The native artifact decreased from approximately 1.43 MiB to 1.22 MiB; Wasm increased from approximately 726 KiB to 814 KiB. Build concurrency is bounded, matching archive tools are resolved through Clang, and no architecture-specific instruction flags are enabled.
+
+### Direct before/after release comparison
+
+These results compare the complete pre-pass implementation with the final implementation directly, rather than multiplying individual optimization estimates. Each pair uses isolated source/artifact snapshots, exact output comparison, 80 warmups, and 11 alternating rounds. Figures are medians of paired per-round ratios; timing columns are independently calculated medians.
+
+| Backend / authored articles | Before ms | After ms | Paired speedup |
+|---|---:|---:|---:|
+| Node-API / 120 | 1.790 | 1.432 | 1.22× |
+| Wasm shared / 120 | 2.236 | 1.899 | 1.18× |
+| Wasm fresh / 120 | 3.798 | 3.284 | 1.14× |
+| Wasm pooled / 120 | 2.248 | 1.851 | 1.23× |
+| Node-API / 600 | 9.971 | 7.684 | 1.27× |
+| Wasm pooled / 600 | 11.098 | 9.193 | 1.22× |
+
+Node 24 repeats at 120 articles measured about 1.22× native and 1.16× pooled Wasm. Four unmodified MDN example documents, about 3.3–28 KiB, also passed exact before/after output comparison through this diagnostic replay. Pooled Wasm improved about 7–14%. Native was mixed: a longer 17-round, 500-replay check ranged from about 4% slower to 12% faster. No universal native improvement is claimed for tiny documents. These examples do not execute the engine's actual transformations; larger template-containing MDN pages remain unsupported by the production facade.
+
+The final Node 22 comparison with Cheerio 1.2.0 used the existing nine-round, 30-replay authored harness. Each backend has its own process and parser baselines; absolute row times are not a controlled backend ranking.
+
+| Candidate | Buffered ms | Current parse5 ms | htmlparser2 ms | Current / htmlparser2 speedup |
+|---|---:|---:|---:|---:|
+| Node-API | 1.546 | 6.048 | 3.831 | 3.91× / 2.48× |
+| Wasm shared | 1.905 | 6.498 | 4.473 | 3.41× / 2.35× |
+| Wasm fresh per DOM | 4.661 | 8.177 | 7.137 | 1.75× / 1.53× |
+| Wasm pooled | 1.943 | 6.750 | 4.145 | 3.47× / 2.13× |
+
+All rows matched exact output, including the explicit-parse5-default control. Fresh-Wasm process timings varied substantially from the earlier run, including its Cheerio baselines; neither run establishes a general win for fresh instances.
+
+The 455-case matrix passes on native/shared/fresh Wasm (443 passes, 12 skips) and pooled Wasm (446 passes, nine upstream exclusions). Native and pooled Wasm pass on Node 22 and 24. Native ASan/UBSan with leak detection reports no findings. Repeated lifetime tests return tracked live backing bytes to zero; the pool remains bounded and releases idle references on trim. Shared linear memory still retains its high-water capacity. This does not prove absence of fragmentation, and the full engine replay, memory budgets, and adoption gate remain open.

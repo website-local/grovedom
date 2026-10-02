@@ -1,6 +1,6 @@
 # Design and feature set
 
-This is a design proposal, not an implemented interface.
+This document describes the target design. The [native prototype](prototype.md) implements a tested subset; unsupported behavior and remaining comparisons are listed there.
 
 ## Scope and priorities
 
@@ -8,8 +8,8 @@ GroveDOM provides a mutable HTML DOM and a JavaScript facade suitable for replac
 
 Priorities, in order:
 
-1. Preserve required parsing, mutation, selector, callback, and output behavior.
-2. Meet the agreed ≥3× complete-DOM performance gate.
+1. Meet the agreed ≥3× complete-DOM performance gate on normal successful workloads.
+2. Preserve the parsing, mutation, selector, callback, and output behavior those workloads require.
 3. Beat the fastest compatible Cheerio configuration with parse5 or htmlparser2 on the same full workload.
 4. Keep implementation, ownership, protocol, toolchain, and maintenance simple. Memory discipline and straightforward migration are acceptance requirements, not optional later optimizations.
 
@@ -19,7 +19,7 @@ The downloader retains networking, URL policies, CSS URL rewriting, scheduling, 
 
 Use one JS/TypeScript facade, a small sequential command dispatcher, and the selected kernel's existing parser/tree/selector facilities. Compare candidates with small prototypes, then select one production kernel/binding initially; do not build a plugin framework or maintain every candidate as a shipping backend. Add abstractions only when the actual implementation needs them.
 
-Run synchronously on the calling JS thread. Several documents may be live, including nested `iframe[srcdoc]` documents and documents awaiting hooks, but GroveDOM introduces no threads, worker pool, atomics, `SharedArrayBuffer`, or parallel scheduler. Callback reentry still requires scoped scratch storage and correct document ownership.
+Run synchronously on the calling JS thread, whether it is the main thread or a caller-managed Node worker. Callers may use several workers concurrently with independent documents. Each document and its handles belong to the creating environment; they cannot be shared or transferred between workers. Several documents may also be live on one thread, including nested `iframe[srcdoc]` documents and documents awaiting hooks. GroveDOM introduces no threads, worker pool, atomics, `SharedArrayBuffer`, or parallel scheduler. Callback reentry still requires scoped scratch storage and correct document ownership. Native mutable state must be document-, environment-, or thread-local, with shared initialization completed before concurrent calls begin.
 
 Use Node scripts for build orchestration, fixtures, benchmarks, and reports. Prefer a direct C compiler/linker plus Node-API headers for C/native, or Clang/wasm-ld plus the necessary sysroot for C/Wasm. Reuse an upstream build system if it is simpler than maintaining our own source list. A selected Rust backend uses Cargo and its required target tools; avoid a Rust wrapper around C that needlessly requires both stacks. No Python, node-gyp, Emscripten, binding generator, or extra build layer by default. Introduce Python only if a required dependency has no reasonable simpler route, and record the reason. Consumers should use prebuilt artifacts without a compiler or Python.
 
@@ -67,15 +67,17 @@ Flush when an operation must expose pending kernel state:
 - Attribute, property, text, or HTML getters.
 - Selector predicates that return booleans.
 - Selection length, indexing, or iteration when the required selection has not been materialized.
-- Entry into callbacks that receive current values/nodes; subsequent callback reads must observe preceding writes.
+- Computing current values passed to callbacks; DOM reads inside callbacks must observe preceding writes.
 - Explicit `flush()` and document serialization/finalization.
 - Any documented escape hatch to the backend.
 
-A known snapshot length or a JavaScript-side `.eq()` over already materialized handles may need no kernel call. Reads should not blindly flush when the needed result is already valid.
+A known snapshot length or a JavaScript-side `.eq()` over already materialized handles may need no kernel call. A callback receiving only a snapshot node identity also needs no extra flush at entry: live getters flush before observing the DOM. Reads should not blindly flush when the needed result is already valid. The prototype combines pending writes and a following read into one Node-API call, retaining their original execution order and safety checks.
 
 An `await` is not intrinsically a flush. Keep issue order consistent across asynchronous hook resumptions and never hold native borrows across JavaScript callbacks or asynchronous suspension. The engine adapter may conservatively flush at lifecycle boundaries.
 
 ### Error behavior
+
+Exact invalid-input behavior, error text, and incidental Cheerio error quirks are not adoption requirements. Do not add hot-path cost or architectural complexity merely to reproduce them. Bounds checks, safe ownership, and cleanup on failure remain required.
 
 A batch is not a transaction. Report the failing operation, preserve already-applied effects, discard unexecuted commands and their result handles, and release scratch storage. Do not silently retry mutations. Document whether each failing mutation primitive can leave partial effects; do not promise rollback.
 
@@ -245,6 +247,7 @@ GC alone is unsuitable for the primary contract: a small JS wrapper can own a la
 |---|---|---|
 | Node-API native | Destroy document allocations through a native cleanup routine; null the pointer in its small control record | Attach one `napi_wrap` finalizer to the document owner. It invokes the same cleanup if needed, then frees the control record. No additional JS `FinalizationRegistry` for this document. |
 | Wasm, global instance/heap | Destroy that document's arenas and release its handle; unregister its cleanup token | One module-level `FinalizationRegistry` registers each document owner with an independent cleanup record. Its callback releases that document in the still-live shared backend. |
+| Wasm, pooled instance | Destroy the document, then retain the empty instance only within idle count/byte caps | Registry fallback performs the same release; held records never retain the owner target. |
 | Wasm, instance/heap per DOM | Destroy document state and clear the owner's references to instance/memory and views | Ordinary host GC reclaims the unreachable instance/memory ownership graph. No registry is needed when all resources live in that graph; add one only if actual host resources outside it require cleanup. |
 
 Use one internal **owner object** shared by `$`, selections, observed node wrappers, and active operations. Register/wrap that owner, not just the callable `$`: dropping `$` while a selection remains reachable must not free the document. These objects keep the owner alive normally. Explicit disposal overrides those references and invalidates all handles immediately; retained wrappers then hold only a small disposed owner, not the native tree or per-document Wasm instance. Caller-owned output is independent.
@@ -261,9 +264,9 @@ For native memory, report document-owned backing-block capacity with `napi_adjus
 
 Primary performance and memory gates exercise explicit disposal. Separately test abandoned owners, retained selections after `$` is dropped, explicit disposal followed by collection, callback reentry, and environment teardown. Do not rely on finalizer order or delivery at process exit, or assert that a `FinalizationRegistry` callback runs within a fixed number of turns. Use deterministic tests for the release-once routine and diagnostic GC stress for fallback behavior.
 
-### Wasm: global heap versus one heap/instance per document
+### Wasm: shared, fresh, and pooled instances
 
-Compare these two concrete configurations using the same kernel, facade, allocator policy where possible, and single-threaded replay:
+Compare shared and fresh ownership below, plus the bounded pool described afterward, using the same kernel, facade, allocator policy where possible, and single-threaded replay:
 
 | Concern | One instance/heap for all live DOMs | One instance/heap per DOM |
 |---|---|---|
@@ -276,9 +279,11 @@ Compare these two concrete configurations using the same kernel, facade, allocat
 | Failure scope | Trap/allocator damage may affect all DOMs; document-ID checks are essential | Trap and heap ownership are isolated to that instance; host-wide OOM is still possible |
 | Cross-document work | Handles still need ownership checks; shared address space does not permit unsafe arena splicing | Data must be copied/cloned across memories according to the API contract |
 
-Start the first Wasm diagnostic with one shared instance and document arenas because it needs fewer instances and reuses capacity. This is a prototype starting point, not the production decision. Compare it with fresh per-document instances before selecting the memory model. Do not add a pool of instances, memory-sharing imports across nominally isolated instances, worker threads, or a custom heap scheduler initially.
+Start the first Wasm diagnostic with one shared instance per calling environment and document arenas because it needs fewer instances and reuses capacity. This is a prototype starting point, not the production decision. Compare it with fresh per-document instances before selecting the memory model. Also compare a bounded idle pool: one document owns each checked-out instance, and disposal/finalizer cleanup returns an empty instance when it fits the count/byte caps. Drop oversized or excess instances. No worker threads, memory sharing between instances, or custom scheduler. The prototype defaults to four idle instances and 16 MiB total idle capacity.
 
 Measure sequential documents, multiple live documents interleaved on one thread, nested documents, varied disposal order, repeated edits, and a huge document followed by many small ones. Count instantiation in per-document lifetime cost even when module compilation is warm. Track linear-memory pages, allocator live/reserved/free bytes, fragmentation/slack, JS heap, RSS, and time to release backing memory after references disappear. Retained handles must become lightweight disposed wrappers, rather than accidentally retaining an entire per-document instance. Compare optional shared-instance reset only at a boundary with no live documents or borrowed views.
+
+Measure initial-size choices on unmodified representative pages. Add an HTML-size heuristic only if linear-memory growth materially dominates total lifetime overhead; include any work shifted into instance creation and resulting retained capacity. The current MDN diagnostic does not support such a heuristic.
 
 Choose using complete workload time, peak/retained memory, and code complexity. A shared heap that retains unacceptable high-water capacity or cannot reuse free blocks fails the memory gate; separate heaps that lose the speed gate or waste excessive per-document capacity fail too. Neither model is presumed faster or memory-safe without measurement.
 
@@ -286,6 +291,6 @@ Choose using complete workload time, peak/retained memory, and code complexity. 
 
 Start with bounded selector-plan caching, name interning, whole-selection operations, compact storage, and bulk transfer. Add fusion only for a measured bottleneck and a small rule that preserves issue order; do not grow a general optimizer.
 
-Initial non-goals: a browser engine, layout, executing page scripts, full jQuery compatibility, multithreading, worker pools, an out-of-order scheduler, transaction rollback, a stable internal ABI, or a JIT.
+Initial non-goals: a browser engine, layout, executing page scripts, full jQuery compatibility, internal parallel execution, library-managed worker pools, an out-of-order scheduler, transaction rollback, a stable internal ABI, or a JIT. Supporting independent documents in caller-managed workers is within scope.
 
 JIT research remains deferred. It does not eliminate JS observations or string conversion and is not part of the implementation or toolchain proposed here.

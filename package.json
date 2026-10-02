@@ -1,0 +1,30 @@
+{
+  "name": "grovedom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An experimental Cheerio-shaped DOM facade with ordered native operations",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "build:native": "node scripts/build-native.mjs",
+    "build:wasm": "node scripts/build-wasm.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:types": "node scripts/check-types.mjs",
+    "bench": "node bench/run.mjs"
+  },
+  "peerDependencies": {
+    "cheerio": "1.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "cheerio": "1.2.0"
+  }
+}

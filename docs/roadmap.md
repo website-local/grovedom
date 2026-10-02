@@ -2,13 +2,17 @@
 
 ## Current state
 
-The repository contains the design, feature inventory, benchmark gates, and dependency research. No kernel, facade, integration, package metadata, CI, or release has been implemented.
+The repository contains a shared C/Lexbor kernel with Linux Node-API and direct Wasm bindings, a partial Cheerio-shaped ESM facade, package metadata, truthful TypeScript declarations, differential/lifecycle tests, and a deterministic authored benchmark. See the [prototype guide and consumer inventory](prototype.md). Native direct and buffered execution share the same facade. This establishes a runnable diagnostic candidate; it does not select the production backend or complete consumer migration.
+
+Engine 0.9.1 parse/process/save/SVG/sitemap paths and representative MDN APIs have been inventoried. The real consumer replay, full compatibility and memory gates, CI, prebuilt packages, and release remain unimplemented. Shared/fresh/pooled Wasm diagnostic comparisons are implemented; the production decision and Rust comparison remain open. Use existing toolchains for the current work; missing target support does not authorize installing new toolchains.
+
+The deeper profiling pass adds optional phase/counter instrumentation, paired release comparisons, and compiler/LTO experiments. Short ASCII command encoding, private node metadata, and combined write/read boundaries reduce facade overhead; the measured build default is O3/ThinLTO. These are diagnostic improvements with successful-output and lifecycle coverage, not completion of the consumer adoption gate.
 
 ## First implementation milestone
 
 Establish the actual API surface and a deterministic baseline replay before choosing the implementation backend.
 
-Follow the [toolchain requirements](research.md#minimal-toolchains-and-cross-compilation). Use a supported Node release and add Wasm libc/target support when starting the relevant Wasm prototype.
+Follow the [toolchain requirements](research.md#minimal-toolchains-and-cross-compilation). Use a supported Node release. Wasm work uses the existing compiler/linker plus the approved runtime/build libraries. No further toolchain installation is implied.
 
 1. Read README, design, benchmarks, and research.
 2. Select and pin the consumer and engine versions used for the replay. Verify installed package resolution against the lockfile in an isolated benchmark checkout.
@@ -16,9 +20,9 @@ Follow the [toolchain requirements](research.md#minimal-toolchains-and-cross-com
 4. Inventory production Cheerio methods, options, raw node-field access, callbacks, and lifetime assumptions in the engine and MDN consumer.
 5. Choose and hash a small representative corpus; preserve input/output contracts and deterministic resource responses.
 6. Measure current Cheerio and the best semantically acceptable configurations of both Cheerio/parse5 and Cheerio/htmlparser2 on that replay.
-7. Specify the first supported Cheerio-style API, parser defaults/options, error timing, callback/flush order, node field behavior, XML strategy, and platform matrix. Node >=22.0.0 is decided; validate patched Node 22/24 and smoke-check the floor. Plan public type-only reuse of Cheerio declarations and compile representative consumer code with minimal migration edits.
+7. Specify the first supported Cheerio-style API, parser defaults/options, safe failure handling, callback/flush order, node field behavior, XML strategy, and platform matrix. Node >=22.0.0 is decided; validate patched Node 22/24 and smoke-check the floor. Plan public type-only reuse of Cheerio declarations and compile representative consumer code with minimal migration edits.
 8. Specify the agreed ownership policy for the prototypes: explicit idempotent `$.dispose()` at the engine's `finally` boundary, plus native owner finalization/shared-Wasm registry cleanup/per-document-Wasm host GC. Cover release-once control records, owner retention by selections, reentrant disposal, and native external-memory accounting.
-9. Record allocation policies, peak/retained-memory budgets for the corpus, and the smallest required toolchain. Use Node scripts; no Python unless a required dependency has no reasonable alternative. Keep all prototypes single-threaded.
+9. Record allocation policies, peak/retained-memory budgets for the corpus, and the smallest required toolchain. Use Node scripts; no Python unless a required dependency has no reasonable alternative. Keep each call synchronous with no library-managed threads; support independent documents in caller-managed workers.
 
 This milestone should yield reproducible baseline data and compatibility/ownership requirements, not a full replacement.
 
@@ -40,7 +44,7 @@ Add a document-wide op stream, result handles, observations/flushes, and whole-s
 
 Measure direct Wasm and Node-API on the real facade, including string/selection transfer, large call loops, and cleanup. Consider writing command payloads directly into Wasm memory and transferring native output-buffer ownership where the API permits. Keep callback-driven behavior equivalent; default public output must survive document disposal.
 
-For Wasm, compare one global instance/heap with document arenas against one instance/heap per DOM, reusing the compiled module. Include recurring instantiation cost, simultaneous live DOMs interleaved on one thread, nested DOMs, varied disposal order, huge-then-small documents, and backing memory retained by views/handles. No instance pools or multithreading initially. Record allocator holes/slack, live/reserved bytes, growth, peak RSS, and reclamation latency before selecting either memory model.
+For Wasm, compare shared, fresh per-document, and bounded pooled instances, reusing the compiled module. Include recurring instantiation cost, simultaneous live DOMs interleaved on one thread, nested DOMs, varied disposal order, huge-then-small documents, and backing memory retained by views/handles. Include a bounded idle-instance pool with no threads or scheduler. Record allocator holes/slack, live/reserved bytes, growth, peak RSS, and reclamation latency before selecting either memory model.
 
 ### Memory and migration acceptance
 
@@ -63,7 +67,7 @@ Audit lifecycle hooks, HTML transformations, compatibility tables, interactive e
 ## Deliberately deferred
 
 - Out-of-order execution and speculative optimizers.
-- Multithreading, worker pools, shared-memory execution, and instance-pool scheduling.
+- Internal parallel execution, library-managed worker pools, shared-document execution. Independent documents in caller-managed workers are supported.
 - Machine-code JIT or dynamically generated Wasm selector modules.
 - A general browser engine or JavaScript execution environment.
 - Unrestricted compatibility with all Cheerio/domhandler internals.

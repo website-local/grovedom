@@ -2,6 +2,8 @@
 
 Dependency research reviewed in October 2026. These observations describe the cited revisions, not a guarantee about future releases. No complete GroveDOM performance result has been established.
 
+An initial [native prototype](prototype.md) now builds the reviewed Lexbor revision, checks its source fingerprint, and exercises a partial facade with authored differential and lifecycle tests. This is implementation evidence for a candidate, not a kernel/binding selection or the full performance gate. Direct Wasm with shared/fresh/pooled instances is now measured diagnostically; Rust and the production decision remain open.
+
 ## Decisions and remaining choices
 
 | Topic | State |
@@ -10,12 +12,12 @@ Dependency research reviewed in October 2026. These observations describe the ci
 | Optimized JS baseline | Required win over the best compatible Cheerio/parse5 and Cheerio/htmlparser2 configurations |
 | Execution model | Agreed: per-document ordered buffered operations and flush, not out-of-order execution |
 | Implementation complexity | Small facade and dispatcher over existing kernel facilities; choose one initial production backend after scoped comparisons |
-| Threading | No multithreading, workers, shared-memory execution, or parallel scheduler yet |
+| Threading | Synchronous calls from main or caller-managed worker threads, with independent documents; no internal threads, shared-document execution, or parallel scheduler |
 | Toolchain | Node scripts and the selected compiler/build tools; Python only for an unavoidable dependency |
 | Memory | Document arenas/pools, reused buffers, bounded caches; verify leaks, fragmentation, retained capacity, and hot-loop allocations |
 | Disposal | Explicit idempotent disposal at the engine lifecycle boundary, plus backend-appropriate GC fallback; finalizer timing is never the primary lifecycle contract |
 | Minimum Node.js | Decided: >=22.0.0; maintained Node 22/24 validation initially, no Node 18/20 support |
-| Wasm heap ownership | Compare one global instance/heap with document arenas against one instance/heap per DOM, reusing the compiled module |
+| Wasm heap ownership | Compare shared, fresh per-document, and bounded pooled instances, reusing the compiled module |
 | Internal protocol | Small private opcodes/operands/payloads; no version/checksum/negotiation or stable ABI promise; glue and kernel ship on the same major.minor version |
 | JIT | Deferred; not needed for initial implementation |
 | Package boundary | Separate DOM package; downloader policies stay in engine |
@@ -104,13 +106,13 @@ For C/Wasm, a scalar freestanding module is insufficient validation: compile and
 
 Run small compile/load checks on supported Node lines and target platforms before starting performance trials. Windows outputs need validation on Windows even when cross-compiled. Keep developer installation inventories and raw diagnostics out of public documentation.
 
-## Wasm memory comparison still to run
+## Wasm memory comparison
 
-The [design](design.md#wasm-global-heap-versus-one-heapinstance-per-document) specifies two experiments: one instance/global allocator containing document-local arenas, and one fresh instance/memory per document with a reused compiled module. Neither uses threads or shared mutable memory between instances.
+The [design](design.md#wasm-shared-fresh-and-pooled-instances) compares one instance/global allocator containing document-local arenas, a fresh instance/memory per document, and a bounded pool of reusable instances. All reuse a compiled module; none uses threads or shared mutable memory between instances. The [prototype measurements](benchmarks.md#wasm-heap-and-profile-diagnostics) cover these policies diagnostically.
 
 WebAssembly linear memory grows in pages and has no shrink operation. Returning blocks to a global allocator enables reuse without reducing its linear-memory size. Dropping a per-document instance can make its backing memory reclaimable only after all references disappear; host GC controls actual reclamation. Reusing a compiled module avoids repeated compilation, not per-instance memory, initialization, or static/stack costs. External JS views can retain an otherwise disposed instance's memory. These lifecycle costs belong in the full workload comparison, not only a startup footnote.
 
-No measured global-heap/per-document winner exists. Audit the selected kernel's real allocator layout and lifetime APIs before calling document-local arenas independent heaps or claiming fragmentation is solved.
+No production heap policy has been selected. Global and pooled instances avoid repeated initialization in the current diagnostics, but representative memory budgets and mixed-size fragmentation measurements remain necessary.
 
 ## Disposal and Node.js support decision
 
@@ -131,7 +133,7 @@ The official [Node release schedule](https://github.com/nodejs/Release/blob/main
 | 22 | 2027-04-30 | Minimum supported line; use patched releases in normal operation |
 | 24 | 2028-04-30 | Also validate; longer support runway |
 
-Cheerio 1.2.0 declares Node >=20.18.1, so Node 18 is also outside the current baseline's supported engines. FinalizationRegistry and basic Node-API finalizers existed before Node 22: the chosen minimum simplifies the support matrix rather than enabling an otherwise unavailable GC feature. The lifecycle implementation still needs validation against this contract.
+Cheerio 1.2.0 declares Node >=20.18.1, so Node 18 is also outside the current baseline's supported engines. FinalizationRegistry and basic Node-API finalizers existed before Node 22: the chosen minimum simplifies the support matrix rather than enabling an otherwise unavailable GC feature. The prototype now tests explicit disposal, retained handles, callback disposal, GC fallback, and worker teardown; full consumer lifecycle coverage remains open.
 
 ## Cheerio declaration inspection
 
@@ -143,4 +145,4 @@ The compatibility review uses Cheerio 1.2.0 and domhandler 5.0.3 declarations: C
 - Node inputs and outputs use domhandler's `AnyNode`/`Element` contracts, including mutable parents/siblings/children, names, attribute maps, and node methods. Reusing these types requires compatible wrappers or an explicit narrower surface.
 - `CheerioOptions` includes parse5 and selector extension points; blindly aliasing it would promise unsupported parser-specific behavior.
 
-The design therefore prefers public type-only imports/re-exports, direct reuse where accurate, and a small set of local declarations for genuine differences. The implementation milestone must compile unchanged consumer examples and test their runtime semantics before declaring migration trivial. No adapter or declaration package has been implemented yet.
+The prototype uses public type-only imports/re-exports and local declarations for its narrower handles and supported methods. Representative declaration fixtures compile, but the full consumer adapter and unchanged engine replay remain necessary before declaring migration trivial.

@@ -1,0 +1,82 @@
+{
+  "exclusions": {
+    "attributes:(map, val) : should throw with wrong combination of arguments": "Invalid-input error compatibility is not a performance gate.",
+    "attributes:(bool) shouldn't treat boolean attributes differently in XML mode": "XML is outside the HTML prototype.",
+    "attributes:(invalid) : should be a no-op for invalid inputs": "Invalid-input behavior is outside the compatibility target.",
+    "attributes:(key, value) : should set data attribute": "Includes an invalid numeric data key; normal data writes have separate coverage.",
+    "traversing:(selector) : should throw an Error if given an invalid selector": "Exact selector error messages are not a compatibility target.",
+    "manipulation:() : should pass options": "XML is outside the HTML prototype.",
+    "manipulation:() : should preserve parsing options": "XML is outside the HTML prototype.",
+    "css:(any, val): should ignore unsupported prop types": "Invalid property types are outside the compatibility target."
+  },
+  "cheerio": {
+    "version": "1.2.0",
+    "groups": {
+      "attributes": [
+        ".attr",
+        ".removeAttr",
+        ".hasClass",
+        ".addClass",
+        ".removeClass",
+        ".toggleClass",
+        ".val",
+        ".data"
+      ],
+      "traversing": [
+        ".children",
+        ".contents",
+        ".next",
+        ".nextAll",
+        ".prev",
+        ".prevAll",
+        ".siblings",
+        ".parent",
+        ".closest",
+        ".each",
+        ".map",
+        ".filter",
+        ".not",
+        ".has",
+        ".first",
+        ".last",
+        ".eq",
+        ".get",
+        ".index",
+        ".slice",
+        ".end() :"
+      ],
+      "manipulation": [
+        ".append",
+        ".prepend",
+        ".appendTo",
+        ".prependTo",
+        ".remove",
+        ".empty",
+        ".html",
+        ".toString",
+        ".text",
+        ".clone",
+        ".wrap",
+        ".before",
+        ".after",
+        ".replaceWith"
+      ],
+      "forms": null,
+      "css": null,
+      "extract": null
+    }
+  },
+  "jquery": {
+    "version": "3.7.1",
+    "file": "test/unit/attributes.js",
+    "tests": [
+      "attr(non-ASCII)",
+      "removeClass() removes duplicates",
+      "removeClass(undefined) is a no-op",
+      "contents().hasClass() returns correct values"
+    ],
+    "exclusions": {
+      "attr(non-ASCII)": "jQuery folds ASCII attribute lookup case; Cheerio and GroveDOM use exact lookup case."
+    }
+  }
+}

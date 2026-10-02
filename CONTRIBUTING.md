@@ -1,6 +1,6 @@
 # Contributing
 
-GroveDOM is currently a design and research project. Start with the [design](docs/design.md), [benchmark contract](docs/benchmarks.md), and [roadmap](docs/roadmap.md). Build and test commands will be defined with the first implementation milestone.
+GroveDOM has an initial native prototype. Start with the [design](docs/design.md), [benchmark contract](docs/benchmarks.md), [prototype build/test guide](docs/prototype.md), and [roadmap](docs/roadmap.md). Use existing toolchains and configure disk-backed temporary, dependency-cache, and build directories before running commands.
 
 ## Public repository content
 
