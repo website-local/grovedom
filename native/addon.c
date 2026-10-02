@@ -99,6 +99,12 @@ static napi_value gd_value(napi_env env, gd_document *doc, const gd_result *valu
         case GD_NUMBER: status = napi_create_uint32(env, value->number, &result); break;
         case GD_STRING: status = napi_create_string_utf8(env, value->length ? value->data : "", value->length, &result); break;
         case GD_IDS: {
+            if (!value->length) {
+                void *cached = NULL;
+                status = napi_get_instance_data(env, &cached);
+                if (status == napi_ok) status = napi_get_reference_value(env, cached, &result);
+                break;
+            }
             napi_value buffer; void *data; size_t bytes = value->length * sizeof(uint32_t);
             status = napi_create_arraybuffer(env, bytes, &data, &buffer);
             if (status == napi_ok) {
@@ -215,9 +221,9 @@ static napi_value gd_stats(napi_env env, napi_callback_info info) {
     (void) info;
     napi_value result, value;
     napi_create_object(env, &result);
-    const char *names[] = { "liveDocuments", "liveBytes", "peakBytes", "allocations" };
+    const char *names[] = { "liveDocuments", "liveBytes", "peakBytes", "allocations", "controlBytes" };
     const size_t *values = gk_stats();
-    for (size_t i = 0; i < 4; i++) {
+    for (size_t i = 0; i < 5; i++) {
         napi_create_double(env, (double) values[i], &value);
         napi_set_named_property(env, result, names[i], value);
     }
@@ -251,7 +257,24 @@ static napi_value gd_profile_probe(napi_env env, napi_callback_info info) {
 }
 #endif
 
+static void gd_binding_finalize(napi_env env, void *data, void *hint) {
+    (void) hint;
+    napi_delete_reference(env, data);
+}
+
 NAPI_MODULE_INIT() {
+    // Empty snapshots are immutable inside the facade. Reuse one private
+    // result per addon environment, including independently loaded workers.
+    napi_value buffer, empty;
+    napi_ref reference;
+    void *data;
+    if (napi_create_arraybuffer(env, 0, &data, &buffer) != napi_ok ||
+        napi_create_typedarray(env, napi_uint32_array, 0, buffer, 0, &empty) != napi_ok ||
+        napi_create_reference(env, empty, 1, &reference) != napi_ok) return NULL;
+    if (napi_set_instance_data(env, reference, gd_binding_finalize, NULL) != napi_ok) {
+        napi_delete_reference(env, reference);
+        return NULL;
+    }
     napi_property_descriptor methods[] = {
 #ifdef GROVEDOM_PROFILE
         { "profile", NULL, gd_profile, NULL, NULL, NULL, napi_default, NULL },

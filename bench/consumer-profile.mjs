@@ -1,18 +1,20 @@
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { kernel } from '../src/kernel.js';
+const entry = process.env.GROVEDOM_PROFILE_ENTRY ? pathToFileURL(process.env.GROVEDOM_PROFILE_ENTRY) : new URL('../src/index.js', import.meta.url);
+const { kernel } = await import(new URL('./kernel.js', entry));
+process.env.GROVEDOM_REPLAY_ENTRY = fileURLToPath(entry);
 
 if (!process.env.TMPDIR) throw new Error('Set a disk-backed TMPDIR');
 const temporary = join(process.env.TMPDIR, `grovedom-consumer-profile-${process.pid}.mjs`);
 let measurement;
 if (process.env.GROVEDOM_PROFILE_BOUNDARY !== '0') {
-  const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8')
-    .replace("'./selectors.js'", JSON.stringify(new URL('../src/selectors.js', import.meta.url).href))
-    .replace("import { kernel } from './kernel.js';", `import { kernel as raw } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
+  const source = readFileSync(entry, 'utf8')
+    .replace("'./selectors.js'", JSON.stringify(new URL('./selectors.js', entry).href))
+    .replace("import { kernel } from './kernel.js';", `import { kernel as raw } from ${JSON.stringify(new URL('./kernel.js', entry).href)};
 import { instrument } from ${JSON.stringify(new URL('./instrument-kernel.mjs', import.meta.url).href)};
-export const measurement = instrument(raw, { queryDetails: true });
+export const measurement = instrument(raw, { queryDetails: true, allocationDetails: process.env.GROVEDOM_PROFILE_ALLOCATIONS === '1' });
 const kernel = measurement.kernel;`);
   writeFileSync(temporary, source);
   process.env.GROVEDOM_REPLAY_ENTRY = temporary;

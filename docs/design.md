@@ -239,6 +239,8 @@ For repeated writes, reuse capacity and existing blocks rather than repeated gen
 
 Leak-free means no unreachable live allocations after owners are released; it does not mean a native allocator immediately returns all freed pages to the OS. Report live bytes separately from reserved capacity, free holes, and RSS. Wasm linear memory cannot currently shrink: freeing allocator blocks and releasing an entire instance are different operations.
 
+The current diagnostics distinguish backing allocations from document control records and owned Wasm capacity. Empty result storage is reused within each binding environment; selection objects still retain independent snapshots and mutation state. Disposal clears the facade's backend owner reference as well as buffers and caches. See [memory measurements](memory.md) for the tested lifetime patterns and workload-specific budgets.
+
 ### Disposal decision: explicit ownership with a GC fallback
 
 Keep **explicit, synchronous, idempotent `$.dispose()` as the primary API**, and provide best-effort cleanup for abandoned documents. `website-scrap-engine` can place disposal in `finally` around its complete DOM lifecycle, after the last hook or nested operation that needs that document. Serialization produces a string or owned bytes before disposal, so saving those bytes does not need to keep the DOM alive. An async lifecycle must await all DOM-using work before leaving that scope.

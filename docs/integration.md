@@ -6,7 +6,7 @@ The integration experiment uses the installed **website-scrap-engine 0.9.1** pac
 
 The replay executes the actual engine HTML, inline CSS, meta refresh, SVG and sitemap transforms, along with MDN's HTML pre/post processors and interactive-example transforms. Resource creation, URL replacement, submission and download bodies are deterministic stand-ins. Network, disk persistence, downloader scheduling, URL policy hooks and the full lifecycle are outside this replay. Missing non-BCD download bodies fail explicitly; the missing-BCD case deliberately exercises MDN's fallback renderer.
 
-Seven authored scenarios exercise nested `srcdoc`, links/srcset/inline CSS/meta refresh, XML SVG, sitemap discovery, playable fragments, missing and successful compatibility tables, and generated examples. Eight saved MDN pages add real template-bearing inputs. Validation compares serialized resource bodies and ordered discovery/submission events. `loadBuffer` remains deferred; the existing engine decoding helpers supply strings.
+Eleven authored scenarios exercise nested `srcdoc` through four levels, links/srcset/inline CSS/meta refresh, small and larger XML SVG/sitemaps, playable fragments, missing and successful compatibility tables, generated examples and template-heavy lists. Eight saved MDN pages add real template-bearing inputs: 19 matching cases on native and all Wasm modes. Validation compares serialized resource bodies and ordered discovery/submission events. `loadBuffer` remains deferred; the existing engine decoding helpers supply strings.
 
 ## Document ownership
 
@@ -52,4 +52,14 @@ For release timings, `bench/process.mjs` accepts a manifest with `consumer: true
 
 For Cheerio/htmlparser2 use `cheerio/slim`, or the root entry with `GROVEDOM_REPLAY_PARSER=htmlparser2`, which applies the supported `xml: { xmlMode: false }` HTML configuration. The private `_useHtmlParser2` flag alone does not survive all of Cheerio's serializer option handling. `normalizeHTML: true` compares reparsed HTML outside the timed children while preserving exact resource-event comparison. This permits harmless serialization differences on equivalent fixtures; it does not make failing fragment/generated-example cases compatible.
 
-`bench/consumer-profile.mjs` records kernel phase counters when available and per-selector binding timings. Use `GROVEDOM_PROFILE_BOUNDARY=0` with a release entry for a less intrusive CPU sampling run. Profiler output is diagnostic; release comparisons establish performance. The replay does not yet establish complete consumer TypeScript compatibility or the full adoption/memory gate.
+`bench/consumer-profile.mjs` records kernel phase counters when available and per-selector binding timings. `GROVEDOM_PROFILE_ALLOCATIONS=1` adds backing-allocation deltas and empty-result counts; `GROVEDOM_PROFILE_ENTRY` selects a paired source snapshot. Use `GROVEDOM_PROFILE_BOUNDARY=0` with a release entry for a less intrusive CPU sampling run. Profiler output is diagnostic; release comparisons establish performance. The replay does not establish the full adoption gate.
+
+## Consumer TypeScript check
+
+The pass after `2c3c16e` checks 87 TypeScript source files with TypeScript 6.0.3, using the frozen MDN revision above and installed engine 0.9.1. Both the Cheerio reference and GroveDOM candidate compile without diagnostics, with `strict` enabled, no emit and library checking enabled. The in-memory migration redirects consumer Cheerio imports and the engine's existing `ReturnType<typeof load>` aliases to the facade. It adds no type assertions or call-site rewrites and does not edit either consumer repository.
+
+```sh
+node scripts/check-consumer-types.mjs "$MDN_SOURCE" e7faf4cc7e6f9944139c14b9b1c863b27fae0535
+```
+
+The script uses the consumer's existing compiler/dependencies and reads committed MDN source from Git. Omitting the revision checks `HEAD`. It also follows installed engine source imports rather than hiding the migration behind its published Cheerio declarations. This verifies the audited consumer surface; it does not make GroveDOM assignable to unrestricted `CheerioAPI`, validate every plugin, or replace the engine lifecycle/disposal integration still required for deployment.

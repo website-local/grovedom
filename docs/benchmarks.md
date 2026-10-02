@@ -525,3 +525,54 @@ The 695-case test matrix passes its applicable cases: native 678/17 skipped, sha
 Selector-cache churn and repeated text matching plateau after warmup. All four lifecycle diagnostics return tracked live bytes/documents to zero after disposal, including a large-then-small sequence and eight simultaneous owners disposed in varied order. Shared Wasm retains its grown linear memory; document heaps are released and pooled heaps remain under their configured idle limits, with trimming returning pooled backing memory to zero. These checks do not prove zero fragmentation or establish workload-specific retained-memory budgets.
 
 The expanded Wasm stack diagnostic instruments 114 stack assignments. Ordinary authored replay still reaches 96 bytes, but the compatibility selector evaluator now uses more stack: nested successful `:has` reaches 6,192 bytes reserved / 6,184 written; the depth-limit rejection reaches 6,240 bytes reserved. All cases restore the pointer. The former 96-byte maximum therefore no longer describes the whole API. Keep the 64 KiB stack, 1 MiB initial memory, 16 KiB shared transfer scratch and bounded pool defaults. Release Wasm remains import-free and has no diagnostic exports.
+
+## Performance and memory pass from `2c3c16e`
+
+This pass keeps the kernel algorithms and compiler/heap defaults. It reuses private empty result arrays in each binding and drops the backend owner reference on disposal. The profile counts 100, 487 and 185 empty kernel results per MDN-1/5/8 replay respectively; these no longer need a new result array each time. Backing-allocation counters do not count these JS allocations. A separate `controlBytes` counter now exposes document control storage, including closed native records awaiting finalization.
+
+The long removal-selector list remains a query hotspot. An experiment scanning each selector branch separately preserved outputs but did not establish a release improvement, so it was removed. No selector optimizer, Lexbor fork, new toolchain, protocol version, threading or Wasm feature change is retained.
+
+### Release comparison with the baseline
+
+Node 22.22.2, separate processes, three ABBA/BAAB blocks, 40 warmups and four batches of eight replays. Compilation/startup/warmup are excluded. All raw samples are retained; the unchanged filter rejects a complete block only when its independent CPU probes exceed a 1.5× max/min ratio. The values below are baseline/candidate elapsed ratios; above 1 favors the candidate.
+
+| Consumer input | Native filtered ratio | Blocks kept | Pooled Wasm filtered ratio | Blocks kept |
+|---|---:|---:|---:|---:|
+| MDN-1, 3,365 bytes | 1.084 | 3/3 | 1.181 | 3/3 |
+| MDN-5, 94,642 bytes | 1.061 | 3/3 | 1.023 | 2/3 |
+| MDN-8, 150,384 bytes | 0.988 | 3/3 | 0.982 | 3/3 |
+
+The raw pooled MDN-5 ratio is 1.058. An earlier five-block run of the allocation change measured native 1.120/1.022/0.989 and pool 1.070/1.009/0.989. The small-page improvement repeats; larger-page results do not establish a general gain. The final identical-code control measured 1.006 for MDN-1 and 0.959 for MDN-8, retaining 3/3 and 2/3 blocks. Large-page control blocks ranged 0.815–1.102, including rejected blocks. Stable interference, GC and runtime tiering can escape the CPU filter. The roughly 1–2% lower candidate ratios on MDN-8 cannot establish either a regression or strict non-regression at this precision.
+
+Ordinary authored HTML uses 120 articles, three blocks, 160 warmups and eight batches of ten replays. Native is 1.014 and pooled Wasm 0.994, with all blocks retained. The corresponding 120-entry XML sitemap/SVG ratios are native 0.998/1.054 (3/3 and 2/3 retained; SVG raw 1.049), and pool 1.116/0.886 (2/3 and 3/3; sitemap raw 1.085). The apparent pooled SVG slowdown prompted a repeat with four blocks, 400 warmups and six batches of twenty replays. It measured 1.021 with all blocks retained, while its identical-code control measured 1.046 and ranged 0.946–1.198. XML differences are inconclusive; the initial slowdown is preserved in the report rather than discarded based on its outcome.
+
+### Current Cheerio and backend panel
+
+The same three-block consumer protocol includes complete transforms, bindings, serialization, explicit disposal and deterministic URL/resource stubs. It excludes network/disk and downloader scheduling. HTML uses current Cheerio/parse5; XML uses Cheerio's htmlparser2 XML mode. Outputs and resource events match exactly.
+
+| Input | Native / current Cheerio speedup, raw | Filtered | Blocks kept |
+|---|---:|---:|---:|
+| MDN-1 | 3.656× | 3.656× | 3/3 |
+| MDN-5 | 3.542× | 3.542× | 3/3 |
+| MDN-8 | 4.153× | 4.153× | 3/3 |
+| Four nested `srcdoc` levels | 2.368× | 2.368× | 3/3 |
+| 240-group SVG | 2.327× | 2.482× | 2/3 |
+| 600-entry sitemap | 2.352× | 2.343× | 2/3 |
+| Compatibility-table rendering | 4.418× | 4.418× | 3/3 |
+| Generated example | 2.519× | 2.519× | 3/3 |
+
+Against `cheerio/slim` on the two larger saved HTML inputs, native measures 2.386× and 3.120× filtered (3/3 and 2/3 retained; MDN-8 raw 3.182×). This comparison reparses HTML outside timing and compares resource events exactly. It does not extend htmlparser2 compatibility to the previously failing fragment/generated-example cases.
+
+| Wasm policy | MDN-1 elapsed / native elapsed | MDN-8 | Larger SVG |
+|---|---:|---:|---:|
+| Shared heap | 1.23× | 1.11× | 1.25× |
+| Fresh heap per document | 2.59× | 1.34× | 2.30× |
+| Bounded pool | 1.33× | 1.09× | 1.25× |
+
+All three blocks are retained for each backend row. Native leads this panel. Shared and pooled Wasm remain useful alternatives; fresh instances pay a substantial recurring cost. Some representative scenarios remain below 3× over current Cheerio, and the corpus includes processed saved pages and authored cases. The full adoption gate remains open.
+
+### Verification and memory
+
+The existing 695-case matrix passes on all backends, with native/pool also checked on Node 24. An additional empty-snapshot mutation/disposal regression passes on all four backends. Native ASan/UBSan with leak detection passes the suite and added case. The frozen consumer's 87 TypeScript source files compile against both implementations, and 19 replay cases match on native/shared/fresh/pooled Wasm. Imported upstream coverage remains 607 active / 11 excluded cases.
+
+The [memory report](memory.md) separates backing allocations, control records, owned linear capacity, idle retention and process observations. Its 2,430-lifetime stress run includes pinned owners, varied sizes/disposal order and retained selections, with deterministic authored-workload capacity ceilings. These results support bounded reuse for the exercised patterns, not a universal fragmentation proof or production memory budget.

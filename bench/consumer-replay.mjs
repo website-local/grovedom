@@ -2,6 +2,7 @@
 // The snapshot is produced by scripts/prepare-consumer.mjs.
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
+import { page as sitemap, svg } from './xml-fixtures.mjs';
 const snapshot = process.env.GROVEDOM_CONSUMER_SNAPSHOT;
 if (!snapshot) throw new Error('Set GROVEDOM_CONSUMER_SNAPSHOT');
 const moduleAt = path => import(pathToFileURL(resolve(snapshot, path)).href);
@@ -28,6 +29,19 @@ export const fixtures = [
   } },
   { id: 'mdn-generated-example', source: '<main><section><h2 id="example">Example</h2><div class="code-example"><pre class="brush: html">&lt;img src="/sample.png"&gt;</pre></div><iframe data-live-id="example" data-live-path="/en-US/docs/example/"></iframe></section><script type="module" src="/main.js"></script></main>' },
 ];
+
+// Authored scale/lifetime cases complement saved pages. They exercise actual
+// consumer transforms without claiming to be original network responses.
+let nested = '<p><a href="/deep">deep</a><img src="/deep.png"></p>';
+for (let depth = 0; depth < 4; depth++) nested = '<iframe srcdoc="' + nested
+  .replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;') + '"></iframe>';
+fixtures.push(
+  { id: 'engine-nested-four', source: nested },
+  { id: 'engine-svg-large', type: 6, xml: true, source: svg(240) },
+  { id: 'engine-sitemap-large', type: 5, source: sitemap(600) },
+  { id: 'mdn-template-list', source: '<main>' + Array.from({ length: 80 }, (_, i) =>
+    `<section class="code-example"><template><a href="/template/${i}">link</a></template><p class="localized-content-note">remove</p><a href="/page/${i}">page</a></section>`).join('') + '</main>' },
+);
 
 export async function replay(source, scenario = {}) {
   return run(async () => {

@@ -20,6 +20,7 @@ if (!Number.isSafeInteger(poolSize) || poolSize < 0 || !Number.isSafeInteger(poo
 const pool = [];
 let poolBytes = 0;
 const encoder = new TextEncoder(), decoder = new TextDecoder();
+const empty = new Uint32Array();
 const owners = new WeakMap(), live = new Set();
 let retiredAllocations = 0, peakBytes = 0;
 
@@ -40,7 +41,7 @@ function instance() {
   return { ...runtime, scratch: runtime.gk_scratch() };
 }
 const shared = perDocument ? null : instance();
-function statsOf(runtime) { return new Uint32Array(runtime.memory.buffer, runtime.gk_stats(), 4); }
+function statsOf(runtime) { return new Uint32Array(runtime.memory.buffer, runtime.gk_stats(), 5); }
 function acquire() {
   if (!pool.length) return instance();
   const runtime = pool.pop();
@@ -124,7 +125,7 @@ function result(state, pointer) {
     case 0: return undefined;
     case 1: return state.bytes.toString('utf8', data, data + length);
     case 2: return fields[offset + 3];
-    case 3: return fields.slice(data >>> 2, (data >>> 2) + length);
+    case 3: return length ? fields.slice(data >>> 2, (data >>> 2) + length) : empty;
     case 4: return null;
     default: throw new Error('Invalid kernel result');
   }
@@ -218,20 +219,21 @@ export const kernel = {
   },
   stats() {
     if (shared) {
-      const [liveDocuments, liveBytes, peakBytes, allocations] = statsOf(shared);
-      return { liveDocuments, liveBytes, peakBytes, allocations, memoryBytes: shared.memory.buffer.byteLength };
+      const [liveDocuments, liveBytes, peakBytes, allocations, controlBytes] = statsOf(shared);
+      return { liveDocuments, liveBytes, peakBytes, allocations, controlBytes, memoryBytes: shared.memory.buffer.byteLength };
     }
-    let liveDocuments = 0, liveBytes = 0, allocations = retiredAllocations, memoryBytes = 0;
+    let liveDocuments = 0, liveBytes = 0, allocations = retiredAllocations, memoryBytes = 0, controlBytes = 0;
     for (const runtime of pool) { allocations += statsOf(runtime)[3]; memoryBytes += runtime.memory.buffer.byteLength; }
     for (const ref of live) {
       const runtime = ref.deref();
       if (!runtime) continue;
       const values = statsOf(runtime);
       liveDocuments += values[0]; liveBytes += values[1]; allocations += values[3];
+      controlBytes += values[4];
       memoryBytes += runtime.memory.buffer.byteLength;
     }
     peakBytes = Math.max(peakBytes, liveBytes);
-    return { liveDocuments, liveBytes, peakBytes, allocations, memoryBytes, idleInstances: pool.length, idleMemoryBytes: poolBytes };
+    return { liveDocuments, liveBytes, peakBytes, allocations, controlBytes, memoryBytes, idleInstances: pool.length, idleMemoryBytes: poolBytes };
   },
   trim() {
     for (const runtime of pool) retiredAllocations += statsOf(runtime)[3];

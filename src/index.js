@@ -842,6 +842,7 @@ export function load(content, options = {}, isDocument = true) {
     if (state.closed) return;
     state.wordLength = state.byteLength = 0;
     kernel.dispose(state.owner);
+    state.owner = null;
     state.closed = true;
     state.words = state.payload = null;
     state.wrappers.clear();

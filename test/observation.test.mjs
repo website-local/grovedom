@@ -4,6 +4,24 @@ import { load } from '../src/index.js';
 import { load as cheerio } from 'cheerio';
 import { kernel } from '../src/kernel.js';
 
+test('empty snapshots stay independent across edits, documents, and disposal', () => {
+  const $ = load('<main></main>'), other = load('<main></main>');
+  try {
+    const first = $('i'), second = $('i'), foreign = other('i');
+    $('main').append('<i>added</i>');
+    assert.equal(first.length, 0);
+    first.splice(0, 0, $('i')[0]);
+    assert.equal(first.text(), 'added');
+    assert.equal(second.length, 0);
+    assert.equal($('missing').length, 0);
+    $.dispose();
+    assert.throws(() => first.text(), { code: 'ERR_GROVEDOM_DISPOSED' });
+    other('main').append('<i>independent</i>');
+    assert.equal(foreign.length, 0);
+    assert.equal(other('i').text(), 'independent');
+  } finally { $.dispose(); other.dispose(); }
+});
+
 test('callback observations see pending writes across aliases and nested callbacks', () => {
   const transform = (loader, execution) => {
     const $ = loader('<main><p>A</p><p>B</p></main>', execution ? { execution } : undefined);

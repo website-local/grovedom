@@ -145,7 +145,7 @@ The compatibility review uses Cheerio 1.2.0 and domhandler 5.0.3 declarations: C
 - Node inputs and outputs use domhandler's `AnyNode`/`Element` contracts, including mutable parents/siblings/children, names, attribute maps, and node methods. Reusing these types requires compatible wrappers or an explicit narrower surface.
 - `CheerioOptions` includes parse5 and selector extension points; blindly aliasing it would promise unsupported parser-specific behavior.
 
-The prototype uses public type-only imports/re-exports and local declarations for its narrower handles and supported methods. Representative declaration fixtures compile, but the full consumer adapter and unchanged engine replay remain necessary before declaring migration trivial.
+The prototype uses public type-only imports/re-exports and local declarations for its narrower handles and supported methods. Representative declaration fixtures and 87 audited consumer TypeScript source files now compile. The isolated engine/MDN replay also passes; complete engine lifecycle integration and unaudited plugin surfaces remain outside that evidence. See [integration](integration.md).
 
 ## XML and template implementation findings
 

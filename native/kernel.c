@@ -15,7 +15,7 @@ typedef union {
     struct { size_t size; gd_document *owner; } value;
 } gd_allocation;
 static _Thread_local gd_document *gd_active;
-static _Thread_local size_t gd_live_bytes, gd_peak_bytes, gd_allocations, gd_live_documents;
+static _Thread_local size_t gd_live_bytes, gd_peak_bytes, gd_allocations, gd_live_documents, gd_control_bytes;
 
 #ifdef __wasm__
 /* Only synchronous transfers use this space. Pending operations and
@@ -159,7 +159,7 @@ static void gd_release(gd_document *doc) {
 }
 
 void gk_dispose(gd_document *doc) { gd_release(doc); }
-void gk_delete(gd_document *doc) { if (doc) { gd_release(doc); free(doc); } }
+void gk_delete(gd_document *doc) { if (doc) { gd_release(doc); gd_control_bytes -= sizeof(*doc); free(doc); } }
 void *gk_input(gd_document *doc, size_t length) {
     if (!gd_begin(doc)) return NULL;
     if (length >= UINT32_MAX || !gd_reserve((void **) &doc->input.data, &doc->input.capacity, length + 1, 1)) {
@@ -544,6 +544,7 @@ gd_document *gk_new(void) {
     GD_PROFILE_SCOPE(GP_CREATE);
     gd_document *doc = calloc(1, sizeof(*doc));
     if (!doc) return NULL;
+    gd_control_bytes += sizeof(*doc);
     gd_live_documents++;
     gd_active = doc;
     doc->html = lxb_html_document_create();
@@ -982,8 +983,9 @@ failed:
     return 0;
 }
 const size_t *gk_stats(void) {
-    static _Thread_local size_t values[4];
+    static _Thread_local size_t values[5];
     values[0] = gd_live_documents; values[1] = gd_live_bytes;
     values[2] = gd_peak_bytes; values[3] = gd_allocations;
+    values[4] = gd_control_bytes;
     return values;
 }
