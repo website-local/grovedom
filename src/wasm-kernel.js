@@ -113,6 +113,7 @@ function ids(state, value) {
 function transfer(state, length) {
   // Shared within one instance, only during a synchronous kernel call. Large
   // operations retain the existing document-owned, geometrically grown buffer.
+  if (length > 0x7fffffff) fail('ERR_GROVEDOM_MEMORY', 'Transfer exceeds the Wasm memory limit');
   return length <= 16384 ? state.runtime.scratch : check(state, state.runtime.gk_transfer(state.pointer, length));
 }
 function result(state, pointer) {
@@ -192,8 +193,31 @@ export const kernel = {
     return result(state, state.runtime.gk_read(state.pointer, operation, pointer, count));
   },
   observe(handle, operation, nodes, name, words, payload) {
-    kernel.execute(handle, words, payload);
-    return kernel.read(handle, operation, nodes, name);
+    const state = owner(handle);
+    if (!(words instanceof Uint32Array) || !(words.buffer instanceof ArrayBuffer) ||
+        !(payload instanceof Uint8Array) || !(payload.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary command and payload arrays');
+    if (!Number.isInteger(operation)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected read operation');
+    const scalar = typeof nodes === 'number';
+    if (scalar ? !Number.isInteger(nodes) || nodes < 0 || nodes > 0xffffffff
+      : !(nodes instanceof Uint32Array) || !(nodes.buffer instanceof ArrayBuffer)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected node IDs');
+    if (operation !== 1) name = '';
+    if (typeof name !== 'string') fail('ERR_GROVEDOM_ARGUMENT', 'Expected a UTF-8 encodable string');
+    const count = scalar ? 1 : nodes.length;
+    const pointer = transfer(state, words.byteLength + count * 4 + payload.byteLength + name.length * 3);
+    const nodePointer = pointer + words.byteLength, payloadPointer = nodePointer + count * 4;
+    const namePointer = payloadPointer + payload.byteLength;
+    views(state);
+    state.words.set(words, pointer >>> 2);
+    if (scalar) state.words[nodePointer >>> 2] = nodes;
+    else state.words.set(nodes, nodePointer >>> 2);
+    state.bytes.set(payload, payloadPointer);
+    let written = 0;
+    while (written < name.length && name.charCodeAt(written) < 128) {
+      state.bytes[namePointer + written] = name.charCodeAt(written); written++;
+    }
+    if (written !== name.length) written = encoder.encodeInto(name, state.bytes.subarray(namePointer, namePointer + name.length * 3)).written;
+    return result(state, state.runtime.gk_observe(state.pointer, pointer, words.length, payloadPointer, payload.byteLength,
+      operation, nodePointer, count, namePointer, written));
   },
   traverse(handle, nodes, axis) {
     const state = owner(handle);

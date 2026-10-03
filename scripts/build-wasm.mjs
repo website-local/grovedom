@@ -54,7 +54,7 @@ run('cmake', ['-S', resolve(source), '-B', lexborBuild, '-G', 'Ninja',
   '-DLEXBOR_BUILD_TESTS=OFF', '-DLEXBOR_BUILD_EXAMPLES=OFF', '-DLEXBOR_BUILD_UTILS=OFF', '-DLEXBOR_BUILD_BENCHMARKS=OFF']);
 run('cmake', ['--build', lexborBuild, '--target', 'lexbor_static', '--parallel', jobs]);
 const exports = ['gk_init', 'gk_new', 'gk_dispose', 'gk_delete', 'gk_input', 'gk_transfer', 'gk_scratch', 'gk_parse', 'gk_parse_xml',
-  'gk_query', 'gk_read', 'gk_traverse', 'gk_edit', 'gk_execute', 'gk_stats', 'gk_error_code', 'gk_error_message'];
+  'gk_query', 'gk_read', 'gk_observe', 'gk_traverse', 'gk_edit', 'gk_execute', 'gk_stats', 'gk_error_code', 'gk_error_message'];
 const output = join(build, profileGrowth ? 'grovedom-growth.wasm' : 'grovedom.wasm');
 run(compiler, [...target, ...flags, '-std=c11', `-O${optimize}`, '-Wall', '-Wextra', '-fvisibility=hidden', '-nostartfiles', '-nodefaultlibs',
   '-I', join(source, 'source'), join(root, 'native/kernel.c'), join(root, 'native/xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),

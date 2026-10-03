@@ -32,7 +32,7 @@ test('XML tag queries resolve cached misses and retain case through cache churn 
       $('thing')[0].name = 'Thing';
       $('#b')[0].name = 'Renamed';
       result.push(names($, $('Thing')), names($, $('Later')), names($, $('Renamed')));
-      for (let i = 0; i < 40; i++) $('Missing' + i);
+      for (let i = 0; i < 40; i++) $('Missing' + i + '[data-missing]');
       detached.remove();
       result.push(names($, $('Root, Group').find('Thing')), names($, snapshot),
         detached.is('Thing'), names($, $('*').filter('Thing')), $.xml());
@@ -102,4 +102,24 @@ test('dense matches followed by sparse matches stay ordered and deduplicated', (
     } finally { $.dispose?.(); }
   };
   assert.deepEqual(trace(load), trace(cheerio));
+});
+
+test('plain and general tag queries preserve options and recover after a selector failure', () => {
+  for (const xml of [false, true, { lowerCaseTags: true, lowerCaseAttributeNames: true }]) {
+    const trace = loader => {
+      const $ = loader('<Root><Thing data-x="a">one</Thing><thing data-x="b">two</thing><X-Y/><x_y/><h2/></Root>', { xml });
+      try {
+        const result = [];
+        for (const selector of ['Thing', ':is(Thing)', 'Thing:contains(one)', 'Thing', '[data-x]', 'X-Y', 'x_y', 'h2', '\\54 hing', '*:not(Thing)', 'Thing']) {
+          result.push(names($, $(selector)));
+        }
+        assert.throws(() => $('['));
+        result.push(names($, $('Thing')), names($, $('Future')));
+        $('Root').append('<Future data-x="new"/>');
+        result.push(names($, $('Future')), names($, $(':is(Future)')), $.html());
+        return result;
+      } finally { $.dispose?.(); }
+    };
+    assert.deepEqual(trace(load), trace(cheerio));
+  }
 });

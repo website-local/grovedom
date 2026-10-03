@@ -89,3 +89,21 @@ test('single-node reads preserve owner and ID bounds with pending writes', () =>
   } finally { kernel.dispose(owner); }
   assert.throws(() => kernel.read(owner, 2, ids[0], ''), { code: 'ERR_GROVEDOM_DISPOSED' });
 });
+
+test('pending fragment writes preserve Unicode read names and multi-node observations after growth', () => {
+  const run = loader => {
+    const name = 'name' + 'n'.repeat(140) + '雪';
+    const $ = loader('<Root><Item/><Item/></Root>', { xml: true });
+    const other = loader('<Root/>', { xml: true });
+    try {
+      const items = $('Item'), first = items.first();
+      items.attr(name, 'retained').html('<Child>' + 'é'.repeat(20000) + '</Child>');
+      other('Root').html('<Large>' + 'x'.repeat(200000) + '</Large>');
+      const otherLength = other.xml().length;
+      const value = first.attr(name), markupLength = first.html().length;
+      items.text('changed');
+      return [value, markupLength, otherLength, items.text(), $.xml()];
+    } finally { $.dispose?.(); other.dispose?.(); }
+  };
+  assert.deepEqual(run(load), run(cheerio));
+});

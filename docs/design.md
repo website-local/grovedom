@@ -71,7 +71,7 @@ Flush when an operation must expose pending kernel state:
 - Explicit `flush()` and document serialization/finalization.
 - Any documented escape hatch to the backend.
 
-A known snapshot length or a JavaScript-side `.eq()` over already materialized handles may need no kernel call. A callback receiving only a snapshot node identity also needs no extra flush at entry: live getters flush before observing the DOM. Reads should not blindly flush when the needed result is already valid. The prototype combines pending writes and a following read into one Node-API call, retaining their original execution order and safety checks.
+A known snapshot length or a JavaScript-side `.eq()` over already materialized handles may need no kernel call. A callback receiving only a snapshot node identity also needs no extra flush at entry: live getters flush before observing the DOM. Reads should not blindly flush when the needed result is already valid. The prototype combines pending writes and a following read into one Node-API or Wasm call, retaining their original execution order and safety checks. Wasm packs operands into its existing transfer storage and installs the read name after executing mutations, since fragment parsing can replace the input buffer.
 
 An `await` is not intrinsically a flush. Keep issue order consistent across asynchronous hook resumptions and never hold native borrows across JavaScript callbacks or asynchronous suspension. The engine adapter may conservatively flush at lifecycle boundaries.
 

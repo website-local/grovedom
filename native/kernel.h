@@ -66,6 +66,10 @@ int gk_parse(gd_document *doc, int scripting, int fragment);
 int gk_parse_xml(gd_document *doc, unsigned flags);
 const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, int match);
 const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *ids, size_t count);
+#ifdef __wasm__
+const gd_result *gk_observe(gd_document *doc, const uint32_t *words, size_t length, const unsigned char *payload, size_t bytes,
+    uint32_t operation, const uint32_t *ids, size_t count, const unsigned char *name, size_t name_length);
+#endif
 const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count, uint32_t axis);
 const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *ids, size_t count, const uint32_t *other, size_t other_count);
 int gk_execute(gd_document *doc, const uint32_t *words, size_t length, const unsigned char *payload, size_t bytes);

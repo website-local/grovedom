@@ -817,3 +817,69 @@ All six regression screens pass. The native authored-HTML row combines ten pairs
 Every individual XML comparison/control retains all five blocks, so raw and filtered medians agree. Native SVG-300 now passes this replication, but native SVG-120 and both pooled SVG sizes remain open. The native XML aggregate also has a retained block below three, despite its median and the previous checkpoint's aggregate pass. No unfavorable block is discarded based on its speedup. Both backends pass the mixed synthetic and refreshed consumer aggregate rules; this does not establish the same multiplier for every input or deployment.
 
 The final 716-case matrix passes: native 699 passes/17 skips, shared Wasm 701/15, fresh Wasm 702/14 and pooled Wasm 705/11. Native/pool also pass on Node 24; all 19 refreshed consumer outputs/events match on all four backends. Types, the rebuilt native ASan/UBSan suite with leak detection, and the authored 2,430-lifetime memory budgets pass. Refreshed-corpus lifecycle diagnostics remain separate from the fixed budgets. Release Wasm has zero imports and no diagnostic exports.
+
+## Plain tag queries and Wasm observations
+
+The follow-up after `4d33ee8` avoids CSS parsing for plain ASCII tag names and initializes CSS parser/matcher state only when needed. It reuses the existing tag tables and direct preorder scan. Escapes, Unicode identifiers, namespaces, compounds and lists retain the general selector path. Wasm packs pending commands and the following read into existing transfer storage for one exported call. It installs the read name after mutations, preserving fragment writes that replace input storage. This adds one private Wasm export; the opcode format, compiler defaults, heap/stack sizes and pool limits stay unchanged.
+
+Fresh CPU profiles cover 12,000 full SVG-300 replays per backend with 100 µs sampling. Query traversal, parsing, serialization, allocation and wrapper work remain visible. Profiles guide the changes; their independent elapsed times are not paired speedups.
+
+The plain-tag/lazy-CSS comparison uses ten fresh process pairs across the four XML inputs, combining the original five with a fixed five-pair extension. Native measures 0.988 raw / 0.929 filtered with 47/50 blocks retained; its control is 1.024/1.022 with 48/50 retained. Native incremental timing is inconclusive. Pool measures 1.049 with all 50 blocks retained; its control is 0.995/1.016 with 45/50 retained. Complementary isolated short trials on the two large XML inputs remain diagnostic: some controls drift materially, so they do not replace the paired results.
+
+Adding the fused Wasm observation to the plain-tag variant measures 1.025× across five fresh pairs, with all 25 blocks retained. Its control is 0.982 with all blocks retained. Every comparison pair median improves, spanning 1.017–1.057. The native binary is byte-identical between these two variants. No sample is dropped because its speedup is unfavorable, and ratios are never normalized by controls.
+
+HTML/MDN regressions compare the final candidate with `4d33ee8`, using separate persistent process pairs and the same six batches of two corpus replays, 40 warmups and five balanced blocks per pair. Native HTML starts with ten pairs; saved MDN and consumer start with five per backend. Pooled HTML starts with ten pairs. Initial native saved-MDN/consumer controls and the pooled-HTML control miss the 2% tolerance. Before examining further results, extend the first two by five pairs each and pooled HTML by ten; combine every original and extra result.
+
+| Regression panel | Backend | Raw / filtered | Blocks retained | Control raw / filtered | Control blocks | Screen |
+|---|---|---:|---:|---:|---:|---|
+| Authored HTML | Native | 1.016 / 1.008 | 46/50 | 1.008 / 1.008 | 48/50 | Pass |
+| Saved MDN | Native | 1.006 / 1.006 | 43/50 | 1.016 / 1.019 | 41/50 | Pass |
+| Complete consumer | Native | 1.029 / 1.020 | 40/50 | 0.984 / 0.995 | 27/50 | Pass |
+| Authored HTML | Pool | 1.038 / 1.043 | 86/100 | 0.987 / 0.986 | 83/100 | Pass |
+| Saved MDN | Pool | 1.037 / 1.011 | 15/25 | 0.994 / 0.994 | 22/25 | Pass |
+| Complete consumer | Pool | 0.987 / 1.009 | 19/25 | 1.005 / 1.018 | 15/25 | Pass |
+
+All six panels meet the unchanged 2% comparison/control tolerances, with at least three retained blocks in at least three pairs. Pooled saved MDN has exactly three qualifying comparison pairs. Some individual process ratios still drift materially: native HTML comparison pair medians span 0.853–1.115. Passing this aggregate regression screen does not prove exactly zero slowdown. Original results remain preserved alongside the combined reports.
+
+The final candidate uses the established five-block separate-process adoption screens. Individual XML cases use 80 warmups, six batches and eight replays per batch; the baseline is Cheerio 1.2.0 XML/htmlparser2. Every comparison and control block survives this replication, so raw and filtered medians agree.
+
+| XML input | Backend | Median vs Cheerio XML | Minimum retained | Control median | 3× screen |
+|---|---|---:|---:|---:|---|
+| Sitemap, 120 entries | Native | 4.326 | 3.985 | 0.998 | Pass |
+| Sitemap, 600 entries | Native | 5.126 | 3.427 | 1.013 | Pass |
+| SVG, 120 groups | Native | 3.611 | 3.564 | 0.983 | Pass |
+| SVG, 300 groups | Native | 3.522 | 3.303 | 1.022 | Pass |
+| Sitemap, 120 entries | Pool | 3.691 | 3.478 | 1.054 | Pass |
+| Sitemap, 600 entries | Pool | 4.494 | 4.203 | 1.014 | Pass |
+| SVG, 120 groups | Pool | 3.287 | 2.874 | 0.970 | Retained block below target |
+| SVG, 300 groups | Pool | 3.037 | 3.015 | 1.018 | Pass |
+
+The pooled SVG-120 gate remains open despite its median exceeding three. Pooled SVG-300 clears the rule with little margin in this replication. Earlier failures and inconclusive results remain separate evidence; these results do not prove a universal per-input multiplier.
+
+| Aggregate panel | Backend | Raw / filtered vs Cheerio | Blocks retained | Minimum retained | Control raw / filtered | Control blocks | 3× screen |
+|---|---|---:|---:|---:|---:|---:|---|
+| Explicit XML | Native | 3.633 / 3.633 | 5/5 | 3.363 | 0.996 / 0.996 | 5/5 | Pass |
+| Synthetic HTML + XML | Native | 5.968 / 5.968 | 5/5 | 4.887 | 1.041 / 1.041 | 5/5 | Pass |
+| Complete consumer | Native | 4.036 / 4.036 | 5/5 | 3.931 | 0.973 / 0.973 | 4/5 | Pass |
+| Explicit XML | Pool | 3.819 / 3.819 | 5/5 | 3.334 | 1.004 / 1.004 | 5/5 | Pass |
+| Synthetic HTML + XML | Pool | 4.944 / 4.944 | 5/5 | 4.708 | 0.983 / 0.983 | 5/5 | Pass |
+| Complete consumer | Pool | 3.462 / 3.462 | 5/5 | 3.421 | 1.018 / 1.018 | 5/5 | Pass |
+
+All six aggregate screens pass with the unchanged 10% control tolerance. The complete consumer panel retains its 19 scenarios and refreshed archive samples. Engine 0.9.1's sitemap path still uses its original HTML-mode load call; the explicit XML panel supplies XML parsing evidence.
+
+The fastest-compatible HTML comparison uses Cheerio/slim on the mixed synthetic panel and the eight refreshed saved-MDN scenarios. Saved outputs are normalized outside timing, with exact ordered resource-event comparison. Every input matches; no sample is excluded for a parser/output mismatch. The comparison requires a demonstrated win over this baseline, rather than a separate 3× multiplier over the HTML htmlparser2 configuration.
+
+Initial native/pool saved-page comparisons retain only one of five blocks, and the pooled saved-page control retains none. Pooled synthetic also retains one block. Before examining extension results, add one fixed five-block extension to saved comparisons/controls on both backends and pooled synthetic/control. Combine all original and extra blocks without changing probe decisions; retain full reports separately. Native synthetic keeps its original five blocks and matching aggregate control.
+
+| Cheerio/slim panel | Backend | Raw / filtered | Blocks retained | Minimum retained | Control raw / filtered | Control blocks | Faster-baseline screen |
+|---|---|---:|---:|---:|---:|---:|---|
+| Synthetic HTML + XML | Native | 4.008 / 4.008 | 5/5 | 3.778 | 1.041 / 1.041 | 5/5 | Pass |
+| Saved MDN | Native | 3.382 / 3.186 | 4/10 | 2.801 | 0.940 / 0.946 | 6/10 | Pass |
+| Synthetic HTML + XML | Pool | 3.703 / 3.732 | 6/10 | 3.273 | 0.982 / 0.982 | 10/10 | Pass |
+| Saved MDN | Pool | 3.212 / 3.212 | 4/10 | 3.116 | 0.996 / 1.006 | 5/10 | Pass |
+
+All four screens pass their 10% control tolerance and minimum retention rules. Variability remains substantial: a retained native saved-page control block is 0.782. These scoped wins do not establish precise unconditional throughput or make htmlparser2 compatible with every generated/fragment consumer scenario.
+
+The 718-case matrix passes: native 701 passes/17 skips, shared Wasm 703/15, fresh Wasm 704/14 and pooled Wasm 707/11. Native/pool also pass on Node 24. All 19 refreshed consumer outputs and ordered events match on all four backends. Types, rebuilt native ASan/UBSan with leak detection, refreshed-corpus lifecycle checks and the fixed authored 2,430-lifetime budgets pass. Allocation-failure injection, broader fuzzing and production traffic weighting remain outside these checks.
+
+The expanded stack diagnostic adds the four sitemap/SVG replays to deep HTML/XML/template trees, bounded selector nesting and the eight restored MDN samples. It instruments all 120 stack-pointer writes in a separate build and runs 36 workloads with two sentinel patterns. Every pointer restores; only the expected bounded-selector cases return unsupported errors. Maximum observed pointer depth is 6,256 bytes and written watermark is 6,200 bytes. Each ordinary sitemap/SVG replay reaches 48 bytes of pointer depth. These measurements exclude the engine machine stack and do not prove a worst-case bound; retain the 64 KiB reservation. Release Wasm still has zero imports and no diagnostic exports.

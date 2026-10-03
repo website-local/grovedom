@@ -75,6 +75,23 @@ Both versions return tracked live document bytes to zero on disposal. The defect
 
 The direct single-tag scan adds no cache, document field or per-node allocation. The 716-case matrix and rebuilt native ASan/UBSan suite pass without sanitizer findings. The authored 2,430-lifetime panel passes every unchanged budget on all four backends. Peak tracked capacity remains 21.48 MiB native / 12.25 MiB Wasm; shared/fresh/pooled linear capacity remains 14.0625/16.375/22.4375 MiB. Live document/control bytes return to zero, as do fresh ownership and trimmed-pool capacity. Separate refreshed-corpus runs pass lifecycle assertions. These checks do not establish general allocator-fragmentation bounds.
 
+### Lazy CSS setup and combined Wasm observations
+
+The follow-up after `4d33ee8` creates CSS parser/matcher state only for queries that need it. Plain ASCII tag queries reuse existing tag tables and preorder scans; they add no persistent index, cache or per-node allocation. The first `use` query on the authored SVG-300 input needs six backing allocation requests instead of 36. The full SVG replay needs 153 instead of 234 requests on native and 135 instead of 216 on shared Wasm. These counts exclude JS objects and allocator slack.
+
+Fresh processes containing only that full SVG replay confirm the peak reduction:
+
+| Backend | Tracked peak before / after, bytes | Linear capacity before / after, bytes |
+|---|---:|---:|
+| Native | 1,183,416 / 928,568 | — |
+| Shared Wasm | 686,236 / 583,020 | 1,179,648 / 1,048,576 |
+
+Both finish with zero live document bytes. Native's 1,664-byte control record remains until owner finalization in this immediate sample; the sustained GC/lifetime checks separately verify its release. Earlier probes that queried another document first are not used to establish these single-replay peak figures.
+
+Wasm's combined mutation/read export uses the existing 16 KiB instance scratch area or document-owned overflow transfer buffer. It adds no independently retained buffer. Commands, IDs, payload and the read name coexist until the call finishes; installing the name after executing commands prevents fragment parsing from overwriting it. JS checks the combined transfer length before narrowing it to Wasm's address space.
+
+The authored 2,430-lifetime matrix passes every unchanged budget on all four backends. Peak tracked capacity remains 21.48 MiB native / 12.25 MiB Wasm. Shared/fresh/pooled linear peaks fall from 14.0625/16.375/22.4375 MiB to 13.75/16/21.875 MiB. Live document/control bytes return to zero, as do fresh ownership and trimmed-pool capacity. Refreshed-corpus lifecycle checks and rebuilt native ASan/UBSan with leak detection also pass. These remain scoped capacity measurements, not general fragmentation bounds or guarantees of immediate OS reclamation.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

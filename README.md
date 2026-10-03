@@ -4,9 +4,9 @@ DOM transformations through ordered operations.
 
 GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the mixed synthetic and refreshed consumer aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#xml-tag-scans-and-attribute-storage), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
+**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the XML, mixed synthetic and refreshed consumer aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#plain-tag-queries-and-wasm-observations), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
 
-The latest [XML optimization checkpoint](docs/benchmarks.md#xml-tag-scans-and-attribute-storage) adds direct tag scans and fixes retained attribute-value storage. Matched full-XML replays improve about 6% native / 7% pooled Wasm, and all HTML/MDN regression screens pass. Pooled SVG and native XML repeatability remain open; aggregate passes do not establish the same multiplier for every input.
+The latest [XML optimization checkpoint](docs/benchmarks.md#plain-tag-queries-and-wasm-observations) avoids CSS setup for plain tag queries and combines Wasm mutations with their following read. It reduces allocation traffic, and all HTML/MDN regression screens pass. Native clears all four individual XML screens; pooled Wasm still has a retained SVG-120 block below 3×. Aggregate passes do not establish the same multiplier for every input.
 
 ## Objective
 

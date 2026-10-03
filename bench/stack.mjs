@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'nod
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { page, replay } from '../test/fixtures.mjs';
+import { page as sitemap, svg, replay as xmlReplay } from './xml-fixtures.mjs';
 import { instrumentStack } from './wasm-stack-instrument.mjs';
 
 if (!process.env.TMPDIR) throw new Error('Set a disk-backed TMPDIR.');
@@ -40,6 +41,8 @@ try {
   const { load } = await import(pathToFileURL(join(temporary, 'src', 'index.js')).href);
   const { stackRuntimes, stackReset } = await import(pathToFileURL(join(temporary, 'src', 'wasm-kernel.js')).href);
   const cases = [120, 600, 5000].map(rows => ({ id: `authored-${rows}`, source: page(rows), run: replay }));
+  for (const rows of [120, 600]) cases.push({ id: `sitemap-${rows}`, source: sitemap(rows), run: xmlReplay });
+  for (const rows of [120, 300]) cases.push({ id: `svg-${rows}`, source: svg(rows), run: xmlReplay });
   for (const depth of [100, 1000, 10000]) cases.push({ id: `tree-depth-${depth}`,
     source: '<div>'.repeat(depth) + '<p>deep</p>' + '</div>'.repeat(depth),
     run(load, source) {

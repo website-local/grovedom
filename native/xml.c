@@ -74,6 +74,14 @@ static int gd_xml_names(gd_document *doc, const lxb_char_t *name, size_t length,
     return 1;
 }
 
+int gd_xml_tag_id(gd_document *doc, const lxb_char_t *name, size_t length, lxb_tag_id_t *tag) {
+    const lxb_char_t *raw, *key; size_t key_length;
+    if (!gd_xml_names(doc, name, length, 0, doc->xml_flags & XML_LOWER_TAGS, &raw, &key, &key_length))
+        return gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "XML selector name allocation failed");
+    *tag = lxb_tag_id_by_name(doc->html->dom_document.tags, key, key_length);
+    return 1;
+}
+
 lxb_dom_element_t *gd_xml_element(gd_document *doc, const lxb_char_t *name, size_t length, int lower) {
     GD_PROFILE_SCOPE(GP_XML_NAME);
     gd_xml_name_entry *cached = lower ? NULL : gd_xml_name_slot(doc, name, length, 0);

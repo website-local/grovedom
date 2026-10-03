@@ -530,6 +530,18 @@ static void gd_plans_clean(gd_document *doc) {
 
 static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     GD_PROFILE_SCOPE(GP_PLAN);
+    if (!doc->css) {
+        lxb_css_parser_t *css = lxb_css_parser_create();
+        lxb_selectors_t *selectors = lxb_selectors_create();
+        if (!css || !selectors || lxb_css_parser_init(css, NULL) != LXB_STATUS_OK ||
+            lxb_selectors_init(selectors) != LXB_STATUS_OK) {
+            lxb_css_parser_destroy(css, true);
+            lxb_selectors_destroy(selectors, true);
+            goto memory_error;
+        }
+        lxb_selectors_opt_set(selectors, LXB_SELECTORS_OPT_MATCH_FIRST);
+        doc->css = css; doc->selectors = selectors;
+    }
     for (size_t i = 0; i < doc->plan_count; i++) {
         gd_plan *plan = &doc->plans[i];
         if (plan->length == doc->input.length &&
@@ -580,14 +592,9 @@ gd_document *gk_new(void) {
     gd_live_documents++;
     gd_active = doc;
     doc->html = lxb_html_document_create();
-    doc->css = lxb_css_parser_create();
-    doc->selectors = lxb_selectors_create();
-    if (!doc->html || !doc->css || !doc->selectors ||
-        lxb_css_parser_init(doc->css, NULL) != LXB_STATUS_OK ||
-        lxb_selectors_init(doc->selectors) != LXB_STATUS_OK) {
+    if (!doc->html) {
         gk_delete(doc); gd_active = NULL; return NULL;
     }
-    lxb_selectors_opt_set(doc->selectors, LXB_SELECTORS_OPT_MATCH_FIRST);
     gd_active = NULL;
     return doc;
 }
@@ -657,14 +664,24 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     GD_PROFILE_SCOPE(GP_QUERY);
     if (!gd_begin(doc)) return NULL;
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
-    lxb_css_selector_list_t *plan = gd_plan_get(doc);
-    if (!plan) return gd_failed();
-    doc->selector_custom = (doc->selector_flags & GD_SELECTOR_TEXT) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
-    if (doc->selector_custom) doc->selector_guard = NULL;
-    int possible = gd_selector_guard_prepare(doc);
+    lxb_css_selector_list_t *plan = NULL;
+    lxb_tag_id_t simple_tag = 0;
+    int possible;
+    if (gd_selector_plain_tag(doc->input.data, doc->input.length)) {
+        if (doc->xml) {
+            if (!gd_xml_tag_id(doc, doc->input.data, doc->input.length, &simple_tag)) return gd_failed();
+        } else simple_tag = lxb_tag_id_by_name(doc->html->dom_document.tags, doc->input.data, doc->input.length);
+        possible = simple_tag != 0;
+    } else {
+        plan = gd_plan_get(doc);
+        if (!plan) return gd_failed();
+        doc->selector_custom = (doc->selector_flags & GD_SELECTOR_TEXT) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+        if (doc->selector_custom) doc->selector_guard = NULL;
+        possible = gd_selector_guard_prepare(doc);
+        simple_tag = gd_selector_simple_tag(doc);
+    }
     gd_results_reset(doc);
     if (!possible) return gd_result_set(doc, GD_IDS, doc->results, 0, 0);
-    lxb_tag_id_t simple_tag = gd_selector_simple_tag(doc);
     int cross_fragments = 0;
     if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
         if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
@@ -742,6 +759,20 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
     if (!data) { data = doc->output.data; length = doc->output.length; }
     return gd_result_set(doc, GD_STRING, data, length, 0);
 }
+#ifdef __wasm__
+const gd_result *gk_observe(gd_document *doc, const uint32_t *words, size_t length, const unsigned char *payload, size_t bytes,
+    uint32_t operation, const uint32_t *ids, size_t count, const unsigned char *name, size_t name_length) {
+    if (!gk_execute(doc, words, length, payload, bytes)) return NULL;
+    /* Fragment mutations can replace input storage. Install the read operand
+     * afterwards; the caller's transfer storage remains separate and live. */
+    if (operation == READ_ATTR) {
+        void *input = gk_input(doc, name_length);
+        if (!input) return NULL;
+        if (name_length) memcpy(input, name, name_length);
+    }
+    return gk_read(doc, operation, ids, count);
+}
+#endif
 const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count, uint32_t axis) {
     GD_PROFILE_SCOPE(GP_TRAVERSE);
     if (!gd_begin(doc)) return NULL;

@@ -48,6 +48,17 @@ int gd_selector_guard_prepare(gd_document *doc) {
     return possible;
 }
 
+int gd_selector_plain_tag(const lxb_char_t *name, size_t length) {
+    /* A conservative CSS identifier subset. Escapes, namespaces, non-ASCII
+     * names and every compound/list selector keep the ordinary parser. */
+    if (!length || (name[0] | 32) < 'a' || (name[0] | 32) > 'z') return 0;
+    for (size_t i = 1; i < length; i++) {
+        unsigned c = name[i], lower = c | 32;
+        if (!((lower >= 'a' && lower <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_')) return 0;
+    }
+    return 1;
+}
+
 lxb_tag_id_t gd_selector_simple_tag(gd_document *doc) {
     gd_selector_guard *g = doc->selector_guard;
     if (!g || g[1].atom || g->atom->type != LXB_CSS_SELECTOR_TYPE_ELEMENT ||

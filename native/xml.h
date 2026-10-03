@@ -11,6 +11,7 @@ lxb_status_t gd_xml_attr_name(gd_document *doc, lxb_dom_attr_t *attr, const lxb_
 lxb_dom_interface_t *gd_xml_clone_interface(lxb_dom_document_t *document, const lxb_dom_interface_t *source);
 lxb_dom_node_t *gd_xml_parse(gd_document *doc, const lxb_char_t *source, size_t length);
 int gd_xml_plan(gd_document *doc, lxb_css_selector_list_t *list);
+int gd_xml_tag_id(gd_document *doc, const lxb_char_t *name, size_t length, lxb_tag_id_t *tag);
 lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned flags);
 
 #endif
