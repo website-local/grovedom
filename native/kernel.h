@@ -19,6 +19,7 @@ typedef struct gd_document gd_document;
 typedef struct { unsigned char *data; size_t capacity, length; } gd_buffer;
 typedef struct { lxb_dom_node_t *node; uint32_t mark, order; } gd_node;
 typedef struct gd_selector_guard gd_selector_guard;
+typedef struct gd_xml_name_entry gd_xml_name_entry;
 typedef struct { char *key; size_t length; lxb_css_selector_list_t *list; unsigned flags; gd_selector_guard *guard; } gd_plan;
 struct gd_document {
     lxb_html_document_t *html;
@@ -42,6 +43,7 @@ struct gd_document {
     unsigned selector_flags;
     int selector_custom;
     gd_selector_guard *selector_guard;
+    gd_xml_name_entry *xml_names;
 };
 
 /* Shared implementation helpers. Hidden by both builds; not binding exports. */

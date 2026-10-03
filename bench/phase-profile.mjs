@@ -2,7 +2,6 @@ import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { page, replay } from '../test/fixtures.mjs';
 import { kernel } from '../src/kernel.js';
 import { instrument } from './instrument-kernel.mjs';
 if (!process.env.TMPDIR) throw new Error('Set disk-backed TMPDIR for the instrumented facade.');
@@ -19,7 +18,9 @@ const { load, measurement } = await import(pathToFileURL(temporary).href);
 unlinkSync(temporary);
 const iterations = Number(process.env.GROVEDOM_PROFILE_ITERATIONS ?? 600);
 const rows = Number(process.env.GROVEDOM_BENCH_ROWS ?? 120);
-const html = page(rows);
+const { page, replay } = await import(process.env.GROVEDOM_PROFILE_WORKLOAD
+  ? pathToFileURL(process.env.GROVEDOM_PROFILE_WORKLOAD).href : new URL('../test/fixtures.mjs', import.meta.url).href);
+const html = process.env.GROVEDOM_PROFILE_INPUT ? readFileSync(process.env.GROVEDOM_PROFILE_INPUT, 'utf8') : page(rows);
 for (let i = 0; i < 80; i++) replay(load, html);
 kernel.profileReset();
 const probeStart = performance.now(), probe = kernel.profileProbe().probe;

@@ -14,6 +14,29 @@ static int gd_xml_name_char(unsigned char c, int first) {
     return c >= 128 || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == ':' || (!first && (c == '-' || c == '.' || (c >= '0' && c <= '9')));
 }
 
+/* The cache borrows immutable names from the document's intern tables, never
+ * input bytes or a node. Collisions replace entries; the two 32-slot halves
+ * keep element and attribute IDs separate. Lowercasing options use the normal
+ * path so cached keys always have the exact public spelling. */
+struct gd_xml_name_entry {
+    const lxb_char_t *name;
+    size_t length;
+    uintptr_t local, qualified;
+};
+
+static gd_xml_name_entry *gd_xml_name_slot(gd_document *doc,
+    const lxb_char_t *name, size_t length, int attribute) {
+    if (!length) return NULL;
+    if (!doc->xml_names) {
+        doc->xml_names = lexbor_mraw_calloc(doc->html->dom_document.mraw,
+                                           64 * sizeof(gd_xml_name_entry));
+        if (!doc->xml_names) return NULL;
+    }
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < length; i++) hash = (hash ^ name[i]) * 16777619u;
+    return doc->xml_names + (hash & 31) + (attribute ? 32 : 0);
+}
+
 /* Lexbor folds local-name lookups even in XML documents. Keep its static
  * lowercase IDs (notably id/class); map every other name to an impossible XML
  * name containing lowercase hex. Qualified names retain the public spelling.
@@ -52,18 +75,47 @@ static int gd_xml_names(gd_document *doc, const lxb_char_t *name, size_t length,
 }
 
 lxb_dom_element_t *gd_xml_element(gd_document *doc, const lxb_char_t *name, size_t length, int lower) {
+    GD_PROFILE_SCOPE(GP_XML_NAME);
+    gd_xml_name_entry *cached = lower ? NULL : gd_xml_name_slot(doc, name, length, 0);
+    if (cached && cached->name && cached->length == length && memcmp(cached->name, name, length) == 0) {
+        GD_PROFILE_ADD(GP_XML_NAME_HITS, 1);
+        lxb_dom_element_t *element = lxb_dom_document_create_interface(&doc->html->dom_document, cached->local, LXB_NS__UNDEF);
+        if (element) {
+            element->qualified_name = cached->qualified;
+            element->custom_state = LXB_DOM_ELEMENT_CUSTOM_STATE_UNCUSTOMIZED;
+        }
+        return element;
+    }
+    GD_PROFILE_ADD(GP_XML_NAME_MISSES, 1);
     const lxb_char_t *raw, *key; size_t key_length;
     if (!gd_xml_names(doc, name, length, 0, lower, &raw, &key, &key_length)) return NULL;
     lxb_dom_element_t *element = lxb_dom_document_create_element(&doc->html->dom_document, key, key_length, NULL);
     if (element && lxb_dom_element_qualified_name_set(element, NULL, 0, raw, length) != LXB_STATUS_OK) return lxb_dom_element_interface_destroy(element);
+    if (element && cached) {
+        cached->name = lxb_dom_element_qualified_name(element, &cached->length);
+        cached->local = element->node.local_name; cached->qualified = element->qualified_name;
+    }
     return element;
 }
 
 lxb_status_t gd_xml_attr_name(gd_document *doc, lxb_dom_attr_t *attr, const lxb_char_t *name, size_t length, int lower) {
+    GD_PROFILE_SCOPE(GP_XML_NAME);
+    gd_xml_name_entry *cached = lower ? NULL : gd_xml_name_slot(doc, name, length, 1);
+    if (cached && cached->name && cached->length == length && memcmp(cached->name, name, length) == 0) {
+        GD_PROFILE_ADD(GP_XML_NAME_HITS, 1);
+        attr->node.local_name = cached->local; attr->qualified_name = cached->qualified;
+        return LXB_STATUS_OK;
+    }
+    GD_PROFILE_ADD(GP_XML_NAME_MISSES, 1);
     const lxb_char_t *raw, *key; size_t key_length;
     if (!gd_xml_names(doc, name, length, 1, lower, &raw, &key, &key_length)) return LXB_STATUS_ERROR;
     lxb_status_t status = lxb_dom_attr_set_name(attr, raw, length, false);
-    return status == LXB_STATUS_OK ? lxb_dom_attr_set_name(attr, key, key_length, true) : status;
+    if (status == LXB_STATUS_OK) status = lxb_dom_attr_set_name(attr, key, key_length, true);
+    if (status == LXB_STATUS_OK && cached) {
+        cached->name = lxb_dom_attr_qualified_name(attr, &cached->length);
+        cached->local = attr->node.local_name; cached->qualified = attr->qualified_name;
+    }
+    return status;
 }
 
 static lxb_status_t gd_xml_codepoint(gd_buffer *out, uint32_t c) {
@@ -77,6 +129,7 @@ static lxb_status_t gd_xml_codepoint(gd_buffer *out, uint32_t c) {
 }
 
 static int gd_xml_decode(gd_document *doc, const lxb_char_t **data, size_t *length) {
+    GD_PROFILE_SCOPE(GP_XML_DECODE);
     if (!(doc->xml_flags & XML_DECODE) || !memchr(*data, '&', *length)) return 1;
     const lxb_char_t *s = *data; size_t n = *length, run = 0;
     doc->output.length = 0;
@@ -187,6 +240,16 @@ lxb_dom_node_t *gd_xml_parse(gd_document *doc, const lxb_char_t *s, size_t n) {
             lxb_dom_node_insert_child(parent, node); i++; continue;
         }
         i++; int closing = i < n && s[i] == '/'; if (closing) i++;
+        if (closing && !(doc->xml_flags & XML_LOWER_TAGS)) {
+            if (parent == root) goto malformed;
+            size_t length;
+            const lxb_char_t *name = lxb_dom_element_qualified_name(lxb_dom_interface_element(parent), &length);
+            if (length > n - i || memcmp(s + i, name, length)) goto malformed;
+            i += length;
+            while (i < n && gd_xml_space(s[i])) i++;
+            if (i == n || s[i++] != '>') goto malformed;
+            parent = parent->parent; continue;
+        }
         size_t start = i;
         while (i < n && gd_xml_name_char(s[i], i == start)) i++;
         size_t length = i - start;
@@ -232,8 +295,10 @@ lxb_dom_node_t *gd_xml_parse(gd_document *doc, const lxb_char_t *s, size_t n) {
             if (gd_xml_attr_name(doc, attr, s + start, length, doc->xml_flags & XML_LOWER_ATTRS) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, value, value_length) != LXB_STATUS_OK) {
                 lxb_dom_attr_interface_destroy(attr); goto failed;
             }
-            size_t alen; const lxb_char_t *aname = lxb_dom_attr_qualified_name(attr, &alen);
-            if (gd_attribute(&element->node, aname, alen)) lxb_dom_attr_interface_destroy(attr);
+            /* Local XML IDs include the case-sensitive name mapping. */
+            lxb_dom_attr_t *existing = element->first_attr;
+            while (existing && existing->node.local_name != attr->node.local_name) existing = existing->next;
+            if (existing) lxb_dom_attr_interface_destroy(attr);
             else if (lxb_dom_element_attr_append(element, attr) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); goto failed; }
         }
         if (!self_closing) parent = &element->node;
@@ -322,6 +387,7 @@ static lxb_status_t gd_xml_escape(gd_document *doc, const lxb_char_t *s, size_t 
 }
 
 lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned flags) {
+    GD_PROFILE_SCOPE(GP_XML_SERIALIZE);
     lxb_dom_node_t *node = root;
 #define XML_WRITE(s, n) do { if (gd_write((const lxb_char_t *) (s), (n), &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION; } while (0)
     while (node) {

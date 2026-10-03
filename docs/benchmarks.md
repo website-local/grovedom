@@ -548,7 +548,7 @@ Ordinary authored HTML uses 120 articles, three blocks, 160 warmups and eight ba
 
 ### Current Cheerio and backend panel
 
-The same three-block consumer protocol includes complete transforms, bindings, serialization, explicit disposal and deterministic URL/resource stubs. It excludes network/disk and downloader scheduling. HTML uses current Cheerio/parse5; XML uses Cheerio's htmlparser2 XML mode. Outputs and resource events match exactly.
+The same three-block consumer protocol includes complete transforms, bindings, serialization, explicit disposal and deterministic URL/resource stubs. It excludes network/disk and downloader scheduling. HTML uses current Cheerio/parse5; explicitly configured XML uses Cheerio's htmlparser2 XML mode. Engine 0.9.1's sitemap transform calls `load` without XML options, so its sitemap row exercises HTML parsing, despite the input format. It is not an XML-parser measurement. Outputs and resource events match exactly.
 
 | Input | Native / current Cheerio speedup, raw | Filtered | Blocks kept |
 |---|---:|---:|---:|
@@ -621,3 +621,68 @@ With identical inputs and the same five-block protocol, Node 24.18.0 measures 4.
 Native versus slim measures 3.596× synthetic (raw and filtered, 5/5 retained) and 3.267× raw / 3.246× filtered on the eight saved MDN pages (4/5 retained). The parser-compatibility exclusions above still apply. Pooled Wasm is correctness-tested on Node 24 in this pass; its new whole-corpus performance gate is measured on Node 22.
 
 The final focused long-list diagnostic on Node 22 measures baseline/candidate ratios of 1.918× sparse and 2.703× dense, with three of three process blocks retained in each case. It uses 80 warmups and six batches of eight replays, and includes parsing plus repeated queries. It isolates selector behavior and carries no additional adoption claim.
+
+## XML optimization gate after `8c785fb`
+
+This pass targets explicit XML mode, independently of the mixed-panel result. Freeze the authored sitemap at 120/600 entries and SVG at 120/300 groups, using `bench/xml-fixtures.mjs` for complete parse/query/callback/mutation/serialization/disposal replays. Compare native and pooled Wasm separately against current Cheerio `{ xml: true }` (htmlparser2). Report each input and the equal-entry whole-panel ratio; pursue 3× on XML without hiding a slower category. Also retain the real consumer SVG path. The engine's unchanged sitemap path uses HTML mode and remains a consumer regression case, not an explicit XML baseline.
+
+Final release comparisons use five alternating ABBA/BAAB blocks, 80 warmups, six batches and eight replays per batch for individual authored XML inputs. Complete panels retain the earlier 40-warmup, six-batch, two-replay settings. Keep every sample and the independent-probe max/min rejection threshold of 1.5. Identical-code controls use matching settings. Require at least three retained blocks and raw/filtered medians and retained blocks above 3× before declaring an XML performance pass. Controls outside 0.90–1.10 make the result inconclusive; do not divide timings by controls or reject blocks based on speedup. Exploratory screens may use three blocks and must be labeled diagnostic.
+
+HTML regression checks compare against `8c785fb` on the 120/600-article authored HTML panel, all eight saved MDN pages, and the complete consumer panel. Keep the established current-Cheerio performance gates. Investigate any repeatable slowdown; the operational regression screen requires raw/filtered baseline/candidate ratios at least 0.98 with matching controls within 0.98–1.02. This is a measurement tolerance, not permission to trade HTML speed for XML gains or proof of exact zero regression. An inconclusive screen requires further diagnosis, not a pass. Behavior, explicit disposal, all Wasm modes and existing sustained memory budgets remain required.
+
+Several initial regression controls drifted outside the 2% tolerance despite passing the independent CPU probe. Before examining follow-up results, repeat the HTML/saved-MDN/complete-consumer comparisons and matching controls with the same five-block settings and a fixed process affinity. Select one permitted logical CPU from an independent utilization sample before running the panel, then use it for every child process in that replication. This changes no host-wide configuration or library threading. Keep the original samples and report the affinity replication separately; steady interference can still escape filtering.
+
+The pooled SVG controls also exceed the 0.90–1.10 XML tolerance in the initial panel. Extend the affinity replication to individual XML cases and the XML aggregate, with their matching controls and original warmup/batch settings. Preserve the failed controls; do not use the initial SVG ratios as passed measurements.
+
+The native complete-consumer control remains outside the 2% regression tolerance in the affinity replication. Add one predetermined five-block control run on the same affinity and combine all ten blocks, keeping each block's original probe decision. Do not choose the better run or adjust candidate speedups by the control. Repeat the pooled synthetic/current-Cheerio gate and its control on that affinity after its initial control failed the 10% adoption tolerance. Compare the compatible synthetic and saved-MDN panels with Cheerio/slim there as well.
+
+### Retained changes and rejected experiments
+
+The retained implementation caches XML element/attribute names in the document arena, compares closing tags with the known parent name, and checks duplicate attributes by case-sensitive IDs. Callback setters avoid internal selection wrappers; scalar reads pass an integer ID; command views are reused. The [research notes](research.md#xml-algorithms-reviewed) describe the library/browser references, and [memory](memory.md#xml-optimization-recheck) records ownership and capacity checks.
+
+Exploratory before/after XML panels showed substantial gains from removing callback wrappers and specializing scalar reads. The final unpinned XML panel measures baseline/candidate medians of 1.877× native and 1.884× pooled Wasm, with five of five blocks retained. Matching controls are 0.996 native and 0.959 raw / 0.917 filtered pool, with five/three retained blocks. These controls support a large improvement but not a precise universal multiplier.
+
+The scanner experiment using libc `memchr` had mixed results and was removed. Native full LTO and Wasm bulk-memory screens measured only 1.031× and 1.025× in three blocks; no sufficient cross-workload evidence justified changing defaults. A later Wasm operand-cache experiment reduced `gk_input` calls from 614 to 16 on the 300-group SVG replay, yet its five-block complete XML panel measured 0.934× against the retained implementation. Its attribution remains uncertain without a matching control, but it supplied no evidence of a release gain and was removed. Fewer calls alone do not establish better performance. O3/ThinLTO and default Wasm features remain unchanged.
+
+### Initial release gates
+
+Node 22.22.2, Cheerio 1.2.0, unchanged release/compiler/heap defaults. Ratios include bindings, required callbacks, mutations, serialization and disposal. The consumer panel also includes deterministic resource/URL/async work.
+
+| Panel against current Cheerio | Native raw / filtered | Blocks kept | Pool raw / filtered | Blocks kept |
+|---|---:|---:|---:|---:|
+| Synthetic HTML + XML | 5.178× / 5.178× | 5/5 | 4.829× / 4.829× | 5/5 |
+| Complete 19-case consumer | 4.117× / 4.117× | 5/5 | 3.805× / 3.805× | 5/5 |
+| Explicit XML panel | 3.659× / 3.659× | 5/5 | 2.681× / 2.639× | 3/5 |
+
+Native passes the stated 3× rule on all three initial panels. Both backends pass it on the complete consumer panel: matching native/pool controls are 0.958/0.973, with five/three retained blocks. The synthetic native control is 0.977 raw / 0.901 filtered, with three retained blocks, close to the lower control boundary. The pooled synthetic control is 1.058 raw / 1.140 filtered and fails the 10% tolerance; its apparent speedup is not a newly passed gate. The pooled XML panel falls below 3×. Every initial/rejected sample remains retained locally.
+
+### Affinity replication and XML categories
+
+| Explicit XML replay | Native raw / filtered | Blocks kept | Pool raw / filtered | Blocks kept |
+|---|---:|---:|---:|---:|
+| Sitemap, 120 entries | 4.291× / 4.291× | 5/5 | 3.545× / 3.545× | 5/5 |
+| Sitemap, 600 entries | 4.648× / 4.648× | 5/5 | 3.941× / 4.070× | 4/5 |
+| SVG, 120 groups | 3.777× / 3.777× | 5/5 | 3.019× / 3.019× | 5/5 |
+| SVG, 300 groups | 3.426× / 3.426× | 5/5 | 2.791× / 2.791× | 5/5 |
+
+All matching category control medians meet the 0.90–1.10 tolerance, with at least four retained blocks. Both sitemap sizes pass the strict 3× rule for both backends in this replication. Native SVG-120 passes. Native SVG-300 has a retained 2.931× block, and pooled SVG-120 has retained blocks below 3×; those two rows do not pass despite their medians. Pooled SVG-300 remains below target.
+
+The XML aggregate measures native 4.436× raw / 3.960× filtered, but only two of five blocks survive, making that replication inconclusive. Pooled Wasm measures 3.372× with all five blocks retained and a 1.067 control. One retained block is 2.978×, so **pooled XML still does not pass the strict aggregate rule**. The initial native XML gate remains a scoped pass; the results do not establish a universal XML multiplier.
+
+The separate real consumer SVG path remains slower relative to Cheerio: native 2.863× (5/5 retained), pool 2.502× raw / 2.418× filtered (4/5). It performs a different transform from the authored XML replay and is not interchangeable with that replay. Engine 0.9.1's sitemap path still parses as HTML.
+
+### HTML regression checks and remaining uncertainty
+
+The following affinity ratios compare `8c785fb` with the retained implementation; above 1 favors the candidate.
+
+| Panel | Native raw / filtered | Native control | Pool raw / filtered | Pool control |
+|---|---:|---:|---:|---:|
+| HTML at 120 + 600 articles | 1.353 / 1.353 | 1.012 | 1.147 / 1.147 | 0.999 / 1.012 |
+| Eight saved MDN pages | 1.055 / 1.055 | 1.014 | 1.062 / 1.066 | No retained blocks |
+| Complete consumer panel | 1.015 / 1.015 | 0.986, combined ten blocks | 1.019 / 1.158 | Only one retained block |
+
+Native passes the defined regression screen on all three panels; its combined consumer control retains eight of ten blocks. Pooled Wasm passes the authored HTML panel. Its saved-MDN control retains no blocks, and its complete-consumer comparison/control retain only one each. Those pooled regression checks remain **inconclusive**, not passed non-regression gates. Fixed affinity did not eliminate host interference.
+
+The repeated pooled synthetic/current-Cheerio comparison measures 4.930× but retains only one block; its control retains two, so it remains inconclusive. Cheerio/slim comparisons are also diagnostic: synthetic native/pool raw medians are 4.052×/3.429×; saved-MDN medians are 3.587×/3.195×. Some comparisons or their matching controls retain fewer than three blocks. Output/resource audits still pass on the compatible subsets, with the previously documented generated/nested-fragment exclusions. These results do not add new strict slim gates.
+
+The 709-case matrix passes on native/shared/fresh/pooled Wasm, with native/pool also checked on Node 24. All 19 consumer outputs match the accepted reference on every backend; types, direct Node ASan/UBSan with leak detection, and existing sustained memory budgets pass. Performance timing in this pass is on Node 22. Native XML has a demonstrated improvement and a scoped 3× aggregate pass. Pooled XML's strict gate and the noise-limited pooled MDN checks remain open; neither production adoption nor universal absence of a small regression is claimed.

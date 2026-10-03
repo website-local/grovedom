@@ -50,13 +50,22 @@ function entry(selection) {
   alive(value.state);
   return value;
 }
+function commandViews(state, length, bytes) {
+  // Repeated scalar callbacks usually submit the same command/value lengths.
+  // Keep one view per buffer, refreshing after growth or a changed used range.
+  if (!state.usedWords || state.usedWords.buffer !== state.words.buffer || state.usedWords.length !== length)
+    state.usedWords = state.words.subarray(0, length);
+  if (!state.usedPayload || state.usedPayload.buffer !== state.payload.buffer || state.usedPayload.length !== bytes)
+    state.usedPayload = state.payload.subarray(0, bytes);
+}
 function flush(state) {
   alive(state);
   if (!state.wordLength) return;
   const length = state.wordLength, bytes = state.byteLength;
   // A failure discards unexecuted commands. Never retry already applied writes.
   state.wordLength = state.byteLength = 0;
-  kernel.execute(state.owner, state.words.subarray(0, length), state.payload.subarray(0, bytes));
+  commandViews(state, length, bytes);
+  kernel.execute(state.owner, state.usedWords, state.usedPayload);
 }
 function grow(buffer, required) {
   if (required > 0xffffffff) throw new RangeError('Command buffer exceeds the prototype limit');
@@ -103,12 +112,14 @@ function enqueue(state, ids, op, a = '', b = '') {
 }
 function read(state, ids, operation, name = '') {
   alive(state);
+  const nodes = ids.length === 1 ? ids[0] : ids;
   if (state.wordLength) {
     const length = state.wordLength, bytes = state.byteLength;
     state.wordLength = state.byteLength = 0;
-    return kernel.observe(state.owner, operation, ids, name, state.words.subarray(0, length), state.payload.subarray(0, bytes));
+    commandViews(state, length, bytes);
+    return kernel.observe(state.owner, operation, nodes, name, state.usedWords, state.usedPayload);
   }
-  return kernel.read(state.owner, operation, ids, name);
+  return kernel.read(state.owner, operation, nodes, name);
 }
 function query(state, selector, roots, match = false) {
   if (typeof selector !== 'string') unsupported('Only string CSS selectors are supported here.');
@@ -196,6 +207,15 @@ function edit(state, operation, ids = empty, other = empty, text = '') {
   return kernel.edit(state.owner, operation, ids, other, text);
 }
 function attributes(state, ids) { const value = read(state, ids, 7); return value === undefined ? undefined : JSON.parse(value); }
+function attributeValue(state, ids, name) {
+  const result = read(state, ids, 1, name);
+  if (result === undefined && name === 'value' && ids.length) {
+    const tag = read(state, ids, 5);
+    if (tag === 'option') return read(state, ids.subarray(0, 1), 2);
+    if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type'))) return 'on';
+  }
+  return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
+}
 function rawAxis(node, axis) {
   const { state, ids } = nodes.get(node);
   flush(state);
@@ -337,21 +357,15 @@ class Selection {
     if (name && typeof name === 'object') { for (const [key, val] of Object.entries(name)) this.attr(key, val); return this; }
     if (typeof name !== 'string') unsupported('attr currently requires an attribute name.');
     if (!name || /[\s\0"'<>/=]/.test(name)) throw new TypeError('Invalid attribute name');
-    if (arguments.length === 1) {
-      const result = read(state, ids, 1, name);
-      if (result === undefined && name === 'value' && ids.length) {
-        const tag = read(state, ids, 5);
-        if (tag === 'option') return read(state, ids.subarray(0, 1), 2);
-        if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type'))) return 'on';
-      }
-      return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
-    }
+    if (arguments.length === 1) return attributeValue(state, ids, name);
     if (value === undefined) return this;
     if (typeof value === 'function') {
       return this.each(function (i, node) {
-        const one = selection(state, nodes.get(node).ids);
-        const next = value.call(node, i, one.attr(name));
-        if (next !== undefined) one.attr(name, next);
+        const one = nodes.get(node).ids;
+        const next = value.call(node, i, attributeValue(state, one, name));
+        if (next !== undefined) alive(state);
+        if (typeof next === 'function') selection(state, one).attr(name, next);
+        else if (next !== undefined) enqueue(state, one, next === null ? 2 : 1, name, next === null ? '' : String(next));
       });
     }
     enqueue(state, ids, value === null ? 2 : 1, name, value === null ? '' : String(value));
@@ -367,8 +381,11 @@ class Selection {
     const { state, ids } = entry(this);
     if (value === undefined) return read(state, ids, 2);
     if (typeof value === 'function') return this.each(function (i, node) {
-      const one = selection(state, nodes.get(node).ids);
-      one.text(value.call(node, i, one.text()));
+      const one = nodes.get(node).ids;
+      const next = value.call(node, i, read(state, one, 2));
+      alive(state);
+      if (typeof next === 'function') selection(state, one).text(next);
+      else if (next !== undefined) enqueue(state, one, 3, String(next));
     });
     enqueue(state, ids, 3, String(value));
     return this;
@@ -781,6 +798,7 @@ export function load(content, options = {}, isDocument = true) {
     serialization: typeof options.xml === 'object' ? { ...options.xml } : undefined,
     closed: false, direct: options.execution === 'direct', wrappers: new Map(), data: new Map(), baseURI: options.baseURI,
     words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
+    usedWords: null, usedPayload: null,
   };
   const rootIds = Uint32Array.of(1);
   function $(input, context) {
@@ -845,6 +863,7 @@ export function load(content, options = {}, isDocument = true) {
     state.owner = null;
     state.closed = true;
     state.words = state.payload = null;
+    state.usedWords = state.usedPayload = null;
     state.wrappers.clear();
     state.data.clear();
     state.selectorAliases?.clear();

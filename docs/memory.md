@@ -44,6 +44,14 @@ The metadata has a small measurable cost: native backing-allocation requests per
 
 The 700-case matrix passes across all backends, with native and pool also tested on Node 24. Direct Node execution of the native ASan/UBSan suite with leak detection emits no findings. An initial run preloading the sanitizer into the npm driver emitted V8 allocation leak reports after the tests passed; those reports contained no kernel allocation frames. The clean verification uses `node --test` directly and preserves the initial diagnostic rather than suppressing reports.
 
+## XML optimization recheck
+
+The pass after `8c785fb` adds a lazy, fixed 64-entry name cache in the existing XML document arena: 2 KiB of entries on native and 1 KiB on Wasm, plus arena bookkeeping. Entries borrow interned names/IDs; they do not own nodes or command/input storage. HTML does not allocate this cache. The control record adds one pointer, cleared on disposal. Callback setters avoid temporary internal selections, scalar reads avoid transporting a one-element selection array, and matching command views are reused and cleared on disposal.
+
+The same 2,430-lifetime matrix passes all unchanged budgets. Peak tracked capacity rounds to 21.48 MiB native and 12.25 MiB Wasm; peak shared/fresh/pooled linear capacity remains 14.0625/16.375/22.4375 MiB. Shared capacity plateaus, live DOM/control bytes return to zero, and fresh ownership plus trimmed pool capacity return to zero. Native ASan/UBSan with leak detection passes the 709-case suite without a report. These checks cover exercised lifetimes and allocator reuse, not a general proof against fragmentation.
+
+The release native artifact changes from 1,315,728 to 1,316,384 bytes and Wasm from 793,436 to 794,245 bytes. Release Wasm retains zero imports and no diagnostic exports. Stack, initial heap, shared transfer storage and pool limits are unchanged.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

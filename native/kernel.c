@@ -152,6 +152,7 @@ static void gd_release(gd_document *doc) {
     doc->html = NULL;
     doc->css = NULL;
     doc->selectors = NULL;
+    doc->xml_names = NULL;
     doc->nodes = NULL;
     doc->results = NULL;
     doc->input.data = doc->output.data = doc->transfer.data = doc->xml_name.data = NULL;

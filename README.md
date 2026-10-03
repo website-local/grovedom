@@ -6,6 +6,8 @@ GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads
 
 **Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm meet the performance target on the fixed synthetic and engine/MDN replay panels on Node 22. The API is partial and production adoption remains open.** See the [measurements and scope](docs/benchmarks.md#whole-corpus-optimization-gate-after-3fd1609), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
 
+The [XML optimization checkpoint](docs/benchmarks.md#xml-optimization-gate-after-8c785fb) demonstrates a native XML aggregate pass and substantial gains on both backends. The strict pooled XML gate and noise-limited pooled MDN regression checks remain open; the earlier mixed-panel pass does not establish XML-only performance.
+
 ## Objective
 
 Replace the required Cheerio workload with an implementation that preserves required behavior and takes **at most one third of the elapsed time** of the current Cheerio implementation, including parsing, queries, mutations, JavaScript/kernel transfers, serialization, and lifecycle costs.

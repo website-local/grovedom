@@ -183,8 +183,13 @@ export const kernel = {
     const state = owner(handle);
     if (!Number.isInteger(operation)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected read operation');
     if (operation === 1) input(state, name);
-    const pointer = ids(state, nodes);
-    return result(state, state.runtime.gk_read(state.pointer, operation, pointer, nodes.length));
+    let pointer, count;
+    if (typeof nodes === 'number') {
+      if (!Number.isInteger(nodes) || nodes < 0 || nodes > 0xffffffff) fail('ERR_GROVEDOM_ARGUMENT', 'Expected a node ID');
+      pointer = transfer(state, 4); views(state);
+      state.words[pointer >>> 2] = nodes; count = 1;
+    } else { pointer = ids(state, nodes); count = nodes.length; }
+    return result(state, state.runtime.gk_read(state.pointer, operation, pointer, count));
   },
   observe(handle, operation, nodes, name, words, payload) {
     kernel.execute(handle, words, payload);

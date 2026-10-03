@@ -169,6 +169,10 @@ XML is a required part of the current implementation, including standalone SVG a
 
 This is a Cheerio-style XML DOM, not a validating XML processor. Preserve declarations without fetching external resources or expanding DTD entities. Malformed-input recovery need not match htmlparser2 exactly. XML selector names are adapted in the bounded plan cache because Lexbor's normal name lookup folds case even for XML documents. Keep this work off the ordinary HTML query path, and measure XML against Cheerio's htmlparser2 XML mode, including bindings and disposal.
 
+Repeated XML element/attribute creation reuses validated, interned names through a document-owned 64-entry cache, split equally between the two name kinds. Collisions replace entries and fall back to normal conversion; lowercase-option calls use that normal path. Cache entries borrow only immutable document-interned strings and IDs, never transient input or removed nodes. The existing document arena owns the fixed cache, so it adds no per-node backing allocation or separate cleanup scheme. Closing tags compare directly with the known parent name, and duplicate attributes compare their case-sensitive local IDs.
+
+Attribute/text callbacks read and enqueue operations using the existing node handle without constructing an internal selection wrapper for every callback. Reads still flush earlier writes at the same boundary. A single-node read passes its integer ID directly to the binding; the kernel retains the same owner/disposal and node-ID bounds checks. Pending command views are reused only while their backing buffer and used range match, and are cleared on disposal. These are private transport optimizations, with unchanged command opcodes and no ABI compatibility promise.
+
 ## Kernel candidates
 
 ### Lexbor / C

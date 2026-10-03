@@ -162,9 +162,11 @@ static napi_value gd_query(napi_env env, napi_callback_info info) {
     return gd_value(env, doc, gk_query(doc, ids, count, match));
 }
 static napi_value gd_read_args(napi_env env, gd_document *doc, napi_value *args) {
-    uint32_t operation, *ids; size_t count;
+    uint32_t operation, one, *ids; size_t count;
     if (napi_get_value_uint32(env, args[1], &operation) != napi_ok) return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected read operation"));
-    if (!gd_typed(env, args[2], napi_uint32_array, (void **) &ids, &count) || (operation == READ_ATTR && !gd_string(env, doc, args[3]))) return gd_finish(env, doc, NULL);
+    if (napi_get_value_uint32(env, args[2], &one) == napi_ok) { ids = &one; count = 1; }
+    else if (!gd_typed(env, args[2], napi_uint32_array, (void **) &ids, &count)) return gd_finish(env, doc, NULL);
+    if (operation == READ_ATTR && !gd_string(env, doc, args[3])) return gd_finish(env, doc, NULL);
     return gd_value(env, doc, gk_read(doc, operation, ids, count));
 }
 static napi_value gd_read(napi_env env, napi_callback_info info) {

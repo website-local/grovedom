@@ -78,3 +78,14 @@ test('mutation errors format operation indices without stdio and preserve prior 
   } finally { kernel.dispose(owner); }
   assert.equal(kernel.stats().liveBytes, 0);
 });
+test('single-node reads preserve owner and ID bounds with pending writes', () => {
+  const owner = kernel.create('<p>before</p>', true, false);
+  const ids = kernel.query(owner, 'p', Uint32Array.of(1), false);
+  try {
+    assert.equal(kernel.read(owner, 2, ids[0], ''), kernel.read(owner, 2, ids, ''));
+    assert.equal(kernel.observe(owner, 2, ids[0], '', Uint32Array.of(3, 1, 0, 1, 0, 0, ids[0]), Uint8Array.of(65)), 'A');
+    for (const id of [0, 0xffffffff]) assert.throws(() => kernel.read(owner, 2, id, ''), { code: 'ERR_GROVEDOM_HANDLE' });
+    assert.throws(() => kernel.read({}, 2, ids[0], ''), { code: 'ERR_GROVEDOM_HANDLE' });
+  } finally { kernel.dispose(owner); }
+  assert.throws(() => kernel.read(owner, 2, ids[0], ''), { code: 'ERR_GROVEDOM_DISPOSED' });
+});
