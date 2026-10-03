@@ -882,4 +882,40 @@ All four screens pass their 10% control tolerance and minimum retention rules. V
 
 The 718-case matrix passes: native 701 passes/17 skips, shared Wasm 703/15, fresh Wasm 704/14 and pooled Wasm 707/11. Native/pool also pass on Node 24. All 19 refreshed consumer outputs and ordered events match on all four backends. Types, rebuilt native ASan/UBSan with leak detection, refreshed-corpus lifecycle checks and the fixed authored 2,430-lifetime budgets pass. Allocation-failure injection, broader fuzzing and production traffic weighting remain outside these checks.
 
-The expanded stack diagnostic adds the four sitemap/SVG replays to deep HTML/XML/template trees, bounded selector nesting and the eight restored MDN samples. It instruments all 120 stack-pointer writes in a separate build and runs 36 workloads with two sentinel patterns. Every pointer restores; only the expected bounded-selector cases return unsupported errors. Maximum observed pointer depth is 6,256 bytes and written watermark is 6,200 bytes. Each ordinary sitemap/SVG replay reaches 48 bytes of pointer depth. These measurements exclude the engine machine stack and do not prove a worst-case bound; retain the 64 KiB reservation. Release Wasm still has zero imports and no diagnostic exports.
+The expanded stack diagnostic adds the four sitemap/SVG replays to deep HTML/XML/template trees, bounded selector nesting and the eight restored MDN samples. It instruments all 120 stack-pointer writes in a separate build and runs 36 workloads with two sentinel patterns. Every pointer restores; only the expected bounded-selector cases return unsupported errors. Maximum observed pointer depth is 6,256 bytes and written watermark is 6,200 bytes. Each ordinary sitemap/SVG replay reaches 48 bytes of pointer depth. These measurements exclude the engine machine stack and do not prove a worst-case bound; this checkpoint retains the 64 KiB reservation. Release Wasm still has zero imports and no diagnostic exports.
+
+## Audited stack reduction and Wasm view refresh
+
+The follow-up after `7bdfdfc` sets the default Wasm stack to **32 KiB**, keeping 1 MiB initial memory, the 16 KiB transfer area, O3/ThinLTO and the existing target features. The [recursion audit](stack.md) reviews the facade, kernel, reachable Lexbor code and linked libc, including indirect dispatch. Expanded diagnostics cover 48 workloads with two sentinel patterns under O3/ThinLTO and kernel O2 without LTO (Lexbor remains O3). Both reach 6,256 bytes of pointer depth and 6,200 bytes written; every pointer restores. The remaining 5.2× observed headroom is a measured margin, not a worst-case proof. Native uses its existing process stack.
+
+Fresh 100 µs CPU profiles of 12,000 SVG replays per size attribute about 2% of samples to the engine memory-buffer getter, chiefly beneath the binding's view-refresh helper. The helper now checks the existing byte view's length: growth detaches the non-shared buffer, reducing that length to zero and triggering a refresh. This detects growth by other documents in the global heap without another cache or allocation. The candidate profile no longer samples the getter beneath this helper. Independent profiler elapsed times are not used as speedups.
+
+Before changing the stack, the view-only candidate measures 1.033× over `7bdfdfc` across five fixed process pairs and all four XML inputs, retaining all 25 balanced blocks. Its identical-code control is 1.010×. Each comparison pair median improves, ranging from 1.015 to 1.092; control pair medians range from 0.956 to 1.143. This is a modest incremental result with material process variability.
+
+The combined candidate's HTML regression screens use five fixed persistent process pairs, five balanced blocks per pair, 40 warmups and six batches of two complete corpus replays. All comparison/control blocks survive the unchanged independent probe threshold of 1.5, so raw and filtered medians agree. Ratios are not normalized by controls.
+
+| Pooled Wasm regression panel vs `7bdfdfc` | Median | Control median | Comparison / control blocks | 2% screen |
+|---|---:|---:|---:|---|
+| Authored HTML | 1.003 | 0.995 | 25/25 / 25/25 | Pass |
+| Saved MDN | 1.006 | 1.007 | 25/25 / 25/25 | Pass |
+| Complete consumer | 1.014 | 0.998 | 25/25 / 25/25 | Pass |
+
+All five pairs qualify for each panel. One authored-HTML comparison block is 0.878; the median screen does not establish zero slowdown in every window. Native code, facade and artifact are unchanged, so the preceding native regression results remain applicable.
+
+Absolute adoption screens use five balanced fresh-process blocks, six timed batches, the same independent probe filter and matching candidate controls. Individual XML uses 80 warmups and eight replays per batch; aggregate panels use 40 warmups and two complete corpus replays per batch. Every comparison/control block survives, and all raw/filtered medians agree.
+
+| Pooled Wasm panel | Median vs current Cheerio | Minimum retained | Control median | 3× screen |
+|---|---:|---:|---:|---|
+| Sitemap, 120 entries | 3.912 | 3.569 | 1.019 | Pass |
+| Sitemap, 600 entries | 4.663 | 4.560 | 1.040 | Pass |
+| SVG, 120 groups | 3.298 | 3.061 | 0.986 | Pass |
+| SVG, 300 groups | 3.122 | 3.029 | 1.013 | Pass |
+| Explicit XML aggregate | 3.836 | 3.655 | 1.021 | Pass |
+| Synthetic HTML + XML | 5.137 | 4.923 | 1.003 | Pass |
+| Complete consumer | 3.530 | 3.458 | 1.023 | Pass |
+
+The explicit XML baseline is Cheerio 1.2.0 XML/htmlparser2. Both pooled SVG sizes now clear the strict per-input screen, with little margin at the large size. Native's unchanged implementation cleared all four individual XML screens in the preceding checkpoint. Earlier failed blocks remain evidence of variability; these scoped passes do not establish a universal multiplier or replace production traffic weighting. The restored corpus and all 19 consumer scenarios are unchanged.
+
+The fastest-compatible HTML baseline is also rechecked with Cheerio/slim. The mixed synthetic panel measures 3.962×, minimum retained 3.933×, with a 1.003 control. The eight saved-MDN scenarios measure 2.944×, minimum 2.906×, with a 1.014 control. Every comparison/control block survives, and raw/filtered medians agree. Both pass the required demonstrated-win screen (>1×, not a separate 3× HTML/htmlparser2 gate). Saved outputs match after normalization outside timing, with exact ordered resource events. This fixed run requires no extension or changed filter.
+
+The 718-case suite passes on all three Wasm heaps under Node 22: shared 703 passes/15 skips, fresh 704/14, pool 707/11. Pool also passes on Node 24. All 19 refreshed consumer outputs and ordered events match on each heap policy. The authored 2,430-lifetime budget panel and separate restored-corpus lifecycle diagnostics pass. Native C and declarations are unchanged; the previous native sanitizer and type checks remain applicable. Release Wasm has zero imports and no diagnostic exports. See [memory results](memory.md#audited-32-kib-stack-and-view-refresh) for the reduced fresh/pool capacity and unchanged shared-heap high-water mark.

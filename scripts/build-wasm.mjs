@@ -23,7 +23,7 @@ const features = [...new Set((process.env.GROVEDOM_WASM_FEATURES ?? '').split(',
 const supportedFeatures = new Set(['bulk-memory', 'simd128', 'relaxed-simd', 'tail-call', 'nontrapping-fptoint']);
 if (features.some(feature => !supportedFeatures.has(feature))) throw new Error('Unsupported Wasm feature; expected bulk-memory, simd128, relaxed-simd, tail-call, or nontrapping-fptoint.');
 const initialPages = Number(process.env.GROVEDOM_WASM_INITIAL_PAGES ?? 16);
-const stackBytes = Number(process.env.GROVEDOM_WASM_STACK_BYTES ?? 65536);
+const stackBytes = Number(process.env.GROVEDOM_WASM_STACK_BYTES ?? 32768);
 if (!Number.isSafeInteger(stackBytes) || stackBytes < 16384 || stackBytes % 16 !== 0) throw new Error('Wasm stack bytes must be at least 16384 and aligned to 16.');
 if (!Number.isInteger(initialPages) || initialPages < 1 || initialPages > 32768 || stackBytes >= initialPages * 65536) throw new Error('Initial Wasm pages must fit the stack and be between 1 and 32768.');
 const dependency = JSON.parse(readFileSync(join(root, 'native/dependency.json'), 'utf8'));

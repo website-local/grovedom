@@ -77,6 +77,60 @@ try {
       finally { $.dispose(); }
     },
   });
+  for (const depth of [63, 64]) for (const relation of ['>', '~']) cases.push({
+    id: `compatibility-${relation === '>' ? 'child' : 'sibling'}-${depth}`,
+    source: '<template></template><main>' + (relation === '>'
+      ? '<div>'.repeat(depth + 1) + 'text' + '</div>'.repeat(depth + 1)
+      : '<div>text</div>'.repeat(depth + 1)) + '</main>',
+    run(load, source) {
+      const $ = load(source);
+      try { $('div').last().is(('div ' + relation + ' ').repeat(depth) + 'div:contains(text)'); }
+      finally { $.dispose(); }
+    },
+  });
+  for (const depth of [63, 64]) cases.push({ id: `compatibility-nth-of-${depth}`, source: '<template></template><main><p>text</p></main>',
+    run(load, source) {
+      const $ = load(source);
+      try { $('p').is(':nth-child(1 of '.repeat(depth) + ':contains(text)' + ')'.repeat(depth)); }
+      finally { $.dispose(); }
+    },
+  });
+  for (const depth of [100, 2000]) cases.push({ id: `selector-error-recovery-${depth}`, source: '<p>text</p>',
+    run(load, source) {
+      const $ = load(source);
+      try {
+        // Exercise tokenizer/error callbacks and nested AST cleanup, then reuse
+        // the document. Error spelling is outside this stack diagnostic.
+        for (const selector of [':is('.repeat(depth) + 'p' + ')'.repeat(depth) + '[',
+          ':not('.repeat(depth) + 'p', ':nth-child(1e999999999999999999999999)']) {
+          try { $(selector); } catch (error) {
+            if (error.code !== 'ERR_GROVEDOM_SELECTOR') throw error;
+          }
+        }
+        assert.equal($('p').text(), 'text');
+      } finally { $.dispose(); }
+    },
+  });
+  cases.push({ id: 'sort-5000', source: '<main>' + '<p>text</p>'.repeat(5000) + '</main>',
+    run(load, source) {
+      const $ = load(source);
+      try { assert.equal($($('p').get().reverse()).add('p').length, 5000); }
+      finally { $.dispose(); }
+    },
+  });
+  cases.push({ id: 'unfinished-templates-5000', source: '<template>'.repeat(5000) + '<p>text',
+    run(load, source) { const $ = load(source); try { $.html(); } finally { $.dispose(); } },
+  });
+  cases.push({ id: 'formatting-recovery-1000', source: '<p>' + '<b><i>text</b>'.repeat(1000),
+    run(load, source) { const $ = load(source); try { $.html(); $('body').empty(); $.flush(); } finally { $.dispose(); } },
+  });
+  cases.push({ id: 'selectedcontent-clone', source: '<select><selectedcontent></selectedcontent><option><span>one</span></option><option>two</option></select>',
+    run(load, source) {
+      const $ = load(source);
+      try { $('option').first().attr('selected', '').append('<b>extra</b>'); $('select').clone().toString(); $.html(); }
+      finally { $.dispose(); }
+    },
+  });
   if (process.env.GROVEDOM_HTML_MANIFEST) {
     const manifest = JSON.parse(readFileSync(process.env.GROVEDOM_HTML_MANIFEST, 'utf8'));
     for (const { id, path } of manifest) cases.push({ id, source: readFileSync(path, 'utf8'), run: replay });

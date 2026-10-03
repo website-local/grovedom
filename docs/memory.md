@@ -92,6 +92,20 @@ Wasm's combined mutation/read export uses the existing 16 KiB instance scratch a
 
 The authored 2,430-lifetime matrix passes every unchanged budget on all four backends. Peak tracked capacity remains 21.48 MiB native / 12.25 MiB Wasm. Shared/fresh/pooled linear peaks fall from 14.0625/16.375/22.4375 MiB to 13.75/16/21.875 MiB. Live document/control bytes return to zero, as do fresh ownership and trimmed-pool capacity. Refreshed-corpus lifecycle checks and rebuilt native ASan/UBSan with leak detection also pass. These remain scoped capacity measurements, not general fragmentation bounds or guarantees of immediate OS reclamation.
 
+### Audited 32 KiB stack and view refresh
+
+The follow-up after `7bdfdfc` halves the Wasm stack reservation from 64 KiB to 32 KiB. The [recursion audit](stack.md) and two compiler configurations reach a maximum observed pointer depth of 6,256 bytes across 48 workloads with two sentinel patterns. The released reservation becomes allocator headroom; initial memory stays 1 MiB and grows in 64 KiB pages.
+
+| Wasm mode | Peak linear capacity before / after |
+|---|---:|
+| Shared | 13.75 / 13.75 MiB |
+| Fresh per document | 16 / 15.8125 MiB |
+| Pool | 21.875 / 21.6875 MiB |
+
+The same authored 2,430-lifetime panel passes every existing budget. Each mode still makes 612,985 tracked allocation requests and peaks at 12,849,224 tracked bytes. Live documents, document bytes and control bytes return to zero; fresh ownership and trimmed-pool capacity also return to zero. Separate refreshed-corpus diagnostics pass their lifecycle assertions. The 192 KiB reductions in fresh/pool peak capacity are aggregate workload observations, not a per-instance page-saving promise.
+
+The Wasm binding also avoids repeatedly reading the engine's memory-buffer getter. Growth of its non-shared memory detaches the cached buffer and makes its byte-view length zero; that triggers rebuilding the existing byte/word views. Growth by another document in the shared instance follows the same rule. This adds no buffer, field or cache, and disposal still clears the views. Node 22 checks pass on all three heap modes, with pooled Wasm also checked on Node 24. Native code and allocation behavior are unchanged by this follow-up.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

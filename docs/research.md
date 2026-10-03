@@ -114,6 +114,10 @@ WebAssembly linear memory grows in pages and has no shrink operation. Returning 
 
 No production heap policy has been selected. Global and pooled instances avoid repeated initialization in the current diagnostics, but representative memory budgets and mixed-size fragmentation measurements remain necessary.
 
+The [recursion audit](stack.md) supports a 32 KiB linear-stack default. It combines source review of direct and indirect calls with linked-code inspection and measurements under O3/ThinLTO and kernel O2 without LTO (Lexbor remains O3). The largest observed reservation is 6,256 bytes in the bounded compatibility matcher. Lexbor's indirect selector-AST cleanup still recurses on the engine/native stack, although its audited recursive routines reserve no linear-stack frames. Linear-stack sizing does not bound that separate stack.
+
+The Wasm binding uses the standard [non-shared memory growth detachment behavior](https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/Memory/grow#detachment_upon_growing): cached views become zero-length when growth detaches their buffer. Checking that length avoids an engine memory-buffer getter on each reuse while still detecting growth by another document in the global heap. The instance uses fixed, non-shared memory buffers; borrowed views never escape to callers. Growth, disposal and interleaved-document regressions cover this assumption.
+
 ## Disposal and Node.js support decision
 
 The lifecycle contract is **explicit disposal with a GC fallback, on Node >=22.0.0**. `website-scrap-engine` owns disposal in `finally`; generic callers also get abandoned-owner cleanup. See the [lifetime design](design.md#disposal-decision-explicit-ownership-with-a-gc-fallback) for ownership and release-once rules.

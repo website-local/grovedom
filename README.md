@@ -4,9 +4,9 @@ DOM transformations through ordered operations.
 
 GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the XML, mixed synthetic and refreshed consumer aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#plain-tag-queries-and-wasm-observations), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
+**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the XML, mixed synthetic and refreshed consumer aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#audited-stack-reduction-and-wasm-view-refresh), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
 
-The latest [XML optimization checkpoint](docs/benchmarks.md#plain-tag-queries-and-wasm-observations) avoids CSS setup for plain tag queries and combines Wasm mutations with their following read. It reduces allocation traffic, and all HTML/MDN regression screens pass. Native clears all four individual XML screens; pooled Wasm still has a retained SVG-120 block below 3×. Aggregate passes do not establish the same multiplier for every input.
+The latest [XML optimization checkpoint](docs/benchmarks.md#audited-stack-reduction-and-wasm-view-refresh) removes repeated Wasm memory-buffer getter calls and preserves the accepted HTML/MDN regression screens. Both native and pooled Wasm now clear all four individual XML screens; pooled SVG retains little margin over 3×. A [recursion audit](docs/stack.md) supports reducing the Wasm stack to 32 KiB. These scoped passes do not establish the same multiplier for every input.
 
 ## Objective
 
@@ -40,6 +40,7 @@ Performance on normal successful workloads is the first priority. Exact invalid-
 5. [Contributing and public repository policy](CONTRIBUTING.md)
 6. [Runnable prototype and compatibility inventory](docs/prototype.md)
 7. [Memory measurements and backend guidance](docs/memory.md)
+8. [Recursion audit and Wasm stack sizing](docs/stack.md)
 
 With the prototype's existing-toolchain prerequisites and disk-backed environment configured, run `npm run build:native`, `npm test`, `npm run test:types`, and `npm run bench`. The default benchmark uses authored deterministic fixtures and both Cheerio parsers. An [isolated engine/MDN replay](docs/integration.md) also runs real transforms with deterministic resource I/O; it is not a complete crawl. The production backend remains undecided.
 

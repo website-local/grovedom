@@ -78,10 +78,11 @@ function check(state, result) {
   return result;
 }
 function views(state) {
-  // A different document can grow the global heap between calls. Refresh after
-  // every allocating export, and never return these borrowed views to callers.
-  const buffer = state.runtime.memory.buffer;
-  if (state.bytes?.buffer !== buffer) {
+  // Non-shared Wasm growth detaches the old buffer, making its view length zero.
+  // This also detects growth by another document in the global heap. Borrowed
+  // views never escape to callers; read memory.buffer only when refreshing them.
+  if (!state.bytes?.length) {
+    const buffer = state.runtime.memory.buffer;
     state.bytes = Buffer.from(buffer);
     state.words = new Uint32Array(buffer);
   }
