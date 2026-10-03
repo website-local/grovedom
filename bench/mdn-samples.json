@@ -1,0 +1,61 @@
+{
+  "description": "Selected saved MDN pages from the 2026-10-03 en-US and zh-CN archives. Extract only these members. Inputs are processed output, not original network responses.",
+  "inputs": [
+    {
+      "id": "mdn-1",
+      "archive": "developer.mozilla.org_20261003_zh-CN.7z",
+      "member": "developer.mozilla.org_20261003_zh-CN/developer.mozilla.org/zh-CN/docs/Web/API/CanvasRenderingContext2D/imageSmoothingQuality/runner-1MS6BeCCgNp52UtxGX4MRvwBMccauwtbMhUqaWrASkw.html",
+      "bytes": 3365,
+      "sha256": "8778133ff94604e78207e7f3ea194c6792b6a6e978f2be0d92285fac81b9dc66"
+    },
+    {
+      "id": "mdn-2",
+      "archive": "developer.mozilla.org_20261003_zh-CN.7z",
+      "member": "developer.mozilla.org_20261003_zh-CN/developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial/Applying_styles_and_colors/runner-TftZEWKxNvroDNOMZhpz8g3k2KdOf6U9fp87rOxXEYY.html",
+      "bytes": 3726,
+      "sha256": "a8478d13351677a3d59c903866d7d026974fbd530331cbda07493d2f5d5fc1c9"
+    },
+    {
+      "id": "mdn-3",
+      "archive": "developer.mozilla.org_20261003_zh-CN.7z",
+      "member": "developer.mozilla.org_20261003_zh-CN/developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial/Applying_styles_and_colors/runner-27Phv4LgVFRfJIdp_tFtrpqWSuYAayByaw1hFFn69uU.html",
+      "bytes": 4439,
+      "sha256": "46a34426a5d3133e26e68a97b48da02a3570dd8924d0129cae52c3448847dde5"
+    },
+    {
+      "id": "mdn-4",
+      "archive": "developer.mozilla.org_20261003_en-US.7z",
+      "member": "developer.mozilla.org_20261003_en-US/developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Pixel_manipulation_with_canvas/runner-eUGX6OmwqeIx_KukFUizA920xtyh68kbQncAvQuD0aE.html",
+      "bytes": 28515,
+      "sha256": "7b8095b657f157a9d611a072f50a39bc2414f02428ad72a33c72371b2b6c9a1f"
+    },
+    {
+      "id": "mdn-5",
+      "archive": "developer.mozilla.org_20261003_zh-CN.7z",
+      "member": "developer.mozilla.org_20261003_zh-CN/developer.mozilla.org/zh-CN/docs/Web/API/Canvas_API/Tutorial/Basic_animations.html",
+      "bytes": 94642,
+      "sha256": "4d1869a73b15212192c6feb525b36e87854863d8a971a3c48624f4412be2e2b2"
+    },
+    {
+      "id": "mdn-6",
+      "archive": "developer.mozilla.org_20261003_en-US.7z",
+      "member": "developer.mozilla.org_20261003_en-US/developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Using_images.html",
+      "bytes": 101908,
+      "sha256": "6aceb884e7ea0d5f856d0f186b8ec11c2f6a3a171b646911e6c0927467f8d7d2"
+    },
+    {
+      "id": "mdn-7",
+      "archive": "developer.mozilla.org_20261003_en-US.7z",
+      "member": "developer.mozilla.org_20261003_en-US/developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled.html",
+      "bytes": 124552,
+      "sha256": "dbb8685ad94a923a35ea151215c93ef6f87bca3cba6a51949015214b0741b018"
+    },
+    {
+      "id": "mdn-8",
+      "archive": "developer.mozilla.org_20261003_zh-CN.7z",
+      "member": "developer.mozilla.org_20261003_zh-CN/developer.mozilla.org/zh-CN/docs/Web/API/CanvasPattern/setTransform.html",
+      "bytes": 150386,
+      "sha256": "787738d50e33e08a92413d353b576fc4fe9aefaf7623c69c56bf56de8d6e03c0"
+    }
+  ]
+}

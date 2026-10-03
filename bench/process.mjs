@@ -19,6 +19,27 @@ const blocks = Number(process.env.GROVEDOM_BENCH_BLOCKS ?? 3);
 const batches = Number(process.env.GROVEDOM_BENCH_ROUNDS ?? 30);
 const iterations = Number(process.env.GROVEDOM_BENCH_ITERATIONS ?? 12);
 const warmups = Number(process.env.GROVEDOM_BENCH_WARMUPS ?? 400);
+const quietAffinity = process.env.GROVEDOM_BENCH_AFFINITY === 'quiet';
+if (quietAffinity && process.platform !== 'linux') throw new Error('Quiet CPU selection requires Linux /proc and taskset.');
+async function quietCPU() {
+  const allowed = new Set();
+  for (const part of readFileSync('/proc/self/status', 'utf8').match(/^Cpus_allowed_list:\s*(.+)$/m)[1].split(',')) {
+    const [lo, hi = lo] = part.split('-').map(Number);
+    for (let i = lo; i <= hi; i++) allowed.add(i);
+  }
+  function sample() {
+    return readFileSync('/proc/stat', 'utf8').split('\n').filter(line => /^cpu\d+ /.test(line)).map(line => {
+      const [label, ...values] = line.trim().split(/\s+/), v = values.map(Number);
+      return { cpu: Number(label.slice(3)), total: v.slice(0, 8).reduce((a, b) => a + b, 0), idle: v[3] + v[4] };
+    });
+  }
+  const before = sample();
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  const ranked = sample().map((v, i) => ({ cpu: v.cpu, busy: 1 - (v.idle - before[i].idle) / (v.total - before[i].total) }))
+    .filter(v => allowed.has(v.cpu) && Number.isFinite(v.busy)).sort((a, b) => a.busy - b.busy);
+  if (!ranked.length) throw new Error('No permitted CPU with an activity sample.');
+  return ranked[0].cpu;
+}
 for (const value of [rows, blocks, batches, iterations, warmups]) if (!Number.isSafeInteger(value) || value < 1) throw new Error('Expected positive benchmark counts.');
 const median = values => {
   const sorted = values.toSorted((a, b) => a - b);
@@ -78,10 +99,14 @@ for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
   const samples = [], paired = [];
   let expected, inputs;
   for (let block = 0; block < blocks; block++) {
+    // Select independently of either implementation's timings. Keep all four
+    // processes of a balanced block on the same CPU; never retry a slow block.
+    const cpu = quietAffinity ? await quietCPU() : null;
     const order = block % 2 ? [1, 0, 0, 1] : [0, 1, 1, 0], milliseconds = [[], []];
     for (const index of order) {
       const variant = manifest.variants[index];
-      const output = spawnSync(process.execPath, ['--input-type=module', '-e', child], {
+      const args = ['--input-type=module', '-e', child];
+      const output = spawnSync(quietAffinity ? 'taskset' : process.execPath, quietAffinity ? ['-c', String(cpu), process.execPath, ...args] : args, {
         encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
         env: { ...process.env, ...variant.env,
           GROVEDOM_PROCESS_ENTRY: pathToFileURL(variant.entry).href,
@@ -114,6 +139,7 @@ for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
 }
 console.log(JSON.stringify({ scope: manifest.consumer ? 'isolated engine/MDN transform replay with deterministic resource I/O; includes adapter disposal and URL/async overhead; excludes startup/warmup and network/disk' : 'one variant per fresh process; excludes startup and warmup; not the full engine workload',
   filterPolicy: 'All raw samples retained. Filter complete ABBA/BAAB blocks only when max/min independent CPU probes exceeds 1.5; never filter by implementation timings or speedup.',
+  affinityPolicy: quietAffinity ? 'Choose a permitted CPU by independent activity before each block; pin all four processes to it.' : 'Inherit process affinity.',
   outputComparison: manifest.normalizeHTML ? 'HTML reparsed through Cheerio/parse5 outside timing; resource events compared exactly' : 'exact output',
   aggregation: manifest.aggregate ? 'Each timed iteration executes the entire listed corpus in order, once per entry; ratios use total elapsed time, not averages of per-case speedups.' : 'Each corpus entry is timed separately.',
   node: process.versions.node, rows, blocks, batches, iterations, warmups,
