@@ -42,7 +42,8 @@ static const char *names[GP_COUNT] = {
     "execute", "mutateAttribute", "mutateText", "mutateHTML", "mutateRemove",
     "bindingInput", "bindingOutput", "bindingChecks", "bindingAccount", "probe",
     "allocationCalls", "allocationBytes", "outputChunks", "outputBytes",
-    "commands", "mutatedNodes", "selectorHits", "selectorMisses"
+    "commands", "mutatedNodes", "selectorHits", "selectorMisses",
+    "guardNodes", "guardCandidates", "guardValidations"
 };
 
 gp_scope gp_start(unsigned phase) {

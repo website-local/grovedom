@@ -1,0 +1,69 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { load } from '../src/index.js';
+import { load as cheerio } from 'cheerio';
+
+const misses = '#missing-a, .missing-b, absent-c, .missing-d, #missing-e, absent-f, .missing-g';
+const names = ($, selection) => selection.map((_, node) => $(node).attr('id') ?? node.name).get();
+
+test('simple selectors preserve duplicate IDs, escapes, fragments and changed names', () => {
+  const trace = loader => {
+    const $ = loader('<!doctype html><main><p id="dup" class="a+b\fplain">one</p><p id="dup" class="plain">two</p><template><p class="plain">three</p></template></main>');
+    try {
+      const result = [$('#dup').length, $('.a\\+b').length, $('.plain').length,
+        $('main').find('.plain').length, $('not-yet-known').length];
+      $('p').first()[0].name = 'not-yet-known';
+      result.push($('not-yet-known').text(), $('p').length, $('*').filter('#dup').length);
+      return result;
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});
+
+test('long selector lists preserve compounds, classes, IDs, scopes and snapshots', () => {
+  const trace = loader => {
+    const $ = loader('<!doctype html><main><section id="one" class="Alpha\tBeta\nGamma"><i id="child" class="target"></i></section><section id="two" class="alpha"><i id="hidden" class="target" data-hidden></i></section><template><i id="fragment" class="target"></i></template><i id="outside" class="target"></i></main>');
+    const query = `${misses}, section.Alpha > i.target:not([data-hidden]), #two, .Gamma`;
+    try {
+      const selected = $(query);
+      const result = [names($, selected), names($, $('main').find(`${misses}, .target`)),
+        names($, $(`${misses}, .target`)), names($, $('i, section').filter(query))];
+      $('#one').attr('class', 'gone');
+      $('#two').attr('id', 'changed');
+      result.push(names($, $(query)), names($, selected));
+      $('main').append('<section id="three" class="Gamma"></section>');
+      result.push(names($, $(query)));
+      return result;
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});
+
+test('cached long XML lists discover names introduced by insertion and renaming', () => {
+  const trace = loader => {
+    const $ = loader('<Root><Item id="first" class="Alpha"/></Root>', { xml: true });
+    const query = `${misses}, FutureName, Renamed, .Alpha`;
+    try {
+      const result = [names($, $(query))];
+      $('Root').append('<FutureName id="new"/>');
+      result.push(names($, $(query)));
+      $('Item')[0].name = 'Renamed';
+      $('Renamed').removeAttr('class');
+      result.push(names($, $(query)), names($, $('Root').find(query)));
+      return result;
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});
+
+test('dense matches followed by sparse matches stay ordered and deduplicated', () => {
+  const trace = loader => {
+    const $ = loader('<!doctype html><main>' + Array.from({ length: 160 }, (_, i) =>
+      `<p id="n${i}" class="${i < 100 || i === 159 ? 'hit' : 'other'}"></p>`).join('') + '</main>');
+    try {
+      const query = `${misses}, .hit`;
+      return [names($, $(query)), names($, $('main, body').find(query))];
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});

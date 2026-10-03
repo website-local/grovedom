@@ -27,14 +27,31 @@ const median = values => {
 const child = `
 import { performance } from 'node:perf_hooks';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { pathToFileURL } from 'node:url';
 const { load } = await import(process.env.GROVEDOM_PROCESS_ENTRY);
-const { page, replay } = await import(process.env.GROVEDOM_PROCESS_FIXTURE);
 const config = JSON.parse(process.env.GROVEDOM_PROCESS_CONFIG);
-const source = config.path ? readFileSync(config.path, 'utf8') : page(config.rows);
-const invoke = config.consumer ? () => replay(source, config.scenario) : () => replay(load, source);
-const expected = config.consumer ? await invoke() : invoke();
+const inputs = [];
+for (const item of config.corpus) {
+  const { page, replay } = await import(item.workload ? pathToFileURL(item.workload).href : process.env.GROVEDOM_PROCESS_FIXTURE);
+  const source = item.path ? readFileSync(item.path, 'utf8') : page(item.rows ?? config.rows);
+  inputs.push({ source, replay, scenario: item });
+}
+const corpus = inputs.map(({ source, scenario }) => ({ id: scenario.id,
+  bytes: Buffer.byteLength(source), sha256: createHash('sha256').update(source).digest('hex') }));
+const expected = [];
+for (const { source, replay, scenario } of inputs) expected.push(config.consumer ? await replay(source, scenario) : replay(load, source));
+const invoke = config.consumer ? async () => {
+  let length = 0;
+  for (const { source, replay, scenario } of inputs) length += (await replay(source, scenario)).length;
+  return length;
+} : () => {
+  let length = 0;
+  for (const { source, replay } of inputs) length += replay(load, source).length;
+  return length;
+};
 let consumed = 0;
-for (let i = 0; i < config.warmups; i++) consumed += (config.consumer ? await invoke() : invoke()).length;
+for (let i = 0; i < config.warmups; i++) consumed += config.consumer ? await invoke() : invoke();
 const samples = [];
 let probeSink = 0;
 function probe() {
@@ -48,16 +65,18 @@ for (let batch = 0; batch < config.batches; batch++) {
   await new Promise(setImmediate);
   const before = probe();
   const start = performance.now();
-  for (let i = 0; i < config.iterations; i++) consumed += (config.consumer ? await invoke() : invoke()).length;
+  for (let i = 0; i < config.iterations; i++) consumed += config.consumer ? await invoke() : invoke();
   samples.push((performance.now() - start) / config.iterations);
   controls.push([before, probe()]);
 }
-console.log(JSON.stringify({ expected, consumed, samples, controls, probeSink }));
+console.log(JSON.stringify({ expected, corpus, consumed, samples, controls, probeSink }));
 `;
 const results = [];
-for (const item of manifest.corpus ?? [{ id: 'authored' }]) {
+const corpus = manifest.corpus ?? [{ id: 'authored' }];
+if (!corpus.length) throw new Error('Expected a nonempty corpus.');
+for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
   const samples = [], paired = [];
-  let expected;
+  let expected, inputs;
   for (let block = 0; block < blocks; block++) {
     const order = block % 2 ? [1, 0, 0, 1] : [0, 1, 1, 0], milliseconds = [[], []];
     for (const index of order) {
@@ -68,16 +87,19 @@ for (const item of manifest.corpus ?? [{ id: 'authored' }]) {
           GROVEDOM_PROCESS_ENTRY: pathToFileURL(variant.entry).href,
           GROVEDOM_REPLAY_ENTRY: variant.entry,
           GROVEDOM_PROCESS_FIXTURE: manifest.workload ? pathToFileURL(manifest.workload).href : new URL('../test/fixtures.mjs', import.meta.url).href,
-          GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows, batches, iterations, warmups, path: item.path, consumer: manifest.consumer, scenario: item }),
+          GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows, batches, iterations, warmups, consumer: manifest.consumer, corpus: manifest.aggregate ? corpus : [item] }),
         },
       });
       if (output.error) throw output.error;
       assert.equal(output.status, 0, output.stderr);
       const report = JSON.parse(output.stdout);
-      const rendered = normalized(report.expected);
+      const rendered = report.expected.map(normalized);
       expected ??= rendered;
-      assert.equal(rendered, expected, `${item.id}: ${variant.name}`);
+      inputs ??= report.corpus;
+      assert.deepEqual(report.corpus, inputs, 'Input corpus differs between variants');
+      assert.deepEqual(rendered, expected, `${item.id}: ${variant.name}`);
       delete report.expected;
+      delete report.corpus;
       const time = median(report.samples);
       milliseconds[index].push(time);
       samples.push({ block, variant: variant.name, medianMilliseconds: time, ...report });
@@ -88,10 +110,11 @@ for (const item of manifest.corpus ?? [{ id: 'authored' }]) {
       speedup: total(milliseconds[0]) / total(milliseconds[1]) });
   }
   const accepted = paired.filter(b => b.accepted);
-  results.push({ id: item.id, medianPairedSpeedup: median(paired.map(b => b.speedup)), filteredSpeedup: accepted.length ? median(accepted.map(b => b.speedup)) : null, acceptedBlocks: accepted.length, paired, samples });
+  results.push({ id: item.id, corpus: inputs, medianPairedSpeedup: median(paired.map(b => b.speedup)), filteredSpeedup: accepted.length ? median(accepted.map(b => b.speedup)) : null, acceptedBlocks: accepted.length, paired, samples });
 }
 console.log(JSON.stringify({ scope: manifest.consumer ? 'isolated engine/MDN transform replay with deterministic resource I/O; includes adapter disposal and URL/async overhead; excludes startup/warmup and network/disk' : 'one variant per fresh process; excludes startup and warmup; not the full engine workload',
   filterPolicy: 'All raw samples retained. Filter complete ABBA/BAAB blocks only when max/min independent CPU probes exceeds 1.5; never filter by implementation timings or speedup.',
   outputComparison: manifest.normalizeHTML ? 'HTML reparsed through Cheerio/parse5 outside timing; resource events compared exactly' : 'exact output',
+  aggregation: manifest.aggregate ? 'Each timed iteration executes the entire listed corpus in order, once per entry; ratios use total elapsed time, not averages of per-case speedups.' : 'Each corpus entry is timed separately.',
   node: process.versions.node, rows, blocks, batches, iterations, warmups,
   variants: manifest.variants.map(v => v.name), results }, null, 2));

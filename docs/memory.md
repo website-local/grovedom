@@ -36,6 +36,14 @@ The authored harness enforces these regression ceilings:
 
 These are workload-specific test limits, not automatic application limits or promised per-document costs. Optional private corpora are reported separately without applying the authored size ceilings. More input sizes, allocation-failure injection and long-running production lifetimes remain necessary before claiming a general memory gate.
 
+## Selector optimization recheck
+
+The pass after `3fd1609` adds selector rejection metadata to the existing bounded CSS arena, with one allocation per eligible plan and no per-element allocations during matching. Repeating the same 2,430-lifetime stress matrix passes every existing budget. Peak tracked backing capacity remains 21.48 MiB native and 12.25 MiB Wasm. Fresh and pooled peaks remain 16.38 and 22.44 MiB of linear capacity. Shared Wasm reaches 14.06 MiB, one additional 64 KiB page, then plateaus through the pinned-owner replacements. Live DOM and control bytes return to zero; fresh ownership and a trimmed pool return to zero capacity. The earlier 14.00 MiB measurement remains a useful comparison, not a promise that every allocation layout has the same high-water mark.
+
+The metadata has a small measurable cost: native backing-allocation requests per MDN-1/5/8 replay rise from 229/1,188/536 to 231/1,196/540, with 4,144/16,576/8,288 additional requested bytes respectively. Those replays can own several documents. The guard allocates its metadata when a plan is created; its per-element checks allocate no storage. The profiled SVG and sitemap paths keep their previous allocation counts. Control records separately include the added cached-plan pointers.
+
+The 700-case matrix passes across all backends, with native and pool also tested on Node 24. Direct Node execution of the native ASan/UBSan suite with leak detection emits no findings. An initial run preloading the sanitizer into the npm driver emitted V8 allocation leak reports after the tests passed; those reports contained no kernel allocation frames. The clean verification uses `node --test` directly and preserves the initial diagnostic rather than suppressing reports.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

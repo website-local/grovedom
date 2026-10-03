@@ -12,7 +12,7 @@ equivalently: candidate time <= baseline time / 3
 
 This requirement concerns the DOM workload, not whole-download wall time. Network latency, archive packaging, and disk I/O can dominate a full crawl and are not the primary gate.
 
-The full-workload gate has not been met or tested yet. The [native prototype benchmark](prototype.md#verification-and-diagnostics) measures a runnable authored DOM replay against both Cheerio parsers, including bindings and explicit lifecycle cleanup. It is diagnostic, not the representative engine/MDN adoption replay. Boundary microbenchmarks and upstream parser benchmarks also cannot pass the gate.
+The [fixed whole-corpus panels](#whole-corpus-optimization-gate-after-3fd1609) now meet the numerical target on Node 22 for native and pooled Wasm. They include actual engine/MDN transforms, bindings and explicit lifecycle cleanup, with a documented scope and decision rule. Production adoption remains open. The smaller authored benchmark, boundary microbenchmarks and upstream parser benchmarks alone cannot pass the full-workload gate.
 
 GroveDOM must also be faster than Cheerio using **either parse5 or htmlparser2**, comparing the best behaviorally acceptable configuration of each. On the same fixed full-workload replay:
 
@@ -576,3 +576,48 @@ All three blocks are retained for each backend row. Native leads this panel. Sha
 The existing 695-case matrix passes on all backends, with native/pool also checked on Node 24. An additional empty-snapshot mutation/disposal regression passes on all four backends. Native ASan/UBSan with leak detection passes the suite and added case. The frozen consumer's 87 TypeScript source files compile against both implementations, and 19 replay cases match on native/shared/fresh/pooled Wasm. Imported upstream coverage remains 607 active / 11 excluded cases.
 
 The [memory report](memory.md) separates backing allocations, control records, owned linear capacity, idle retention and process observations. Its 2,430-lifetime stress run includes pinned owners, varied sizes/disposal order and retained selections, with deterministic authored-workload capacity ceilings. These results support bounded reuse for the exercised patterns, not a universal fragmentation proof or production memory budget.
+
+## Whole-corpus optimization gate after `3fd1609`
+
+The next measurement uses two fixed panels. The synthetic panel runs the authored HTML replay at 120 and 600 articles, then the authored 120-entry sitemap and SVG replays. The consumer panel runs all eight saved MDN pages and all eleven authored consumer scenarios described in [integration](integration.md). Each iteration runs every entry once, in manifest order, including bindings, required callbacks, serialization and disposal. The aggregate is the ratio of total panel times, never an average of individual speedups. These equal-entry weights define a reproducible diagnostic gate; they are not an observed production traffic distribution.
+
+Set `aggregate: true` in a `bench/process.mjs` manifest to measure this contract. Entries can specify `rows` or a preloaded `path`, and a `workload` override for mixed synthetic HTML/XML. Reports include input byte counts and SHA-256 fingerprints without machine paths. These fingerprints identify benchmark inputs; they are not part of the kernel protocol. Without `aggregate`, the harness continues to time entries individually.
+
+Before examining gate results, the protocol is fixed at five alternating ABBA/BAAB process blocks, 40 complete-panel warmups, six timed batches, and two complete panels per batch. Keep the existing independent-probe filter at 1.5 and retain every raw block. An identical-code control uses the same panel and settings. A scoped pass requires both raw and filtered median ratios above the relevant boundary (3 against current Cheerio, 1 against the fastest compatible configuration), at least three retained blocks, and every retained block above that boundary. If the control's raw or filtered median lies outside 0.90–1.10, report the gate as inconclusive. This is a conservative operational rule, not a statistical confidence interval or a way to correct candidate timings by dividing by the control.
+
+Compare native and pooled Wasm independently. Keep fresh/shared Wasm lifecycle and correctness coverage; this gate does not require every experimental backend to qualify for adoption. Audit htmlparser2 output and resource events before timing it as an acceptable baseline. Incompatible parser configurations remain explicit exclusions; a compatible subset comparison cannot pass the complete-panel gate. Report per-category limitations and retain the distinction between this deterministic replay and production adoption.
+
+### Selector changes and diagnostic evidence
+
+The retained experiment specializes standalone tag, ID and class plans, and filters lists of at least eight branches when every branch has a necessary tag, ID or class in its rightmost compound. Only candidate branches invoke Lexbor's general matcher. Unknown-only tag plans skip traversal, but retry missing name IDs on the next query so insertion and renaming remain visible. Metadata shares the bounded selector arena; neither matching nor traversal allocates a temporary object per element. Compatibility pseudos retain their existing evaluator. See the [source review](research.md#selector-optimization-techniques-reviewed) for related Cheerio, jQuery and WebKit techniques.
+
+Separate instrumented native runs execute 60 real consumer replays per input. Exclusive query time falls from 4.05 to 3.11 ms on MDN-5 and from 8.81 to 6.44 ms on MDN-8. On MDN-8 the specialized paths visit 37,806 elements, pass 465 necessary-atom checks and invoke the general branch matcher 424 times per replay; the remaining candidates are standalone atoms. These counts explain avoided work. Instrumented elapsed times, including the new counters, are diagnostic rather than release speedups or retired-instruction measurements.
+
+Four new differential tests cover duplicate IDs, CSS escapes/whitespace, template scopes, compound/list matching, insertion/renaming after a cached miss, snapshots and overlapping-root deduplication. The 700-case matrix passes across native/shared/fresh/pooled Wasm, and native/pool pass on Node 24. All 19 consumer outputs and ordered resource events match on every backend. Release Wasm still has zero imports and no diagnostic exports. The [memory recheck](memory.md#selector-optimization-recheck) passes unchanged lifetime budgets, with direct Node ASan/UBSan and leak detection clean. Compiler, target-feature, heap, stack and transfer-buffer defaults are unchanged.
+
+### Node 22 gate results
+
+Node 22.22.2, Cheerio 1.2.0, release O3/ThinLTO, with the five-block protocol above. The synthetic panel contains 200,230 input bytes; the 19-case consumer panel contains 637,377. Current Cheerio uses parse5 for HTML and htmlparser2 for XML. Source-location tracking is already disabled by default; explicitly setting that parse5 option supplies no different algorithm. Every iteration includes a fresh DOM and complete transform/serialization/disposal for each entry.
+
+| Baseline and panel | Native raw / filtered speedup | Blocks kept | Pooled Wasm raw / filtered speedup | Blocks kept |
+|---|---:|---:|---:|---:|
+| Current Cheerio, synthetic | 4.769× / 4.769× | 5/5 | 3.911× / 3.911× | 5/5 |
+| Current Cheerio, all 19 consumer cases | 3.988× / 3.988× | 5/5 | 3.369× / 3.369× | 5/5 |
+| Cheerio/slim, synthetic | 3.300× / 3.385× | 4/5 | 3.050× / 3.050× | 5/5 |
+| Cheerio/slim, eight saved MDN pages | 3.277× / 3.277× | 5/5 | 2.832× / 2.832× | 5/5 |
+
+The native current-Cheerio block ranges are 4.552–4.813× synthetic and 3.933–4.045× consumer; pool ranges are 3.742–4.256× and 3.230–3.415×. Identical-code controls retain all five blocks and have raw/filtered medians of 0.996/0.997 for native synthetic/consumer and 1.023/1.021 for pool. Both implementations therefore pass the stated numerical rule on these fixed Node 22 panels. Steady interference can escape probe filtering; these operational checks are not confidence intervals or unconditional throughput guarantees.
+
+The synthetic slim comparison matches output exactly. All eight saved MDN pages match after HTML normalization outside timing, with exact resource-event comparison. Four authored cases remain incompatible with slim: HTML with nested `srcdoc`, playable fragments, generated examples, and four nested document levels. Generated examples also change resource events. The complete consumer-panel baseline therefore remains the compatible current Cheerio configuration; the slim subset win is additional evidence, not a substitute complete-panel pass.
+
+Against `3fd1609`, the same complete-panel protocol measures native 1.104× and pool 1.140× on the consumer replay, with all five blocks retained. Their ranges, 1.087–1.127× and 1.131–1.154×, support a repeatable improvement beyond the corresponding controls. Synthetic before/after medians are 1.047× and 1.050×, but ranges are wider: 0.978–1.121× and 1.014–1.136×. Those smaller differences do not establish a consistent gain for every synthetic case. Earlier per-case native experiments were near parity on ordinary HTML/XML; no claim of universal speedup or strict absence of a small regression follows from the aggregate.
+
+These panels satisfy a scoped performance checkpoint. They combine saved, already processed pages and authored scenarios under actual consumer transforms; they are not a production traffic distribution or a complete crawl. XML, nested/generated cases and other individual inputs can remain below 3×. The agreed multiplier applies to the fixed aggregate, and broader adoption still needs representative production weights, cold-start measurements, integration deployment and release checks.
+
+### Native repeat on Node 24
+
+With identical inputs and the same five-block protocol, Node 24.18.0 measures 4.704× synthetic and 4.025× consumer versus current Cheerio. Raw and filtered medians agree; all five blocks are retained. Ranges are 4.414–4.911× and 3.922–4.681×. Identical-code controls measure 1.005 and 1.013, with 5/5 and 3/5 blocks retained respectively; two consumer-control blocks fail the independent probe filter. Both panels pass the same numerical rule.
+
+Native versus slim measures 3.596× synthetic (raw and filtered, 5/5 retained) and 3.267× raw / 3.246× filtered on the eight saved MDN pages (4/5 retained). The parser-compatibility exclusions above still apply. Pooled Wasm is correctness-tested on Node 24 in this pass; its new whole-corpus performance gate is measured on Node 22.
+
+The final focused long-list diagnostic on Node 22 measures baseline/candidate ratios of 1.918× sparse and 2.703× dense, with three of three process blocks retained in each case. It uses 80 warmups and six batches of eight replays, and includes parsing plus repeated queries. It isolates selector behavior and carries no additional adoption claim.

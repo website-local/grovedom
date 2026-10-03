@@ -409,7 +409,11 @@ static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lx
      * connected. No JS callback can run during this synchronous kernel call. */
     lxb_dom_node_t *parent = boundary ? boundary->parent : NULL;
     if (boundary) boundary->parent = NULL;
-    lxb_status_t status = doc->selector_custom ? (gd_selector_match(doc, node, plan) ? gd_collect(node, 0, doc) : doc->error_code ? LXB_STATUS_ERROR : LXB_STATUS_OK) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+    lxb_status_t status;
+    if (doc->selector_guard || doc->selector_custom) {
+        int matched = doc->selector_guard ? gd_selector_guard_match(doc, node) : gd_selector_match(doc, node, plan);
+        status = matched ? gd_collect(node, 0, doc) : doc->error_code ? LXB_STATUS_ERROR : LXB_STATUS_OK;
+    } else status = lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
     if (boundary) boundary->parent = parent;
     return status;
 }
@@ -494,6 +498,7 @@ static void gd_plans_clean(gd_document *doc) {
     /* Plans never escape a synchronous query; selections hold only node IDs.
      * Reset the whole bounded cache so keys and ASTs can share one arena. */
     doc->plan_count = 0;
+    doc->selector_guard = NULL;
     lxb_css_parser_erase(doc->css);
     lxb_css_selectors_clean(doc->css->selectors);
 }
@@ -503,7 +508,7 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     for (size_t i = 0; i < doc->plan_count; i++) {
         gd_plan *plan = &doc->plans[i];
         if (plan->length == doc->input.length &&
-            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); doc->selector_flags = plan->flags; return plan->list; }
+            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); doc->selector_flags = plan->flags; doc->selector_guard = plan->guard; return plan->list; }
     }
     GD_PROFILE_ADD(GP_PLAN_MISSES, 1);
     if (doc->plan_count == PLAN_COUNT) gd_plans_clean(doc);
@@ -533,7 +538,9 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     memcpy(key, doc->input.data, doc->input.length + 1);
     gd_plan *plan = &doc->plans[doc->plan_count++];
     doc->selector_flags = gd_selector_flags(list);
-    *plan = (gd_plan) { key, doc->input.length, list, doc->selector_flags };
+    doc->selector_guard = gd_selector_guard_create(doc, list);
+    if (doc->error_code) { gd_plans_clean(doc); return NULL; }
+    *plan = (gd_plan) { key, doc->input.length, list, doc->selector_flags, doc->selector_guard };
     return list;
 memory_error:
     gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector allocation failed");
@@ -625,17 +632,20 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     lxb_css_selector_list_t *plan = gd_plan_get(doc);
     if (!plan) return gd_failed();
     doc->selector_custom = (doc->selector_flags & GD_SELECTOR_TEXT) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+    if (doc->selector_custom) doc->selector_guard = NULL;
+    int possible = gd_selector_guard_prepare(doc);
+    gd_results_reset(doc);
+    if (!possible) return gd_result_set(doc, GD_IDS, doc->results, 0, 0);
     int cross_fragments = 0;
     if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
         if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
     }
-    gd_results_reset(doc);
     for (size_t i = 0; i < count; i++) {
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         lxb_status_t status;
-        if (match) status = (doc->templates || doc->selector_custom) ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
-        else if (doc->selector_custom) status = gd_find_compatibility(doc, node, plan, cross_fragments);
+        if (match) status = (doc->templates || doc->selector_custom || doc->selector_guard) ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+        else if (doc->selector_custom || doc->selector_guard) status = gd_find_compatibility(doc, node, plan, cross_fragments);
         else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
         else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
         if (status != LXB_STATUS_OK) { if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
