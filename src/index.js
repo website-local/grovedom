@@ -250,9 +250,49 @@ function inputIds(state, input) {
   throw new TypeError('Expected a selector, node handle, or selection');
 }
 
+class XMLNodeRecord {
+  #ids;
+  constructor(state, id) { this.state = state; this.id = id; }
+  get ids() { return this.#ids ??= Uint32Array.of(this.id); }
+}
+
+function callbackIds(state, node) {
+  const record = nodes.get(node);
+  alive(state);
+  // Borrow this only for the immediate read/enqueue. Reacquire after calling
+  // user code (including string coercion), which can reenter another callback.
+  const ids = state.callbackIds ??= new Uint32Array(1);
+  ids[0] = record.id;
+  return ids;
+}
+
+function xmlAttributeCallback(target, state, name, value) {
+  return target.each(function (i, node) {
+    const next = value.call(node, i, attributeValue(state, callbackIds(state, node), name));
+    if (next !== undefined) alive(state);
+    if (typeof next === 'function') selection(state, nodes.get(node).ids).attr(name, next);
+    else if (next !== undefined) {
+      const text = next === null ? '' : String(next);
+      enqueue(state, callbackIds(state, node), next === null ? 2 : 1, name, text);
+    }
+  });
+}
+
+function xmlTextCallback(target, state, value) {
+  return target.each(function (i, node) {
+    const next = value.call(node, i, read(state, callbackIds(state, node), 2));
+    alive(state);
+    if (typeof next === 'function') selection(state, nodes.get(node).ids).text(next);
+    else if (next !== undefined) {
+      const text = String(next);
+      enqueue(state, callbackIds(state, node), 3, text);
+    }
+  });
+}
+
 class NodeHandle {
   #record;
-  constructor(state, id) { this.#record = { state, ids: Uint32Array.of(id) }; }
+  constructor(state, id) { this.#record = state.xml ? new XMLNodeRecord(state, id) : { state, ids: Uint32Array.of(id) }; }
   static record(value) { return value !== null && typeof value === 'object' && #record in value ? value.#record : undefined; }
   get name() { const { state, ids } = nodes.get(this); return read(state, ids, 5); }
   get type() {
@@ -360,6 +400,7 @@ class Selection {
     if (arguments.length === 1) return attributeValue(state, ids, name);
     if (value === undefined) return this;
     if (typeof value === 'function') {
+      if (state.xml) return xmlAttributeCallback(this, state, name, value);
       return this.each(function (i, node) {
         const one = nodes.get(node).ids;
         const next = value.call(node, i, attributeValue(state, one, name));
@@ -380,6 +421,7 @@ class Selection {
   text(value) {
     const { state, ids } = entry(this);
     if (value === undefined) return read(state, ids, 2);
+    if (typeof value === 'function' && state.xml) return xmlTextCallback(this, state, value);
     if (typeof value === 'function') return this.each(function (i, node) {
       const one = nodes.get(node).ids;
       const next = value.call(node, i, read(state, one, 2));
@@ -798,7 +840,7 @@ export function load(content, options = {}, isDocument = true) {
     serialization: typeof options.xml === 'object' ? { ...options.xml } : undefined,
     closed: false, direct: options.execution === 'direct', wrappers: new Map(), data: new Map(), baseURI: options.baseURI,
     words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
-    usedWords: null, usedPayload: null,
+    usedWords: null, usedPayload: null, callbackIds: null,
   };
   const rootIds = Uint32Array.of(1);
   function $(input, context) {
@@ -864,6 +906,7 @@ export function load(content, options = {}, isDocument = true) {
     state.closed = true;
     state.words = state.payload = null;
     state.usedWords = state.usedPayload = null;
+    state.callbackIds = null;
     state.wrappers.clear();
     state.data.clear();
     state.selectorAliases?.clear();

@@ -85,3 +85,31 @@ test('callback command views refresh after growth and remain document-owned', ()
     } finally { other.dispose(); }
   });
 });
+
+test('XML callback coercion can reenter and selections retain the intended node', () => {
+  compare('<root><item>one</item><item>two</item></root>', $ => {
+    const items = $('item'), retained = [];
+    items.attr('title', function (i) {
+      if (!i) retained.push($(this));
+      return { toString() {
+        items.last().attr('side', () => 'nested');
+        return 'title-' + i;
+      } };
+    });
+    items.text(function (i, old) {
+      return { toString() {
+        items.last().attr('side', () => 'again');
+        return old + '-' + i;
+      } };
+    });
+    return [$.xml(), retained[0].attr('title'), retained[0][0] === items[0]];
+  });
+});
+
+test('XML callback coercion cannot revive disposed command storage', () => {
+  for (const method of ['text', 'attr']) {
+    const $ = load('<root><item/></root>', { xml: true });
+    const value = () => ({ toString() { $.dispose(); return 'closed'; } });
+    assert.throws(() => method === 'text' ? $('item').text(value) : $('item').attr('a', value), { code: 'ERR_GROVEDOM_DISPOSED' });
+  }
+});

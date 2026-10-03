@@ -4,9 +4,9 @@ DOM transformations through ordered operations.
 
 GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm meet the performance target on the fixed synthetic and engine/MDN replay panels on Node 22. The API is partial and production adoption remains open.** See the [measurements and scope](docs/benchmarks.md#whole-corpus-optimization-gate-after-3fd1609), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
+**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the explicit XML and mixed synthetic aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#xml-callback-allocation-follow-up), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
 
-The [XML optimization checkpoint](docs/benchmarks.md#xml-optimization-gate-after-8c785fb) demonstrates a native XML aggregate pass and substantial gains on both backends. The strict pooled XML gate and noise-limited pooled MDN regression checks remain open; the earlier mixed-panel pass does not establish XML-only performance.
+The [XML optimization checkpoint](docs/benchmarks.md#xml-callback-allocation-follow-up) removes repeated callback ID arrays. Native also passes the refreshed consumer aggregate; pooled consumer timing remains inconclusive. Individual SVG targets and some native HTML/consumer regression controls remain open. Aggregate passes do not establish the same multiplier for every input.
 
 ## Objective
 

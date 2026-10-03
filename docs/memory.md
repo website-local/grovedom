@@ -52,6 +52,14 @@ The same 2,430-lifetime matrix passes all unchanged budgets. Peak tracked capaci
 
 The release native artifact changes from 1,315,728 to 1,316,384 bytes and Wasm from 793,436 to 794,245 bytes. Release Wasm retains zero imports and no diagnostic exports. Stack, initial heap, shared transfer storage and pool limits are unchanged.
 
+### XML callback array lifetime
+
+The callback-allocation follow-up delays single-ID arrays for XML handles until an actual selection or node operation needs stable storage. Immediate callback reads and writes borrow one document-owned array. They reacquire it after user callbacks and string coercion, which can reenter the same document. Disposal clears the borrowed array; retained selections keep their own stable IDs and remain invalid after disposal.
+
+Measured single-ID array creation drops from 601 to two on the large sitemap replay and from 301 to two on the large SVG replay. This removes 599/299 arrays without changing kernel arenas or retaining input-buffer aliases. It does not eliminate node wrapper/record allocations or measure total JS heap bytes.
+
+The 711-case matrix and rebuilt native ASan/UBSan suite pass, with no sanitizer reports. The authored 2,430-lifetime panel passes every existing budget on all four backends: peak tracked capacity remains 21.48 MiB native and 12.25 MiB Wasm, and peak shared/fresh/pooled capacity remains 14.0625/16.375/22.4375 MiB. Live document/control bytes return to zero; fresh and trimmed-pool capacity return to zero. Separate refreshed-MDN runs pass their lifecycle assertions. Custom-corpus runs disable the authored capacity limits, so those runs are diagnostics, not passes against the authored memory budgets.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

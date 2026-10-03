@@ -698,3 +698,64 @@ The original saved-MDN input locations became unavailable during the follow-up. 
 The combined-export experiment is set aside. Its XML repeat measures 0.961× with five blocks retained, while its repeat control is 0.805 raw / 0.861 filtered with four retained. The authored HTML comparison is 1.009 raw / 1.017 filtered, but its 0.920 control fails the regression tolerance. A separate XML/current-Cheerio panel measures 4.062× with five retained blocks; the failed control prevents a passed-gate claim. All original and repeated samples remain available. Fewer boundary calls did not establish an incremental release gain. Its 710-case matrix, refreshed 19-case consumer output replay, and authored/refreshed Wasm memory budgets pass, but the release implementation keeps the earlier transport.
 
 An XML parser experiment decoded entities inside each final DOM-owned text/attribute value. Replacement cannot expand the original entity spelling; the parser retained no input-buffer aliases. This removed intermediate scratch writes and copies, following the in-place conversion idea reviewed in pugixml/TinyXML-2 without borrowing their ownership model. Ordinary XML peak backing capacity was unchanged in the SVG/sitemap probes. However, a deliberately entity-dense input increased tracked peak capacity from 3,598,760 to 3,976,520 bytes native and 9,732,472 to 10,108,152 bytes Wasm: reserving each value at its original spelling length costs more than reserving the shorter decoded value. Full XML ratios were 0.940× native and 1.013× pool, with controls 1.041/1.051; all five blocks survived in each run. Those small/mixed timing differences do not justify the extra capacity, so this experiment was removed as well.
+
+### XML callback allocation follow-up
+
+This experiment delays one-node array creation for XML handles and reuses one document-owned ID array for immediate callback reads/writes. Reacquire the borrowed array after user callbacks and string coercion; actual selections still own stable arrays. An earlier version changed common scalar-command helpers and failed the native authored-HTML regression screen (0.922× with a 0.986 control), so that version was removed. The XML-specific candidate preserves the existing command helpers and HTML handle records.
+
+For a complementary diagnostic, copy the identical XML fixture module for each implementation so its `load` call sites stay separate, then run both implementations in short balanced blocks within one process. Use 20 ABBA/BAAB blocks, four replays per batch and 200 warmups on sitemap-600/SVG-300, retaining the same probe-only filter. Repeat in five fresh processes, reverse import order in the second/fourth, and use separate identical source/artifact/workload copies for controls. Keep the initial pool screen as the first repetition. An initial control sharing one module/instance is diagnostic only and is replaced by the properly isolated control copy. These checks help distinguish small changes from between-process drift; they do not replace the existing fresh-process performance and HTML/MDN gates.
+
+The refined candidate's first pooled authored-HTML process screen is close to the regression tolerance: 0.972 raw / 0.983 filtered, control 1.023. Before inspecting a repeat, expand the authored-HTML comparison and control to ten process blocks for both backends. Combine the existing five pooled blocks with exactly five additional blocks; run ten for native as well. Retain the original probe decisions, all raw ratios and the 2% tolerance. This fixed extension estimates the small change more precisely; it does not select runs by favorable speedup.
+
+The ten-block pooled HTML result is 0.999 raw / 1.003 filtered, with nine retained blocks and a 1.000 control retaining all ten. It passes that regression screen. The first refreshed saved-MDN comparison is 0.968 with a 1.019 control (five retained in each), so that screen does not pass. The complete-consumer comparison/control retain only two blocks each. These results require diagnosis before retaining the candidate. V8 traces show that both versions inline the handle constructor into `wrap` and `each`; missed constructor inlining does not explain the concern.
+
+A further diagnostic keeps each implementation in its own process but alternates requests between two warmed processes, shortening the interval between their measurements without mixing facade shapes or GC heaps. Use five fresh process pairs, five alternating ABBA/BAAB blocks per pair, 40 whole-corpus warmups, and the same six batches of two complete replays per request. Reverse process-start order in alternate pairs. Select one permitted CPU independently before each pair and pin both processes to it; only one runs a requested replay at a time. IPC, startup, warmup and idle time are excluded; every replay still creates, transforms, serializes and disposes its documents. Keep every sample and the 1.5 probe-only filter. Apply the same 2% control/non-regression tolerances, with at least three retained blocks in at least three pairs. Run the matching identical-code control first. This is a diagnostic of the conflicting MDN timing, not permission to overlook the failed screen.
+
+That candidate's paired saved-MDN result is 0.990 raw / 0.989 filtered, retaining 22 of 25 blocks, with a 1.005 control retaining 24. All five raw pair medians are below one. The earlier failed screen remains relevant; these results do not establish that the change is free of a small slowdown. Its short XML diagnostic shows median filtered gains of 1.018/1.051 native and 1.026/1.028 pool on sitemap-600/SVG-300, with controls near one. Pooled XML and mixed synthetic aggregate screens reach 3.473× and 4.702× current Cheerio with valid controls and all five blocks retained. Those passes apply to this experimental candidate, which is not the release checkpoint.
+
+The next revision moves XML callback handling outside the HTML callback loops, retaining the checkpoint's HTML loop bodies. Focused reentry/disposal checks pass. Its first saved-MDN process comparisons favor the revision (1.045 native and 1.039 pool), but the native control retains only two blocks and the pooled control is 1.021 raw / 1.024 filtered. Both screens are inconclusive. Before further timing, apply the same five-pair protocol to this revision versus the checkpoint on saved-MDN and complete-consumer panels, with separate matching controls for each backend.
+
+A separate three-process short diagnostic adds the previously set-aside combined Wasm export to this revision. Median filtered gains are 1.071 on sitemap-600 and 1.064 on SVG-300; controls are 0.999 and 1.027, with substantial between-process spread, including a 1.150 sitemap control. This does not establish a sufficiently reliable incremental gain to retain the additional transport implementation. The kernel and compiler defaults remain unchanged.
+
+The XML-specific callback revision's paired checks compare with `d1de718` on the refreshed corpus. Ratios above one favor the revision; these are regression checks, not current-Cheerio speedups.
+
+| Panel | Backend | Raw / filtered | Blocks retained | Control raw / filtered | Control blocks | Regression screen |
+|---|---|---:|---:|---:|---:|---|
+| Saved MDN | Native | 0.998 / 0.998 | 23/25 | 0.981 / 0.991 | 23/25 | Pass |
+| Saved MDN | Pool | 1.018 / 1.025 | 21/25 | 1.005 / 1.005 | 24/25 | Pass |
+| Complete consumer | Native | 1.008 / 1.008 | 21/25 | 1.019 / 1.032 | 18/25 | Inconclusive control |
+| Complete consumer | Pool | 0.996 / 0.996 | 22/25 | 0.999 / 0.999 | 25/25 | Pass |
+
+Each comparison/control has at least four process pairs with three or more retained blocks. The table uses the median of the five raw/filtered pair medians. Passing the 2% screen does not prove exact zero slowdown. The native complete-consumer result stays inconclusive; its failed filtered control is not normalized away or replaced by the raw control.
+
+The revision's authored-HTML process comparisons use ten balanced blocks per backend, as predeclared. Native measures 1.050 raw / 1.054 filtered with nine retained blocks, but the 0.977 control is outside the 2% tolerance, so that screen is inconclusive. Pooled Wasm passes at 1.008 with all ten blocks retained and a 1.003 control retaining all ten. No timing samples are discarded based on the candidate's ratio.
+
+The final aggregate process screens use the unchanged five-block settings and current Cheerio 1.2.0. Explicit XML uses Cheerio XML/htmlparser2. The minimum column is the smallest retained balanced-block ratio; controls use the same workload and settings.
+
+| Panel | Backend | Raw / filtered | Blocks retained | Minimum retained | Control raw / filtered | Control blocks | 3× screen |
+|---|---|---:|---:|---:|---:|---:|---|
+| Explicit XML | Native | 3.775 / 3.511 | 3/5 | 3.414 | 0.985 / 0.960 | 4/5 | Pass |
+| Explicit XML | Pool | 3.331 / 3.331 | 5/5 | 3.176 | 0.976 / 0.976 | 5/5 | Pass |
+| Synthetic HTML + XML | Native | 5.502 / 5.502 | 3/5 | 4.976 | 0.958 / 0.958 | 5/5 | Pass |
+| Synthetic HTML + XML | Pool | 4.819 / 4.637 | 4/5 | 3.688 | 1.013 / 1.000 | 4/5 | Pass |
+| Complete consumer | Native | 4.093 / 4.093 | 3/5 | 3.974 | 0.969 / 1.052 | 3/5 | Pass |
+| Complete consumer | Pool | 3.400 / 3.413 | 2/5 | 3.400 | 0.999 / 0.999 | 5/5 | Inconclusive: too few blocks |
+
+Individual XML replays retain the predeclared five blocks, 80 warmups, six batches and eight replays per batch. All comparison and control blocks survive in this replication, so raw and filtered medians are identical.
+
+| XML input | Backend | Median vs Cheerio XML | Minimum block | Control median | 3× screen |
+|---|---|---:|---:|---:|---|
+| Sitemap, 120 entries | Native | 3.967 | 3.430 | 0.896 | Inconclusive control |
+| Sitemap, 600 entries | Native | 5.779 | 4.531 | 1.065 | Pass |
+| SVG, 120 groups | Native | 3.102 | 2.665 | 1.077 | Retained blocks below target |
+| SVG, 300 groups | Native | 3.383 | 2.784 | 1.041 | Retained blocks below target |
+| Sitemap, 120 entries | Pool | 3.425 | 3.121 | 0.991 | Pass |
+| Sitemap, 600 entries | Pool | 3.587 | 3.412 | 0.988 | Pass |
+| SVG, 120 groups | Pool | 2.823 | 2.497 | 1.019 | Below target |
+| SVG, 300 groups | Pool | 2.807 | 2.586 | 0.995 | Below target |
+
+Both backends now pass the explicit XML aggregate in this replication. That does not establish the 3× target for SVG: native SVG has retained blocks below three, and pooled SVG medians remain below three. The native authored-HTML/full-consumer regression controls and the refreshed pooled consumer adoption screen also remain open. Earlier passes and rejected/inconclusive replications are retained separately; these results neither replace the corpus nor prove a universal speedup.
+
+An allocation-count diagnostic compares the checkpoint and this revision outside timing. Single-ID `Uint32Array` creation falls from 601 to two on sitemap-600 and from 301 to two on SVG-300: one root array and one reusable callback array remain. This removes 599/299 arrays per replay. Actual selections still materialize stable arrays when needed; node wrappers, records and kernel result arrays remain. These counts do not measure total JS heap bytes or establish an incremental elapsed-time multiplier.
+
+The retained revision passes the 711-case matrix: native 694 passes/17 skips, shared Wasm 696/15, fresh Wasm 697/14 and pooled Wasm 700/11. Native/pool also pass on Node 24. All 19 refreshed consumer outputs and resource events match Cheerio on every backend. Types, the rebuilt native ASan/UBSan suite with leak detection, and the authored 2,430-lifetime memory budgets pass. Refreshed-corpus lifecycle diagnostics are separate from those fixed budgets. Release Wasm still has zero imports and no diagnostic exports. This is a validated allocation checkpoint; the remaining performance gates above keep the broader optimization goal open.
