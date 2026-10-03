@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from '../src/index.js';
+import { kernel } from '../src/kernel.js';
 import { load as cheerio } from 'cheerio';
 
 function compare(source, run, options = { xml: true }) {
@@ -112,4 +113,38 @@ test('XML callback coercion cannot revive disposed command storage', () => {
     const value = () => ({ toString() { $.dispose(); return 'closed'; } });
     assert.throws(() => method === 'text' ? $('item').text(value) : $('item').attr('a', value), { code: 'ERR_GROVEDOM_DISPOSED' });
   }
+});
+
+test('XML HTML-like names preserve attribute selectors, clones and moves', () => {
+  for (const xml of [true, { lowerCaseTags: true, lowerCaseAttributeNames: true }]) {
+    compare('<Root><select><option id="first" selected="selected">one</option></select><input id="control" class="a" type="checkbox" checked="checked"/><template><title>literal</title></template></Root>', $ => {
+      const control = $('#control'), copy = control.clone().attr('id', 'copy');
+      control.removeAttr('id').attr('id', 'changed').removeAttr('class').attr('class', 'b');
+      $('option').attr('selected', 'updated');
+      $('select').append(copy).append(control);
+      $('template').append('<input class="b" checked=""/>');
+      return [$.xml(), $('#changed').length, $('#control').length, $('#copy').length,
+        $('.a').length, $('.b').length, $('[checked]').length, $('option').attr('selected')];
+    }, { xml });
+  }
+});
+
+for (const xml of [false, true]) test(`attribute growth retains storage proportional to live values: xml=${xml}`, () => {
+  const $ = load('<Root><Item/></Root>', { xml });
+  try {
+    const item = $('Item');
+    assert.equal(item.length, 1);
+    const before = kernel.stats().liveBytes;
+    for (let i = 0; i < 32; i++) {
+      const name = 'value' + i;
+      for (let step = 1; step <= 32; step++) {
+        item.attr(name, 'x'.repeat(step * 512));
+        $.flush();
+      }
+      assert.equal(item.attr(name), 'x'.repeat(16384));
+    }
+    // The live values total 512 KiB. Allow arena/transfer slack, but not every
+    // superseded value from the 1,024 successful growth operations.
+    assert.ok(kernel.stats().liveBytes - before < 2 * 1024 * 1024, 'superseded attribute storage must be reusable');
+  } finally { $.dispose(); }
 });

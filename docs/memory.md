@@ -60,6 +60,21 @@ Measured single-ID array creation drops from 601 to two on the large sitemap rep
 
 The 711-case matrix and rebuilt native ASan/UBSan suite pass, with no sanitizer reports. The authored 2,430-lifetime panel passes every existing budget on all four backends: peak tracked capacity remains 21.48 MiB native and 12.25 MiB Wasm, and peak shared/fresh/pooled capacity remains 14.0625/16.375/22.4375 MiB. Live document/control bytes return to zero; fresh and trimmed-pool capacity return to zero. Separate refreshed-MDN runs pass their lifecycle assertions. Custom-corpus runs disable the authored capacity limits, so those runs are diagnostics, not passes against the authored memory budgets.
 
+### Attribute value retention
+
+The follow-up after `62a6341` fixes in-document retention when attached attributes grow. Lexbor's enabled change-callback path bypasses its old-value cleanup. XML now disables irrelevant internal HTML hooks; the shared growing-value fallback preserves HTML callbacks and releases the old buffer afterwards. Allocation failure retains the previous owned buffer. Existing in-place capacity reuse remains unchanged. The [source audit](research.md#xml-and-template-implementation-findings) records the dependency coupling.
+
+A separate probe grows 32 distinct attributes through 32 writes each, from 512 bytes to 16 KiB, keeping all final values live and verifying their contents. Final payload is 512 KiB. Tracked capacity includes document arenas and transfer buffers, not just the live string bytes.
+
+| Input mode | Native before / after, bytes | Shared Wasm before / after, bytes | Wasm linear capacity before / after, bytes |
+|---|---:|---:|---:|
+| HTML | 8,064,832 / 2,350,208 | 7,519,804 / 1,807,964 | 7,929,856 / 2,228,224 |
+| XML | 7,292,184 / 1,577,560 | 7,124,212 / 1,412,372 | 7,536,640 / 1,835,008 |
+
+Both versions return tracked live document bytes to zero on disposal. The defect retains storage during the document lifetime; it is not a demonstrated leak after disposal. Repeatedly growing and deleting just one attribute did not expose it because that probe reused freed storage. The regression tests keep all 32 final values live and assert less than 2 MiB of additional tracked capacity, allowing arena/transfer slack. Both tests fail against the previous checkpoint and pass on every backend with the fix.
+
+The direct single-tag scan adds no cache, document field or per-node allocation. The 716-case matrix and rebuilt native ASan/UBSan suite pass without sanitizer findings. The authored 2,430-lifetime panel passes every unchanged budget on all four backends. Peak tracked capacity remains 21.48 MiB native / 12.25 MiB Wasm; shared/fresh/pooled linear capacity remains 14.0625/16.375/22.4375 MiB. Live document/control bytes return to zero, as do fresh ownership and trimmed-pool capacity. Separate refreshed-corpus runs pass lifecycle assertions. These checks do not establish general allocator-fragmentation bounds.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.

@@ -48,6 +48,13 @@ int gd_selector_guard_prepare(gd_document *doc) {
     return possible;
 }
 
+lxb_tag_id_t gd_selector_simple_tag(gd_document *doc) {
+    gd_selector_guard *g = doc->selector_guard;
+    if (!g || g[1].atom || g->atom->type != LXB_CSS_SELECTOR_TYPE_ELEMENT ||
+        g->atom->list->first != g->atom->list->last) return 0;
+    return g->tag;
+}
+
 static int guard_equal(const lxb_char_t *value, const lexbor_str_t *name, int quirks) {
     return quirks ? lexbor_str_data_ncasecmp(value, name->data, name->length) : memcmp(value, name->data, name->length) == 0;
 }

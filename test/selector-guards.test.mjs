@@ -6,6 +6,42 @@ import { load as cheerio } from 'cheerio';
 const misses = '#missing-a, .missing-b, absent-c, .missing-d, #missing-e, absent-f, .missing-g';
 const names = ($, selection) => selection.map((_, node) => $(node).attr('id') ?? node.name).get();
 
+test('tag queries preserve nested template scopes, overlapping roots and snapshots', () => {
+  const trace = loader => {
+    const $ = loader('<main><section><mark id="a"></mark><template><mark id="b"></mark><template><mark id="c"></mark></template></template></section><mark id="d"></mark></main>');
+    try {
+      const snapshot = $('mark');
+      const result = [names($, snapshot), names($, $('main, section').find('mark')),
+        names($, $('template').find('mark')), names($, $('template').contents().find('mark')),
+        names($, $('*').filter('mark'))];
+      $('section').append('<mark id="new"></mark>');
+      result.push(names($, snapshot), names($, $('mark')), $.html());
+      return result;
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});
+
+test('XML tag queries resolve cached misses and retain case through cache churn and renaming', () => {
+  const trace = loader => {
+    const $ = loader('<Root><Group><Thing id="a"/></Group><Thing id="b"/><thing id="c"/></Root>', { xml: true });
+    try {
+      const snapshot = $('Thing'), detached = snapshot.first();
+      const result = [names($, $('Later')), names($, $('Renamed'))];
+      $('Group').append('<Later id="later"/><Thing id="new"/>');
+      $('thing')[0].name = 'Thing';
+      $('#b')[0].name = 'Renamed';
+      result.push(names($, $('Thing')), names($, $('Later')), names($, $('Renamed')));
+      for (let i = 0; i < 40; i++) $('Missing' + i);
+      detached.remove();
+      result.push(names($, $('Root, Group').find('Thing')), names($, snapshot),
+        detached.is('Thing'), names($, $('*').filter('Thing')), $.xml());
+      return result;
+    } finally { $.dispose?.(); }
+  };
+  assert.deepEqual(trace(load), trace(cheerio));
+});
+
 test('simple selectors preserve duplicate IDs, escapes, fragments and changed names', () => {
   const trace = loader => {
     const $ = loader('<!doctype html><main><p id="dup" class="a+b\fplain">one</p><p id="dup" class="plain">two</p><template><p class="plain">three</p></template></main>');

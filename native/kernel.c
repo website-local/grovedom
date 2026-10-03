@@ -445,6 +445,30 @@ static lxb_status_t gd_find_compatibility(gd_document *doc, lxb_dom_node_t *root
     return LXB_STATUS_OK;
 }
 
+static lxb_status_t gd_find_tag(gd_document *doc, lxb_dom_node_t *root, lxb_tag_id_t tag, int cross_fragments) {
+    /* A single tag has no ancestor conditions. Keep the same scope and preorder
+     * rules, without fragment-parent changes or a general matcher per node. */
+    for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
+        if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+        lxb_dom_node_t *node = start;
+        for (;;) {
+            if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+                GD_PROFILE_ADD(GP_GUARD_NODES, 1);
+                if (node->local_name == tag) {
+                    GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
+                    lxb_status_t status = gd_collect(node, 0, doc);
+                    if (status != LXB_STATUS_OK) return status;
+                }
+            }
+            if (node->first_child && (cross_fragments || node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) { node = node->first_child; continue; }
+            while (node != start && !node->next) node = node->parent;
+            if (node == start) break;
+            node = node->next;
+        }
+    }
+    return LXB_STATUS_OK;
+}
+
 static lxb_status_t gd_mark_match(lxb_dom_node_t *node, lxb_css_selector_specificity_t specificity, void *context) {
     (void) specificity;
     gd_document *doc = context;
@@ -604,6 +628,9 @@ int gk_parse_xml(gd_document *doc, unsigned flags) {
     doc->xml = 1; doc->xml_flags = flags;
     lxb_dom_document_t *dom = &doc->html->dom_document;
     dom->type = LXB_DOM_DOCUMENT_DTYPE_XML;
+    /* XML uses DOM links/attributes, not HTML element lifecycle hooks. The
+     * underlying DOM operations still maintain id/class and sibling links. */
+    lxb_dom_document_opt_set(dom, lxb_dom_document_opt(dom) | LXB_DOM_DOCUMENT_OPT_WO_EVENTS);
     dom->clone_interface = gd_xml_clone_interface;
     dom->destroy_interface = lxb_dom_interface_destroy;
     lxb_dom_node_t *fragment = gd_xml_parse(doc, doc->input.data, doc->input.length);
@@ -637,6 +664,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     int possible = gd_selector_guard_prepare(doc);
     gd_results_reset(doc);
     if (!possible) return gd_result_set(doc, GD_IDS, doc->results, 0, 0);
+    lxb_tag_id_t simple_tag = gd_selector_simple_tag(doc);
     int cross_fragments = 0;
     if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
         if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
@@ -645,7 +673,16 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         lxb_status_t status;
-        if (match) status = (doc->templates || doc->selector_custom || doc->selector_guard) ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
+        if (simple_tag && match) {
+            GD_PROFILE_ADD(GP_GUARD_NODES, 1);
+            status = LXB_STATUS_OK;
+            if (node->local_name == simple_tag) {
+                GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
+                status = gd_collect(node, 0, doc);
+            }
+        }
+        else if (simple_tag) status = gd_find_tag(doc, node, simple_tag, cross_fragments);
+        else if (match) status = (doc->templates || doc->selector_custom || doc->selector_guard) ? gd_match_template(doc, node, gd_fragment_boundary(node->parent), plan) : lxb_selectors_match_node(doc->selectors, node, plan, gd_collect, doc);
         else if (doc->selector_custom || doc->selector_guard) status = gd_find_compatibility(doc, node, plan, cross_fragments);
         else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
         else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
@@ -915,7 +952,17 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
                 memcpy(attr->value->data, b, blen); attr->value->data[blen] = 0; attr->value->length = blen;
                 return LXB_STATUS_OK;
             }
-            return lxb_dom_attr_set_value(attr, b, blen);
+            lexbor_str_t previous = attr->value ? *attr->value : (lexbor_str_t) {0};
+            lxb_dom_document_t *dom = node->owner_document;
+            int callback = !(lxb_dom_document_opt(dom) & LXB_DOM_DOCUMENT_OPT_WO_EVENTS)
+                && dom->attr_mutation->change != NULL && attr->owner != NULL;
+            lxb_status_t status = lxb_dom_attr_set_value(attr, b, blen);
+            /* The pinned setter returns directly from its callback, bypassing
+             * old-value cleanup. Keep HTML callbacks, then release that value.
+             * Allocation failure must retain the previous owned buffer. */
+            if (previous.data && attr->value && !attr->value->data) *attr->value = previous;
+            else if (callback && previous.data) lexbor_mraw_free(dom->text, previous.data);
+            return status;
         }
         attr = lxb_dom_attr_interface_create(&doc->html->dom_document);
         if (!attr) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;

@@ -759,3 +759,61 @@ Both backends now pass the explicit XML aggregate in this replication. That does
 An allocation-count diagnostic compares the checkpoint and this revision outside timing. Single-ID `Uint32Array` creation falls from 601 to two on sitemap-600 and from 301 to two on SVG-300: one root array and one reusable callback array remain. This removes 599/299 arrays per replay. Actual selections still materialize stable arrays when needed; node wrappers, records and kernel result arrays remain. These counts do not measure total JS heap bytes or establish an incremental elapsed-time multiplier.
 
 The retained revision passes the 711-case matrix: native 694 passes/17 skips, shared Wasm 696/15, fresh Wasm 697/14 and pooled Wasm 700/11. Native/pool also pass on Node 24. All 19 refreshed consumer outputs and resource events match Cheerio on every backend. Types, the rebuilt native ASan/UBSan suite with leak detection, and the authored 2,430-lifetime memory budgets pass. Refreshed-corpus lifecycle diagnostics are separate from those fixed budgets. Release Wasm still has zero imports and no diagnostic exports. This is a validated allocation checkpoint; the remaining performance gates above keep the broader optimization goal open.
+
+### XML tag scans and attribute storage
+
+The follow-up after `62a6341` profiles 8,000 full SVG-300 replays per backend with 100 µs CPU sampling. Pooled GC accounts for about 1% of samples; query traversal, parsing, serialization and allocator work remain more useful targets. Separate profile elapsed times are not paired speedups.
+
+A standalone tag query now resolves its ID once and scans preorder directly. It retains the existing scope, fragment-crossing, collection, deduplication and snapshot behavior. XML also disables Lexbor's internal HTML insertion/attribute hooks; ordinary DOM links and ID/class pointers still update. The shared growing-attribute path fixes a pinned Lexbor old-value retention defect while preserving HTML callbacks. See [the source audit](research.md#xml-and-template-implementation-findings) and [capacity measurements](memory.md#attribute-value-retention). There is no new index, cache, protocol field, export, dependency, thread or compiler default.
+
+The initial isolated short comparison uses the same five fresh-process repetitions, separate fixture copies, 20 balanced blocks and four replays per batch described above. Import order reverses in the second and fourth repetitions. The following candidate contains the tag scan and XML hook change, before the additional HTML old-value cleanup. Ratios are baseline/candidate; controls are separate identical source/artifact copies. Each cell reports the median of five process medians, without control normalization.
+
+| Backend | XML input | Raw / filtered gain | Comparison blocks | Control raw / filtered | Control blocks |
+|---|---|---:|---:|---:|---:|
+| Native | Sitemap, 600 entries | 1.037 / 1.035 | 96/100 | 1.000 / 0.998 | 97/100 |
+| Native | SVG, 300 groups | 1.027 / 1.025 | 99/100 | 0.994 / 0.994 | 98/100 |
+| Pool | Sitemap, 600 entries | 1.061 / 1.055 | 97/100 | 0.994 / 0.995 | 97/100 |
+| Pool | SVG, 300 groups | 1.046 / 1.046 | 99/100 | 0.989 / 0.989 | 99/100 |
+
+All five candidate repetition medians exceed one for each case. Individual control drift remains visible in the retained raw reports; this is evidence for modest incremental gains, not completion of the per-input 3× gate. The tag-only intermediate comparison was less consistent and remains separate.
+
+The final candidate includes HTML buffer cleanup as well. Regression measurements compare it with `62a6341` on authored HTML, the eight refreshed MDN samples and the complete 19-case consumer panel. Use five fresh process pairs with five balanced blocks each, 40 whole-corpus warmups, six batches of two replays and the unchanged probe filter. Each pair shares an independently selected CPU; only one child measures at a time. Retain the 2% comparison/control tolerances and require at least three retained blocks in at least three pairs. Absolute adoption screens keep the established five fresh-process blocks and 10% control tolerance; individual XML cases use 80 warmups and eight replays per batch.
+
+The final candidate's incremental XML comparison uses that same five-pair method across all four XML inputs. Native improves 1.060× and pool 1.067×, with raw and filtered estimates equal and all 25 blocks retained. Matching controls are 1.000/1.003, retaining all 25 blocks. Every candidate pair median exceeds one: native 1.035–1.123 and pool 1.055–1.076. Native control pair medians span 0.958–1.030, so the reported 6–7% improvement is a scoped estimate, not an exact universal multiplier.
+
+The initial native authored-HTML result is 1.008 with a 0.972 control; all 25 blocks survive, but the control misses the 2% tolerance. Before examining additional results, extend both comparison and control by five process pairs and combine all ten. Preserve the original results and probe decisions; do not select the better replication. Other regression panels retain their original five-pair counts.
+
+| Regression panel | Backend | Raw / filtered | Blocks retained | Control raw / filtered | Control blocks | Screen |
+|---|---|---:|---:|---:|---:|---|
+| Authored HTML | Native | 1.007 / 1.007 | 50/50 | 0.993 / 0.993 | 50/50 | Pass |
+| Saved MDN | Native | 0.991 / 0.991 | 25/25 | 0.998 / 0.998 | 25/25 | Pass |
+| Complete consumer | Native | 1.017 / 1.026 | 22/25 | 0.999 / 0.999 | 22/25 | Pass |
+| Authored HTML | Pool | 1.007 / 1.007 | 25/25 | 1.009 / 1.009 | 25/25 | Pass |
+| Saved MDN | Pool | 1.003 / 1.003 | 25/25 | 1.005 / 1.005 | 25/25 | Pass |
+| Complete consumer | Pool | 1.002 / 1.002 | 25/25 | 1.003 / 1.003 | 25/25 | Pass |
+
+All six regression screens pass. The native authored-HTML row combines ten pairs; each other row uses five. Passing this tolerance does not prove exactly zero slowdown. The same refreshed archive inputs and consumer behavior remain fixed throughout these comparisons.
+
+| Adoption panel | Backend | Raw / filtered vs Cheerio | Blocks retained | Minimum retained | Control raw / filtered | Control blocks | 3× screen |
+|---|---|---:|---:|---:|---:|---:|---|
+| Explicit XML | Native | 3.522 / 3.522 | 5/5 | 2.605 | 0.946 / 0.946 | 5/5 | Retained block below target |
+| Synthetic HTML + XML | Native | 5.567 / 5.425 | 4/5 | 4.943 | 0.945 / 0.945 | 5/5 | Pass |
+| Complete consumer | Native | 3.909 / 3.909 | 5/5 | 3.117 | 1.002 / 1.002 | 5/5 | Pass |
+| Explicit XML | Pool | 3.572 / 3.572 | 5/5 | 3.384 | 1.013 / 1.013 | 5/5 | Pass |
+| Synthetic HTML + XML | Pool | 4.914 / 4.914 | 5/5 | 4.887 | 0.995 / 0.995 | 5/5 | Pass |
+| Complete consumer | Pool | 3.480 / 3.480 | 5/5 | 3.431 | 1.008 / 1.008 | 5/5 | Pass |
+
+| XML input | Backend | Median vs Cheerio XML | Minimum retained | Control median | 3× screen |
+|---|---|---:|---:|---:|---|
+| sitemap-120 | Native | 4.136 | 3.784 | 1.050 | Pass |
+| sitemap-600 | Native | 4.860 | 3.893 | 1.015 | Pass |
+| svg-120 | Native | 3.599 | 2.697 | 1.027 | Retained block below target |
+| svg-300 | Native | 3.200 | 3.025 | 0.995 | Pass |
+| sitemap-120 | Pool | 3.467 | 3.331 | 0.996 | Pass |
+| sitemap-600 | Pool | 4.398 | 4.300 | 1.000 | Pass |
+| svg-120 | Pool | 2.850 | 2.497 | 0.997 | Below target |
+| svg-300 | Pool | 2.725 | 2.342 | 0.997 | Below target |
+
+Every individual XML comparison/control retains all five blocks, so raw and filtered medians agree. Native SVG-300 now passes this replication, but native SVG-120 and both pooled SVG sizes remain open. The native XML aggregate also has a retained block below three, despite its median and the previous checkpoint's aggregate pass. No unfavorable block is discarded based on its speedup. Both backends pass the mixed synthetic and refreshed consumer aggregate rules; this does not establish the same multiplier for every input or deployment.
+
+The final 716-case matrix passes: native 699 passes/17 skips, shared Wasm 701/15, fresh Wasm 702/14 and pooled Wasm 705/11. Native/pool also pass on Node 24; all 19 refreshed consumer outputs/events match on all four backends. Types, the rebuilt native ASan/UBSan suite with leak detection, and the authored 2,430-lifetime memory budgets pass. Refreshed-corpus lifecycle diagnostics remain separate from the fixed budgets. Release Wasm has zero imports and no diagnostic exports.
