@@ -86,6 +86,14 @@ Cheerio speedup. No extension was run to chase a pass. Performance acceptance
 remains open for a later quiet-window check; the architectural checkpoint is not
 a production-performance approval.
 
+A separate, fixed nine-block XML/Node 24 confirmation began after a quiet host
+precheck. Every timed-block precheck subsequently reported busy activity. All
+nine blocks passed the probe filter: raw/filtered candidate ratio 0.9509 and
+control 1.0804. Group candidate medians ranged 0.8718–1.1275; controls ranged
+0.8873–1.1275. This confirmation is also inconclusive and is not combined with
+the earlier panel. It demonstrates that a quiet startup check did not provide a
+stable measurement window. No additional blocks were added.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol
