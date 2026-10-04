@@ -1,3 +1,4 @@
+#include "internal.h"
 /* Iterative XML support using the kernel arenas and reusable buffers. */
 #include "xml.h"
 #include <string.h>

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 test('explicit disposal is idempotent and invalidates selections and node handles', () => {
   const $ = load('<p>owned output</p>'), p = $('p'), node = p[0], output = $.html();
@@ -112,8 +112,8 @@ test('repeated unobserved subtree replacement returns nodes to document pools', 
 test('owner finalizer frees unreachable documents and retained selections keep them alive', () => {
   const script = `
     import assert from 'node:assert/strict';
-    import { load } from './src/index.js';
-    import { kernel } from './src/kernel.js';
+    import { load } from './diagnostics/index.js';
+    import { kernel } from './diagnostics/kernel.js';
     let retained = load('<p>retained</p>')('p');
     for (let i = 0; i < 12; i++) load('<p>garbage</p>')('p')[0];
     for (let i = 0; i < 30 && kernel.stats().liveDocuments > 1; i++) { global.gc(); await new Promise(setImmediate); }

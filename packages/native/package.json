@@ -1,0 +1,27 @@
+{
+  "name": "grovedom-native",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Experimental Linux Node-API target for GroveDOM",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "os": [
+    "linux"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/native.d.ts",
+      "import": "./src/native.js"
+    }
+  },
+  "files": [
+    "src",
+    "grovedom.node",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "cheerio": "1.2.0"
+  }
+}

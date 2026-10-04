@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
-const wasm = process.env.GROVEDOM_BACKEND === 'wasm';
+const wasm = (process.env.GROVEDOM_BACKEND ?? 'wasm') === 'wasm';
 test('string results preserve leading BOM, Unicode, NUL and prior values after disposal', () => {
   const $ = load('<p>initial</p>');
   const value = '\ufeff\u0000é汉字🪴';
@@ -81,12 +81,12 @@ test('Wasm transfers refresh after growth and preserve copied results and Unicod
 });
 
 test('retaining disposed Wasm selections does not retain a released heap buffer', {
-  skip: !wasm || (process.env.GROVEDOM_WASM_HEAP ?? 'global') === 'global',
+  skip: !wasm || (process.env.GROVEDOM_WASM_HEAP ?? 'pool') === 'global',
 }, () => {
   const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', `
     import assert from 'node:assert/strict';
-    import { load } from ${JSON.stringify(new URL('../src/index.js', import.meta.url).href)};
-    import { kernel } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
+    import { load } from ${JSON.stringify(new URL('../diagnostics/index.js', import.meta.url).href)};
+    import { kernel } from ${JSON.stringify(new URL('../diagnostics/kernel.js', import.meta.url).href)};
     const OriginalInstance = WebAssembly.Instance;
     let memory;
     WebAssembly.Instance = class extends OriginalInstance {

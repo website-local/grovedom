@@ -1,6 +1,6 @@
 #include <node_api.h>
 #include <string.h>
-#include "kernel.h"
+#include "internal.h"
 static const napi_type_tag gd_owner_tag = { UINT64_C(0x82cbf466f8a1472d), UINT64_C(0xa1b4c94086cf2067) };
 
 static void gd_account(napi_env env, gd_document *doc) {

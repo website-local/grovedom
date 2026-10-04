@@ -1,180 +1,105 @@
-# Runnable prototypes
+# Setup and packages
 
-GroveDOM has a shared C/Lexbor kernel, thin Node-API and direct Wasm bindings, and a Cheerio-shaped ESM facade. These are experimental candidates, not a selected production backend or a complete Cheerio replacement. Performance on normal successful workloads is the first priority. Exact invalid-input behavior and error-message parity are not adoption gates; correct successful results and memory safety remain required.
+The repository is a development workspace, not a published release. Use existing
+Node, Clang/LLVM, CMake/Ninja and reviewed Lexbor/WASI libraries. Builds install no
+toolchains. Put temporary files, caches and outputs in a disk-backed scratch
+location appropriate for your environment.
 
-## Build and run
+## Build
 
-Use Node.js >=22.0.0 and existing C11/Clang, LLVM linker/archive tools, CMake, and Ninja installations. Native builds currently target Linux and need Node-API headers. Wasm additionally needs wasm-ld, a WASI sysroot/libc, and compatible compiler builtins. Scripts install nothing and use no Python, node-gyp, Emscripten, or binding generator.
-
-Set locations using environment variables; keep downloads, caches, build products, logs, profiles, and private corpus manifests outside public repository content:
-
-| Variable | Purpose |
-|---|---|
-| `TMPDIR`, `TMP`, `TEMP`, `npm_config_cache` | Disk-backed temporary storage and cache |
-| `GROVEDOM_LEXBOR_SOURCE` | Clean reviewed source from `native/dependency.json` |
-| `GROVEDOM_BUILD_DIR` | Native build output; reuse when running |
-| `NODE_INCLUDE_DIR`, `CC` | Optional existing Node headers and C compiler |
-| `GROVEDOM_WASI_SYSROOT` | Existing WASI sysroot |
-| `GROVEDOM_WASM_BUILTINS` | Existing Wasm compiler builtins archive |
-| `GROVEDOM_WASM_BUILD_DIR` | Wasm build output; reuse when running |
-| `GROVEDOM_TSC` | Existing TypeScript compiler entry for declaration checks |
-| `GROVEDOM_OPT_LEVEL` | Kernel/binding optimization: `2`, `3` (default), or `s`; Lexbor remains O3 |
-| `GROVEDOM_LTO` | `off`, `thin` (default), or `full`, applied to kernel and Lexbor |
-| `GROVEDOM_BUILD_JOBS` | Positive compiler/linker concurrency limit; default two |
-| `GROVEDOM_PROFILE` | Set to `1` for diagnostic phase clocks/counters; omitted in release builds |
-| `GROVEDOM_WASM_FEATURES` | Optional comma-separated `bulk-memory`, `simd128`, `relaxed-simd`, `tail-call`, `nontrapping-fptoint`; default empty |
-| `GROVEDOM_WASM_INITIAL_PAGES` | Initial linear memory in 64 KiB pages; default 16 |
-| `GROVEDOM_WASM_STACK_BYTES` | Linear-memory stack reservation; default 32,768 bytes |
-| `GROVEDOM_WASM_PROFILE_STACK` | Set to `1` to export stack globals for the separate diagnostic |
-
-The build verifies the reviewed Lexbor source fingerprint. This checks build inputs and adds nothing to the private command protocol. JS and kernel artifacts are paired using build/package metadata; there is no stable internal ABI or protocol version/checksum.
+Developer scripts accept environment variables; **shipped runtime code does not**.
+Set `TMPDIR`, `GROVEDOM_LEXBOR_SOURCE`, `GROVEDOM_BUILD_DIR`,
+`GROVEDOM_WASM_BUILD_DIR`, `GROVEDOM_WASI_SYSROOT` and `GROVEDOM_WASM_BUILTINS`.
+The pinned dependency is recorded in [native/dependency.json](../native/dependency.json).
 
 ```sh
-npm ci --ignore-scripts --no-audit --no-fund
 npm run build:native
-npm test
-npm run test:types
 npm run build:wasm
-GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=global npm test
-GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=document npm test
-GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=pool npm test
-node bench/compare.mjs
+node scripts/package-targets.mjs --out=/scratch/packages --wasm=/scratch/wasm --native=/scratch/native
 ```
 
-The native backend is the default. The Wasm adapter uses `WebAssembly.Module`/`Instance` directly, with no emulated Node-API layer or experimental Node WASI API. **Release Wasm modules have zero imports**, including no `wasi_snapshot_preview1` functions or descriptor stubs. The build checks this invariant; diagnostic builds may import only their explicit timing hooks. The current JS adapter targets Node, not browsers.
+Use a **new** output directory. Packaging creates independent `grovedom` and
+`grovedom-native` directories plus a demo. It copies the same Wasm binary for Node
+and browser use and bakes build constants into ESM. Native packages contain no
+Wasm runtime; the main package contains no addon or native loader. Neither ships
+diagnostics, source/build JSON manifests or environment-based runtime loaders.
+Nothing is published by these commands. `npm pack --pack-destination=DIR` can
+produce a tarball from either generated package.
+
+Release defaults: O3/ThinLTO, optional source target features off, 1 MiB initial
+Wasm memory, 32 KiB linear stack, 16 KiB transfer scratch. Compiler flags remain
+build-time choices. A build emits an ESM constants file used during packaging;
+release loading does not inspect metadata or compare package versions.
+
+## Runtime initialization
 
 ```js
-import { load } from 'grovedom';
-const $ = load('<p class="intro">Hello</p>');
-try {
-  $('p').addClass('offline').wrap('<section></section>');
-  console.log($.html());
-} finally {
-  $.dispose();
-}
+import { init, load } from 'grovedom';
+init({ wasm: '/application/assets/grovedom.wasm', heap: 'pool' });
+const $ = load('<p>Hello</p>');
+try { console.log($('p').text()); } finally { $.dispose(); }
 ```
 
-Default execution buffers mutations in one document-wide ordered stream. Selectors materialize snapshots when issued. Reads, including live node getters inside callbacks, flush earlier mutations; callbacks receiving only snapshot identities need no separate entry flush. Pending writes and their following read share a Node-API call. `$.flush()` is available. `{ execution: 'direct' }` disables buffering for comparison. Calls are synchronous on either the main thread or a caller-managed worker. Documents stay within their creating environment; the library creates no threads.
+Node `init` is synchronous. Omitting it loads the bundled Wasm on first DOM use.
+`wasm` accepts a local path, file URL, byte array, ArrayBuffer or compiled module.
+Pool defaults are eight idle instances and 16 MiB total idle memory. `poolSize`
+and `poolMaxBytes` are nonnegative integers; zero disables idle retention.
+`heap` may be `pool`, `global` or `document`.
 
-## API coverage
+```js
+import { init, load } from 'grovedom-native';
+init({ addon: '/application/native/grovedom.node' }); // optional custom location
+```
 
-| Area | Implemented methods/behavior |
-|---|---|
-| Loading | HTML/XML strings and UTF-8 Buffers; XML SVG/sitemaps; document/body-context fragment modes; `scriptingEnabled`, `baseURI`; markup construction and initialization objects through `$` |
-| Collections | Indexing, iteration, `get`, `toArray`, `eq`, `first`, `last`, `slice`, `splice`, `each`, `map`, `end` |
-| Traversal | `find`, `children`, `contents`, `parent`, `parents`, `closest`, `siblings`, `next`/`prev`, `nextAll`/`prevAll`, `nextUntil`/`prevUntil`/`parentsUntil` |
-| Selection | `filter`, `not`, `is`, `has`, `add`, `addBack`, `index`; common trailing positional pseudos; leading relative query chains and `:scope` |
-| Attributes/data | `attr`, `removeAttr`, class helpers, `data`, `removeData`, `css`, `val` |
-| Mutation | `text`, `html`, `append`/`prepend`, `before`/`after`, insertion-to helpers, `remove`, `detach`, `empty`, `clone`, `replaceWith`, wrapping helpers |
-| Properties | Common property reads; tag rename, text/HTML setters and attribute-backed writes |
-| Extraction | `serialize`, `serializeArray`, `extract`; static `html`, `xml`, `text`, `root`, `contains`, `merge`, `parseHTML`, `extract`, `load` |
-| Raw handles | Stable identity; name/tag rename, type, relatives, child arrays, character data, live attribute map |
-| Lifecycle | Explicit idempotent `dispose`, backend GC fallback, `flush` |
+Native defaults to its bundled addon. Package entries own independent state and
+handle brands. Configuration cannot change after successful initialization,
+including implicit initialization through `load`, `contains` or `merge`.
+Failed initialization can be retried. No package metadata compatibility check
+is performed: distribute the matching JS and artifact together.
 
-This is selected, tested behavior, not blanket equivalence for every overload. Cheerio's public `FilterFunction`, `SelectorType`, and option types are reused. GroveDOM declarations describe its own handles instead of pretending they are complete domhandler nodes. Callback, mapping, extraction, and lifecycle examples have separate TypeScript checks. Cheerio is a pinned type peer/development baseline; runtime code does not import it.
+## Browser and demo
 
-Remaining exclusions include encoding-sniffing `loadBuffer`, stream/network loading, arbitrary serializer options, custom pseudos/plugins, relative selectors in filters and mixed child/sibling relative lists, nested Cheerio-only pseudos, cross-document node adoption, and unrestricted domhandler mutation. See the [compatibility inventory](compatibility.md) for the complete public API boundary. Unknown parser options and selectors fail explicitly; there is no silent Cheerio fallback. Plain CSS goes directly to Lexbor. Common trailing `:first`, `:last`, `:eq`, `:nth`, `:lt`, `:gt`, `:even`, and `:odd` are handled over selection results; this is not a general selector-extension engine.
+```js
+import { init, load } from 'grovedom/browser';
+await init({ wasm: new URL('./grovedom.wasm', import.meta.url) });
+```
 
-Additional edge semantics still need consumer coverage, including namespace changes during rename, arbitrary mixed-root ordering, and all arbitrary property combinations. Differential checks now cover missing/selected option values, successful form serialization (including Cheerio's disabled-fieldset behavior), supported URL properties and connected/detached-subtree ordering. Explicit namespace writes remain unsupported. `add` sorts connected nodes in tree order and groups disconnected roots by first occurrence. Child arrays are snapshots, not writable live domhandler arrays. Mutations must go through supported methods or supported node setters.
+The browser entry requires explicit async initialization. It fetches bytes and
+uses `WebAssembly.compile`, without requiring streaming compilation or a specific
+Wasm MIME type. DOM calls are synchronous afterward. Concurrent/repeated init
+calls are rejected; await the original call. URL fetching follows browser CORS
+and CSP rules. This is best-effort support, not a tested browser-version matrix.
 
-An isolated engine 0.9.1/MDN replay now executes real DOM transforms through an engine-side disposal scope, including nested documents and serialization. Eleven authored scenarios and eight saved pages match Cheerio output and ordered resource events on all four backends. It stubs resource I/O and URL policies, and does not run the complete downloader. Cross-document adoption is deferred after the consumer audit. See [integration](integration.md).
+```sh
+node scripts/serve-demo.mjs /scratch/packages 8080
+```
 
-## Templates and expanded compatibility
+Open the printed loopback URL. The demo compares three short parsing/query/edit/
+serialization pairs against browser DOMParser, checking output equality first.
+It does not compare Cheerio or establish an adoption multiplier.
 
-HTML templates expose a fragment child through `contents()`, with stable handles and normal document ownership. Queries, text reads, cloning, fragment mutations, retained detached contents, and disposal have differential/lifecycle coverage. As in Cheerio, `template.find(...)` starts at element children; use `template.contents().find(...)` to query its content. Selector ancestry and `parents`/`closest` stop at the fragment, while raw parent links and `contains` preserve its connection.
+## Checks
 
-Ordinary CSS on template documents uses Lexbor subtree scans with fragment matches merged in preorder, avoiding a fresh evaluator call for every element. Entirely element-scoped queries exclude fragment descendants, matching Cheerio. CSS `:has`, `:empty` and `:contains` use a compatibility evaluator when necessary, with bounded selector recursion and reusable text storage. Common Cheerio form aliases are expanded and cached; ordinary non-template CSS keeps its existing kernel path.
+`npm test` uses developer-only diagnostic entries. Select backend/heap with
+`GROVEDOM_BACKEND=napi|wasm` and `GROVEDOM_WASM_HEAP=pool|global|document`.
+Build locations use the variables above. `GROVEDOM_TEST_BROWSER=1` exercises the
+portable byte path under Node. `node --experimental-vm-modules
+test/browser-sandbox.mjs` checks the browser ESM graph without Node globals; it
+is not a browser-engine test.
 
-Serialization uses an iterative walk around Lexbor's node serializer, preserving template containers and Cheerio's attribute escaping. It leaves angle brackets literal inside attribute values while still escaping quotes, ampersands and nonbreaking spaces. HTML getters do not reproduce Cheerio's incidental mutation of template child arrays. All eight selected unmodified MDN pages now match Cheerio's parse and authored-replay output; this is not the complete engine replay.
+`npm run test:types` reuses an existing compiler (`GROVEDOM_TSC`).
+`npm run test:fuzz` runs deterministic mutation replays; use disk-backed
+`GROVEDOM_FUZZ_DIR` for reproducers. Native sanitizer builds use a separate build
+directory and `GROVEDOM_SANITIZE=1`. `scripts/check-faults.mjs` tests owned buffer
+allocation failures with sanitizers and a separate `GROVEDOM_FAULT_BUILD_DIR`.
+See [benchmarks](benchmarks.md) for short measurement rules and
+[compatibility](compatibility.md) for supported versus best-effort behavior.
 
-The expansion also corrects multi-node ancestor order, wrapping overloads, empty-selection property reads, `insertBefore`/`insertAfter` clone identity, and `addBack` without a prior selection. `splice` and `merge` change selection membership without modifying the DOM or earlier snapshots. Top-level `contains` and `merge` are exported; `merge` reuses Cheerio's declaration directly.
-
-Repeated unobserved subtree replacement now explicitly frees attributes before invoking specialized Lexbor HTML destructors. Those destructors omit the shared element attribute cleanup, which previously caused arena growth on repeated attribute-bearing replacements. Observed nodes remain retained until disposal.
-
-XML is implemented in the shared kernel for SVG and sitemaps, with case-sensitive names, qualified attributes, entities, CDATA, declarations, fragment mutation and serialization. It uses the same arenas, ordered operations, handles and disposal paths; no additional dependency or toolchain is needed. See the [XML contract](compatibility.md#xml-svg-and-sitemaps) for supported load options and intentional limits.
-
-## Wasm ownership and memory
-
-All modes reuse one compiled module per caller environment:
-
-| Mode | Ownership and disposal | Retention |
-|---|---|---|
-| `global` | One instance serves several document arenas; explicit disposal/finalizer frees each arena | Linear-memory high-water capacity stays reusable but cannot shrink |
-| `document` | Fresh instance per DOM; explicit disposal clears owner references; host GC reclaims backing memory | Instantiation repeats; physical reclamation can lag disposal |
-| `pool` | One document per checked-out instance; disposal or registry fallback returns an empty instance | Idle instances are bounded and reusable; overflow is dropped for host GC |
-
-The pool defaults to eight idle instances and 16 MiB **total idle linear memory**. Configure `GROVEDOM_WASM_POOL_SIZE` and `GROVEDOM_WASM_POOL_MAX_BYTES`; either can be zero. Active documents are not capped by these limits. Oversized/overflow instances are not retained in the pool. Private diagnostic `kernel.trim()` drops idle instances; it cannot shrink shared memory or force host GC. The [pool comparison](memory.md#wasm-first-allocation-and-lifetime-recheck) records the additional retention and removal of recurring consumer instantiation. Pooling involves no threads, scheduler, shared-document access, or custom allocator.
-
-The default initial linear memory is **1 MiB**, including a **32 KiB stack**, static data, and **16 KiB transfer scratch**; maximum linear memory is 2 GiB. The [recursion audit and expanded measurements](stack.md) support halving the previous 64 KiB stack reservation. Initial-size experiments use the build-time `GROVEDOM_WASM_INITIAL_PAGES` setting, in 64 KiB pages; `GROVEDOM_WASM_STACK_BYTES` sets the stack separately. They must be linked into the module: with this WASI libc, simply providing a larger imported memory leaves additional initial capacity outside the allocator's known region. No input-size heuristic is enabled; measured growth did not dominate lifetime cost. See [the earlier stack and transfer measurements](benchmarks.md#wasm-stack-and-transfer-storage).
-
-Each instance shares its fixed transfer area across synchronous calls for all of its documents. Small transfers avoid a per-document allocation and a `gk_transfer` call; larger transfers retain the existing document-owned buffer. Pending JS operations remain per-document, preserving nested calls, interleaved documents, and discard-on-disposal behavior. Each returned selection/string still owns its data. The Node Wasm adapter caches a `Buffer` view of memory and decodes strings directly from its range, avoiding a temporary subarray for each result and preserving leading BOM characters. Growth detaches this non-shared buffer; its zero-length view triggers a refresh without reading the engine's memory-buffer getter on every check. Disposal clears the views.
-
-The core tracks backing allocations, reuses geometrically grown buffers, caps selector plans at 32, reuses existing attribute/text capacity where possible, and returns unobserved removed subtrees to document pools. Cached selector keys and parsed plans share one document-owned CSS arena, created on first use. A miss after 32 entries resets the whole cache; failed parses also reset it. Parser selector state is reused. Plans never escape a synchronous query, so resetting them preserves selection snapshots and node identity. Node IDs are not recycled while a document lives. Observed detached nodes stay valid until disposal. Renaming retains the previous empty interface in the document arena because parser side pointers may still refer to it; repeated rename retention remains a limitation to address if material in the real workload.
-
-Standalone tag queries use a direct preorder scan with the existing scope, result ordering and deduplication rules. Plain ASCII tag names resolve through the existing tag tables without parsing CSS; escaped, Unicode, namespace and compound selectors keep the general path. CSS parser and matcher state initialize on first use. XML disables internal HTML element hooks while preserving ordinary DOM links and ID/class attributes. Growing attributes return superseded buffers to document storage; see [the retention fix](memory.md#attribute-value-retention). These changes add no per-node allocation or persistent DOM index.
-
-Native allocation scopes/counters are thread-local. The Linux loader installs Lexbor's process-wide allocator hooks once, before concurrent environments use them. Native external-memory accounting updates at call boundaries. Wasm reuses byte/word transfer views, refreshing them after allocating exports and growth by other documents in the shared heap. Disposal clears cached views as well as the runtime reference. Caller-visible outputs are copied. Short ASCII inputs avoid temporary encoder views/results; other strings still use UTF-8 encoding. No per-node finalizers or cross-language reference counts are introduced.
-
-Explicit disposal discards pending work and invalidates retained handles. GC fallback is secondary: native owner finalization, registry cleanup for shared/pooled Wasm, host ownership for fresh instances. Registry-held records do not retain their owner targets. Live selections keep documents alive until explicit disposal or abandonment of the complete ownership graph.
-
-XML handles defer their single-ID array until a selection or node operation needs stable storage. XML attribute/text callbacks reuse one document-owned ID array for immediate operations, reacquiring it after callbacks and string coercion. Actual selections retain stable arrays, and disposal clears the reusable array. HTML callback loops retain their existing handle records. See [the allocation and lifetime checks](memory.md#xml-callback-array-lifetime).
-
-## Verification and diagnostics
-
-The tests include authored Cheerio differential cases, [selected upstream Cheerio/jQuery suites](../test/upstream/README.md), worker/lifecycle checks, pool reuse/cap/GC tests, selector-cache resets, and Wasm growth/disposed-buffer regressions. Run each Wasm mode explicitly. The current 726-case matrix includes 618 imported upstream cases. Native passes 709 cases with 17 skips; shared, fresh and pooled Wasm pass 711/712/715 with 15/14/11 skips. Skips include 11 documented upstream exclusions and tests specific to other backends/heap modes. Native and pooled Wasm also pass on Node 24; the native ASan/UBSan suite with leak detection is clean. These checks cover the implemented paths; the exact Node 22.0.0 floor, allocation-failure injection, and broader fuzz coverage remain release work. Sanitizers do not establish absence of data races or allocator fragmentation. See [memory](memory.md) for sustained lifetime measurements and scoped capacity budgets.
-
-For sanitizer builds use a separate `GROVEDOM_BUILD_DIR`, set `GROVEDOM_SANITIZE=1`, and run with the matching existing Clang ASan runtime, leak detection, and disk-backed log locations. Keep sanitizer results separate from release timing.
-
-`npm run test:fuzz` runs seeded HTML/XML mutation sequences against Cheerio,
-including retained selections and exact serialized observations. Set a disk-backed
-`TMPDIR` and `GROVEDOM_FUZZ_DIR` for active-case and failure reproducers.
-`GROVEDOM_FUZZ_SEED` and `GROVEDOM_FUZZ_CASES` control deterministic generation;
-`GROVEDOM_FUZZ_CASE_FILE` replays a saved case. With
-`GROVEDOM_FUZZ_MALFORMED=1`, corrupted input exercises safe parsing, mutation and
-disposal without requiring invalid-input parity. Each case checks live-document
-and backing-byte counters. `GROVEDOM_FUZZ_TEMPLATES=1` adds template-focused HTML
-queries while retaining the XML cases. The final matrix covers 1,000 cases in each
-of the three modes on native, every Wasm heap and sanitized native, followed by
-3,000 additional cases with the eight-slot pool: 18,000 case executions. Run the
-same seeds across backends; this bounded generator does not establish exhaustive
-fuzz coverage.
-
-`bench/run.mjs` compares direct/buffered GroveDOM with both Cheerio parsers on an authored replay; `bench/compare.mjs` runs all four backend/heap cases. `bench/selector-fixtures.mjs` isolates sparse/dense long selector lists; it is a diagnostic rather than a gate workload. `bench/memory.mjs` requires `--expose-gc` and records large-then-small/interleaved lifetimes. `bench/profile.mjs` isolates the candidate for Node's `--cpu-prof`, with `--cpu-prof-dir` pointing to disk-backed scratch storage.
-
-`bench/allocations.mjs` records one authored replay's backing allocation requests and post-disposal counters without timing. Run it in a fresh process for each source/artifact pair; use shared Wasm for its core peak-byte counter. Fresh/pooled Wasm statistics sample live bytes only, so their reported `peakBytes` can miss a completed lifecycle. These counters exclude JS allocations and allocator slack.
-
-### Phase profiling and compiler experiments
-
-Build with `GROVEDOM_PROFILE=1`, then run `node bench/phase-profile.mjs`. For Wasm add `GROVEDOM_BACKEND=wasm GROVEDOM_WASM_HEAP=global`; one persistent runtime keeps core counters available throughout the measurement. Separate lifecycle benchmarks compare the three heap policies. Use separate build directories for profiling and release artifacts.
-
-The profile reports inclusive/exclusive phase time, boundary calls, commands, selector hits/misses, XML name/decode/serialization work, allocation requests, and output chunks/bytes. Set `GROVEDOM_PROFILE_WORKLOAD` to a fixture module and `GROVEDOM_PROFILE_INPUT` to an input file for XML diagnostics; both `phase-profile.mjs` and `profile.mjs` support these overrides. Native x86 uses fenced reference-TSC reads calibrated against a monotonic OS clock; these are elapsed reference ticks, not retired instructions or core cycles. Other native targets use the monotonic clock. Wasm imports a host clock. Empty-scope and JS-wrapper calibration accompany each report. Tiny Wasm phase timings include substantial clock-import overhead; instrumented elapsed time is never a release speedup measurement. Native records and stack scopes are thread-local and allocate no heap storage per event. Release builds omit the clocks and counters.
-
-`bench/ab.mjs` checks exact output before alternating release timing. Supply `GROVEDOM_AB_MANIFEST` with `variants: [{ name, entry, env }]`; every entry must point to an isolated source snapshot with its matching kernel artifact. An optional `corpus: [{ id, path }]` selects private input files. The default uses the authored replay. Reports emit labels and raw samples without paths. Configure rounds, iterations, and authored article count with `GROVEDOM_BENCH_ROUNDS`, `GROVEDOM_BENCH_ITERATIONS`, and `GROVEDOM_BENCH_ROWS`.
-
-`bench/short.mjs` uses that manifest with exactly two variants for repeated short batches. Each retained/rejected block includes both ABBA and BAAB halves, giving each variant the first position after an event-loop yield. Defaults are 60 balanced blocks, 12 replays per batch, and 200 warmups per variant. For larger pages, reduce the iteration count to keep individual batches short. Parsing, mutation, serialization, explicit disposal, and any GC during a batch remain inside its wall time; there is no forced GC.
-
-An optional `workload` module in the short-run manifest exports `page(rows)` and `replay(load, source)`. Use `bench/xml-fixtures.mjs` for the authored sitemap/SVG replay and generate its `page`/`svg` inputs into disk-backed scratch for the manifest's corpus. Its baseline is Cheerio `{ xml: true }`, which uses htmlparser2; parse5 has no XML mode. Always check exact output before timing.
-
-A separate integer-loop CPU probe runs before and after each batch. Reject a whole balanced block only when its maximum/minimum probe time exceeds 1.5. The filter never inspects either variant's elapsed time or their ratio. Calibration samples are diagnostic only: a fixed absolute cutoff can misclassify a steady change in the probe's own speed. Reports retain all raw blocks, rejection counts, both filtered and unfiltered summaries, and results by starting order. The filter detects some transient interference; it cannot detect steady host load or every interruption, or prove that GC and runtime effects are absent from the probes. Filtered results describe the retained windows, not unconditional throughput.
-
-Run identical-code controls with separate copies of the same source and matching artifact settings, then repeat the comparison in fresh processes with a fixed run count. Compare raw and filtered estimates and the between-process spread. Do not discard a block because one candidate is slow, retune the filter to obtain a desired speedup, or treat per-block percentile ranges as confidence intervals. Keep measurements inconclusive when the apparent improvement is comparable to control error or depends on filtering.
-
-`bench/process.mjs` accepts two or more manifest variants and loads only one implementation per fresh child process, avoiding mixed facade shapes and overlapping implementation lifetimes within a process. Each block rotates the starting variant, then mirrors the order. Two variants retain ABBA/BAAB ordering. Use a multiple of the variant count for equal position coverage. Defaults are three blocks, 400 warmups, and 30 timed batches per process; process startup and warmup are excluded. Configure block count with `GROVEDOM_BENCH_BLOCKS`, warmups with `GROVEDOM_BENCH_WARMUPS`, and batch counts/sizes with the usual rounds/iterations variables. It checks output equality and preserves every timed batch. Pairwise reports use the same balanced blocks. A supplementary filtered report rejects complete process blocks only when independent CPU probes vary by more than 1.5×. Identical-code controls can occupy additional variant slots. This is a complementary check: process-to-process drift and GC still affect results.
-
-Import and first-corpus timings are reported separately for each process. They exclude process startup and input preparation and are diagnostics, not noise-filtered cold-start guarantees. `bench/corpus-profile.mjs` runs a preloaded manifest variant for Node CPU profiling, JS allocation sampling, or three GC/trimmed retention snapshots. Set `GROVEDOM_PROFILE_VARIANT`, `GROVEDOM_PROFILE_ITERATIONS`, and a disk-backed `GROVEDOM_PROFILE_DIR`; `GROVEDOM_PROFILE_MODE=heap` samples allocations and `retention` requires `--expose-gc`. Instrumented elapsed times do not establish release speedups.
-
-On Linux, `GROVEDOM_BENCH_AFFINITY=quiet` samples permitted CPUs through `/proc` before each block and uses the existing `taskset` command to pin all child processes of that block to the least busy sampled CPU. It installs nothing and changes no host-wide settings. This is independent of candidate timings and does not guarantee freedom from interference; retain matching controls. The refreshed saved-MDN input identities are listed in [the sample manifest](../bench/mdn-samples.json). Extract only those archive members into disk-backed corpus storage and provide their local paths through the private benchmark manifest.
-
-The measured default is O3 plus ThinLTO. Native LTO uses lld; both builds resolve matching LLVM archive tools through Clang. `GROVEDOM_LTO=off` retains a straightforward non-LTO build for comparison. No CPU-specific instruction flags or profile-guided training corpus are baked into artifacts. See [the measurements](benchmarks.md#deep-profiling-and-compiler-tuning) for scope and variability.
-
-Wasm feature flags apply to both Lexbor and the kernel, including the LTO link. An empty `GROVEDOM_WASM_FEATURES` keeps compiler defaults; it does not disable features already present in the prebuilt libc. For example, `GROVEDOM_WASM_FEATURES=bulk-memory,simd128` permits explicit bulk operations and automatic vectorization in source compilation. The [feature sweep](benchmarks.md#wasm-target-features-and-removal-of-wasi-imports) found no repeatable overall win, so additional features remain opt-in. There is no runtime feature dispatcher or extra artifact set.
-
-The [repeated short-run feature comparison](benchmarks.md#wasm-features-with-repeated-short-runs) also found no repeatable overall win across Node 22/24 and both authored page sizes. Its raw/filtered estimates, reversed-import runs, and identical-code controls retain substantial variability. These compiler experiments do not measure handwritten SIMD. Generated vector loads/stores alone do not establish acceleration of byte-scanning or parsing loops. Any explicit intrinsics experiment must target a measured bottleneck in GroveDOM-owned code, preserve bounded reads and a scalar path, and remain separate from this feature comparison. Lexbor stays unmodified; no SIMD fork is planned.
-
-The former WASI descriptor imports came from the kernel's mutation-error `snprintf` call, which pulled in libc's general stdio implementation. A bounded integer formatter now writes into the existing document error buffer. The linker discards the unused stdio dependency; no permissive unresolved-symbol policy, syscall wrappers, or suppressed output are needed. Error codes, operation indices, and preceding mutation effects remain intact.
-
-For stack measurements, build into a separate directory with `GROVEDOM_WASM_PROFILE_STACK=1`, then run `node bench/stack.mjs`. This requires the existing `llvm-objdump` executable (`LLVM_OBJDUMP` can override its location). The Node diagnostic verifies disassembly offsets and instruments every stack-pointer assignment in a temporary module, including prebuilt libc code. It also fills the stack with two sentinel patterns before execution. Reports distinguish reserved depth from bytes written; neither includes the engine's separate call stack. Only temporary copies are instrumented, with no Lexbor source changes. Release builds expose no stack globals or counters. An optional `GROVEDOM_HTML_MANIFEST` uses the same private `{ id, path }` input format as heap diagnostics; template-containing pages now run through the facade. The [audit](stack.md) records indirect recursion as well as direct calls and includes compatibility-selector limits, malformed-selector cleanup, sorting and HTML recovery.
-
-For heap diagnostics, set `GROVEDOM_WASM_PROFILE_GROWTH=1` while building and running. This produces a separate instrumented module. `bench/heap-growth.mjs` reads `GROVEDOM_HTML_MANIFEST`, a private JSON array of `{ "id": "page-label", "path": "input-file" }`. File paths/content are not emitted. `GROVEDOM_HEAP_WORKLOAD=parse` uses a diagnostic-only entry point to parse unmodified pages including templates, then dispose; it does not expose a template DOM or establish facade compatibility. Default mode includes selection, mutation and serialization and reports unsupported pages explicitly. Rebuild for every initial-size setting. Release builds contain no growth-clock instrumentation or template-probe entry point.
-
-A zero live-byte counter after disposal is not proof of prompt OS reclamation, zero arena slack, or absence of fragmentation. Full-workload budgets, sustained mixed-size reuse, the complete engine replay, and the fastest-compatible-baseline audit remain adoption work. Rust remains an unmeasured candidate. No package or repository has been published.
+The refactor checkpoint passed the 729-case matrix: native 712 passes/17 skips,
+shared Wasm 714/15, fresh Wasm 715/14 and pooled Wasm 718/11. Native/pool also
+pass Node 24. Public entries match all nineteen consumer outputs/events; type
+checks, native ASan/UBSan with leak detection, owned buffer failure injection and
+1,200 additional deterministic fuzz cases pass. Separate target packages load on
+Node 22/24 without build metadata. Portable browser checks include missing
+FinalizationRegistry and TextEncoder.encodeInto fallbacks; actual browsers and
+the exact Node 22.0.0 floor remain untested.

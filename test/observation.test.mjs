@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
-import { kernel } from '../src/kernel.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 test('cached command transfers survive growth with equal UTF-8 output lengths', () => {
   for (const xml of [false, true]) {

@@ -32,8 +32,8 @@ test('concurrent worker imports and DOM operations have independent ownership', 
     assert.ok(message.stats.liveBytes > 0);
   }
 
-  const { load } = await import('../src/index.js');
-  const { kernel } = await import('../src/kernel.js');
+  const { load } = await import('../diagnostics/index.js');
+  const { kernel } = await import('../diagnostics/kernel.js');
   assert.equal(kernel.stats().liveDocuments, 0);
   assert.equal(kernel.stats().liveBytes, 0);
   const $ = load('<main>parent survives</main>');
@@ -62,8 +62,8 @@ test('concurrent worker imports and DOM operations have independent ownership', 
 
 for (const mode of ['exit', 'terminate']) {
   test(`worker ${mode} finalizes retained documents while parent remains live`, { timeout: 30000 }, async t => {
-    const { load } = await import('../src/index.js');
-    const { kernel } = await import('../src/kernel.js');
+    const { load } = await import('../diagnostics/index.js');
+    const { kernel } = await import('../diagnostics/kernel.js');
     const $ = load('<p>parent</p>');
     const bytes = kernel.stats().liveBytes;
     try {

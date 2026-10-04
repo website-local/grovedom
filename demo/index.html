@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GroveDOM browser benchmark</title>
+<style>
+:root { color-scheme: light dark; font: 17px/1.6 system-ui, sans-serif; }
+body { max-width: 52rem; margin: 3rem auto; padding: 0 1.25rem; }
+h1 { line-height: 1.2; }
+label, button { margin-right: 1rem; }
+button, select { font: inherit; padding: .3rem .7rem; }
+pre { white-space: pre-wrap; padding: 1rem; background: #8882; border-radius: .5rem; }
+small { display: block; margin: 1rem 0; }
+</style>
+<h1>GroveDOM in your browser</h1>
+<p>The same Wasm binary as the Node package, initialized asynchronously. Each short
+trial parses a fresh document, queries and edits articles, serializes the result,
+and disposes GroveDOM. Exact output is checked before timing.</p>
+<p><label>Articles <select id="rows"><option>120</option><option>600</option></select></label>
+<button id="run" disabled>Run short comparison</button></p>
+<p id="status" role="status">Loading Wasm…</p>
+<pre id="results" aria-live="polite"></pre>
+<small>Reference: the browser’s DOMParser and DOM methods, not Cheerio. Three
+alternating pairs are a local demo, not a production performance gate. Browser
+scheduling, compilation and GC can affect results; raw times are shown.</small>
+<script type="module" src="./benchmark.js"></script>
+</html>

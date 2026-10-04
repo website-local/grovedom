@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, beforeEach, afterEach } from 'node:test';
-import { load as groveLoad, contains, merge } from '../src/index.js';
+import { load as groveLoad, contains, merge } from '../diagnostics/index.js';
 export { describe, it, beforeEach };
 const documents = [];
 let fixture;

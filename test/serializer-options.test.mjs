@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
 
 for (const xml of [false, true]) test(`per-call serializer options preserve owner defaults (xml=${xml})`, () => {

@@ -1,318 +1,44 @@
-# Research and decision record
-
-Dependency research reviewed in October 2026. These observations describe the cited revisions, not a guarantee about future releases. No complete GroveDOM performance result has been established.
-
-An initial [native prototype](prototype.md) now builds the reviewed Lexbor revision, checks its source fingerprint, and exercises a partial facade with authored differential and lifecycle tests. This is implementation evidence for a candidate, not a kernel/binding selection or the full performance gate. Direct Wasm with shared/fresh/pooled instances is now measured diagnostically; Rust and the production decision remain open.
-
-## Decisions and remaining choices
-
-| Topic | State |
-|---|---|
-| Primary speed requirement | Agreed: ≥3× complete DOM workload against current Cheerio, including bindings |
-| Optimized JS baseline | Required win over the best compatible Cheerio/parse5 and Cheerio/htmlparser2 configurations |
-| Execution model | Agreed: per-document ordered buffered operations and flush, not out-of-order execution |
-| Implementation complexity | Small facade and dispatcher over existing kernel facilities; choose one initial production backend after scoped comparisons |
-| Threading | Synchronous calls from main or caller-managed worker threads, with independent documents; no internal threads, shared-document execution, or parallel scheduler |
-| Toolchain | Node scripts and the selected compiler/build tools; Python only for an unavoidable dependency |
-| Memory | Document arenas/pools, reused buffers, bounded caches; verify leaks, fragmentation, retained capacity, and hot-loop allocations |
-| Disposal | Explicit idempotent disposal at the engine lifecycle boundary, plus backend-appropriate GC fallback; finalizer timing is never the primary lifecycle contract |
-| Minimum Node.js | Decided: >=22.0.0; maintained Node 22/24 validation initially, no Node 18/20 support |
-| Wasm heap ownership | Compare shared, fresh per-document, and bounded pooled instances, reusing the compiled module |
-| Internal protocol | Small private opcodes/operands/payloads; no version/checksum/negotiation or stable ABI promise; glue and kernel ship on the same major.minor version |
-| JIT | Deferred; not needed for initial implementation |
-| Package boundary | Separate DOM package; downloader policies stay in engine |
-| Kernel language/library | Open: Lexbor/C and html5ever with an arena DOM/Rust are primary candidates |
-| Node-API versus Wasm | Open: call shape and data transfer matter; neither is a universal winner |
-| Cheerio migration and typedefs | Cheerio-shaped API and straightforward migration required; reuse truthful public typedefs; exact methods/options/raw-node behavior still need an inventory |
-| License and publication | License and release packaging remain undecided; no package released |
-
-Published parser results do not establish a universal kernel ranking. Binding choice also depends on call shape, string conversion, allocation, and lifecycle costs; measure the complete facade before selecting a backend.
-
-## Boundary costs to measure
-
-Compare ordinary Node-API calls with direct Wasm exports using the same kernel work and observable results. Include scalar calls, string input/output, selection transfer, and complete document lifecycles. A small-call result cannot predict full DOM performance or the cost of an emulated Node-API layer over Wasm.
-
-Native string creation through `napi_create_string_utf8` copies/converts data. A direct Wasm path generally uses pointer/length descriptors, `TextDecoder`, and input encoding into linear memory. Reusing input buffers avoids some temporary allocations, but both paths must account for output materialization, non-ASCII text, and real callback needs.
-
-Keep native helper symbols hidden and export only binding entry points. Generic exported helper names can collide with process or runtime symbols. This discipline applies independently of the chosen allocator or DOM kernel.
-
-## Published parser comparisons
-
-All figures in this section are upstream-reported; they are not GroveDOM measurements. Refer to the source benchmark methodology when comparing them.
-
-- [Nokolexbor](https://github.com/serpapi/nokolexbor#benchmarks): a 367 KB Google results document, 994.8 parses/sec versus Nokogiri/libxml2's 211.8: 4.70×. This includes Ruby bindings and excludes full mutation/serialization. Very large advertised selector ratios compare different execution strategies and are not general parser speedups.
-- [FastHTML](https://github.com/DefactoSoftware/fast_html#benchmarks): Lexbor wrapper versus html5ever wrapper reports 125.12 versus 395.21 ms on 6.9 MB, 0.50 versus 1.72 ms on 25 KB, and 44.60 versus 43.58 microseconds on a 757-byte fragment. This is an older Elixir comparison with different integration mechanisms and tree conversion, not a current raw-kernel ranking.
-- [Rustysoup](https://github.com/joaonevess/rustysoup): reports 65.47 versus 168.72 ms against Selectolax/Lexbor over 104 pages/19.83 MiB. At inspected revision `ab39d718bfc68d225226a64fdbd685550ee8c61f`, source contains custom fast full-document/fragment parsers ahead of html5ever and BeautifulSoup-oriented normalization. Do not attribute that result to equivalent unmodified html5ever parsing.
-- [Lexbor design article](https://lexbor.com/articles/part-1-html/): describes the parser architecture and historical parsing throughput. Those results are not a prediction for GroveDOM or the MDN workload.
-
-No credible current head-to-head measurement was established for Lexbor versus Blink including parsing, mutation, and serialization. Chromium has optimized fragment paths and SIMD-assisted scanning. Benchmark detached DOM work, not browser startup/network/layout, when comparing parser behavior. Extracting Blink as a small standalone library is a separate engineering problem.
-
-`html5ever` is Servo's parser, not Firefox's or Chromium's. It delegates DOM representation through TreeSink. A selector/query benchmark must identify the tree and selector implementation.
-
-Expat is a streaming XML parser without the required HTML5 tree construction, DOM, and serializer. Current [libxml2 HTML source](https://github.com/GNOME/libxml2/blob/master/HTMLparser.c) says tokenization conforms to HTML5 while tree construction remains custom/nonstandard.
-
-## Lexbor maintenance assessment
-
-Inspected main revision: `f4cbbcd91359a0ec9499e3ce7e263de629482d61` (2026-09-28).
-
-Lexbor is production-credible but requires dependency ownership. Created in 2018; active in September 2026. GitHub's inspected contributor list showed 816 contributions by the primary author, followed by 20, 17, and smaller counts from others. This indicates concentration, not a sole-contributor project. Counts do not establish a support guarantee.
-
-Evidence in its favor includes PHP 8.4 adoption, Selectolax/Nokolexbor use, conformance tests, mutation/serialization tests, fuzz harnesses, and a private security-reporting policy. PHP's [8.4 HTML implementation](https://github.com/php/php-src/blob/PHP-8.4/ext/dom/html_document.c) converts Lexbor's parsed document into libxml2 structures; adoption therefore does not validate every Lexbor mutation/serialization path we might expose.
-
-Concrete findings:
-
-- [v3.0.0](https://github.com/lexbor/lexbor/releases/tag/v3.0.0), released 2026-03-31, corrected an accidental ABI break in v2.7.0. Node-API ABI stability does not fix ABI changes in an independently linked kernel library.
-- [2026-09-23 allocator fix](https://github.com/lexbor/lexbor/commit/f3f6fa71e0de98dcfe8df572cb8a0ba8c84b2411) corrected memory corruption when shrinking certain non-tail allocations.
-- [2026-09-28 array fix](https://github.com/lexbor/lexbor/commit/f4cbbcd91359a0ec9499e3ce7e263de629482d61) corrected 8× over-allocation in one array structure on 64-bit systems and an incorrect move size. This is not an 8× total-memory claim.
-- Both corrected code patterns were verified present in the v3.0.0 source. Do not select unpatched v3.0.0 just because it was the latest release when inspected.
-- Visible main CI was Linux-based. Fuzz harnesses exist; continuous OSS-Fuzz coverage was not established. Do not claim a full independent security audit.
-
-Keep the kernel replaceable, pin reviewed source, monitor fixes, and exercise the exact mutation/lifetime paths used by the binding. No claim was made that these bugs are reachable through a completed GroveDOM implementation, which does not exist yet.
-
-Replaceability here means keeping Lexbor details behind a small internal boundary, not promising a stable ABI or dynamically interchangeable kernels. Prefer building reviewed source into the artifact shipped with matching JS glue. The recorded upstream ABI fixes still matter when selecting source, even though GroveDOM does not promise an internal ABI across releases.
-
-## Rust candidate
-
-`dom_query` revision inspected: `6b04c459d19eee8af62d4bd5799e2a1dae372553`, package version 0.28.0. It uses html5ever 0.39.0 and selectors 0.40.0, with an arena tree and mutation API. Audit its actual defaults and lifetime model before adopting it.
-
-In particular, its convenience parser disables scripting while Cheerio/parse5 defaults to scripting enabled. A benchmark must align options, especially for `noscript`. An arena-backed Rust stack remains a candidate, not a measured winner.
-
-## Minimal toolchains and cross-compilation
-
-Design constraint: keep only the tools required for the chosen production backend. Use Node scripts for orchestration and reporting; do not introduce Python for convenience. node-gyp/Emscripten and extra binding generators are not defaults. If a necessary dependency requires Python and no reasonable simpler route exists, record that exception explicitly. Candidate comparisons do not commit the package to shipping both C and Rust toolchains or both bindings.
-
-- Native Node-API is a C ABI. A C compiler/linker, target runtime development files, and Node-API headers are sufficient ingredients; node-gyp, Python, Rust, and rebuilding Node/V8 are not inherent requirements.
-- CMake can orchestrate Lexbor builds but is a convenience/build-system choice. Keep helper symbols hidden and use correct platform shared-library flags.
-- Wasm can use Clang with Wasm support, wasm-ld, a suitable sysroot/libc, and required compiler-runtime builtins. Emscripten is optional. Freestanding code needing no libc can omit WASI; a real DOM kernel must provide its allocation and library dependencies.
-- A real WASI build needs its imported functions supplied by the host. Do not equate a bare module and a full WASI command/reactor without checking initialization and imports.
-- [WASI SDK](https://github.com/WebAssembly/wasi-sdk#about-this-repository) documents standard Clang plus a sysroot/builtins; it is a convenient distribution, not the only compiler route.
-- MSVC is conventional, not mandatory for Windows Node-API. [LLVM-MinGW](https://github.com/mstorsjo/llvm-mingw#releases) supplies Linux-hosted Windows cross-compilers; MinGW-w64 is also viable.
-- Windows needs a compatible import library for Node's exports or runtime symbol resolution, correct target ABI, and runtime dependency handling. Keep allocation/free ownership within the appropriate component. Validate on actual Windows Node.
-- Node-API versioning reduces per-Node-major rebuilds but does not remove OS/architecture/libc packaging differences.
-- Rust/napi-rs avoids node-gyp. Wrapping Lexbor in Rust still needs both Rust and C build support; a Rust wrapper does not make the underlying C memory-safe.
-
-### Prototype prerequisites
-
-#### Linked Wasm compatibility
-
-An empty requested feature list does not produce an MVP-only binary. With the
-reviewed WASI SDK 25 runtime libraries and LLVM 19 build, the linked module
-declares bulk memory, multivalue, mutable globals, reference types and sign
-extension. Build metadata records this declaration as `targetFeatures`, separately
-from requested compiler `features`. Release modules still have zero host imports:
-using WASI libc for allocation and strings does not require a WASI host when all
-reachable code is compute-only.
-
-The code contains `memory.copy`, `memory.fill` and `i32.extend8_s`. LLVM also emits
-padded table-index LEB encodings for `call_indirect`; their acceptance is part of
-the reference-types encoding rules. Do not advertise MVP compatibility based
-solely on an instruction-name inventory or a validator accepting disabled
-reference types. The conservative artifact target is the full linked declaration.
-Node 22 and 24 are the tested runtime lines; the exact 22.0.0 floor still needs its
-release smoke check. The current glue uses Node APIs, so this is not a browser
-package support claim.
-
-Binaryen 133 experiments preserve those features and additionally name
-`bulk-memory-opt`, Binaryen's feature grouping for copy/fill instructions. Input
-`target_features` metadata can enable features even when a command-line probe
-tries to disable them. Diagnostic minimum-feature validation therefore strips
-only that custom section from a temporary copy before applying an explicit
-feature set. Such probes complement the binary-encoding audit; they do not
-replace the tested-runtime contract. See the [WebAssembly binary instruction
-grammar](https://webassembly.github.io/spec/core/binary/instructions.html) and
-[Binaryen](https://github.com/WebAssembly/binaryen) for feature and encoding rules.
-
-| Work | Required tools and checks |
-|---|---|
-| API inventory and baseline | Supported Node.js, a package manager, TypeScript for compatibility checks, and pinned consumer dependencies |
-| C/native | A C compiler/linker, target runtime headers/libraries, Node-API headers, and the selected kernel's build requirements |
-| C/Wasm | Clang/wasm-ld and a matching sysroot/libc/compiler runtime, or a prebuilt WASI SDK; inspect actual imports and initialization |
-| Rust/native | Rust/Cargo compatible with the selected dependency graph and the target linker |
-| Rust/Wasm | A coherent Rust toolchain with the matching Wasm target standard library; verify any host imports |
-| Memory diagnostics | Native sanitizer support plus allocator, lifetime, and bounds checks on actual Wasm paths |
-
-For C/Wasm, a scalar freestanding module is insufficient validation: compile and run an allocator-using fixture before building the DOM kernel. For Rust/Wasm, a target name appearing in a compiler's supported-target list does not mean its standard library is installed. Resolve and lock the real dependency graph before asserting compiler compatibility.
-
-Run small compile/load checks on supported Node lines and target platforms before starting performance trials. Windows outputs need validation on Windows even when cross-compiled. Keep developer installation inventories and raw diagnostics out of public documentation.
-
-## Wasm memory comparison
-
-The [design](design.md#wasm-shared-fresh-and-pooled-instances) compares one instance/global allocator containing document-local arenas, a fresh instance/memory per document, and a bounded pool of reusable instances. All reuse a compiled module; none uses threads or shared mutable memory between instances. The [prototype measurements](benchmarks.md#wasm-heap-and-profile-diagnostics) cover these policies diagnostically.
-
-WebAssembly linear memory grows in pages and has no shrink operation. Returning blocks to a global allocator enables reuse without reducing its linear-memory size. Dropping a per-document instance can make its backing memory reclaimable only after all references disappear; host GC controls actual reclamation. Reusing a compiled module avoids repeated compilation, not per-instance memory, initialization, or static/stack costs. External JS views can retain an otherwise disposed instance's memory. These lifecycle costs belong in the full workload comparison, not only a startup footnote.
-
-No production heap policy has been selected. Global and pooled instances avoid repeated initialization in the current diagnostics, but representative memory budgets and mixed-size fragmentation measurements remain necessary.
-
-The [recursion audit](stack.md) supports a 32 KiB linear-stack default. It combines source review of direct and indirect calls with linked-code inspection and measurements under O3/ThinLTO and kernel O2 without LTO (Lexbor remains O3). The largest observed reservation is 6,256 bytes in the bounded compatibility matcher. Lexbor's indirect selector-AST cleanup still recurses on the engine/native stack, although its audited recursive routines reserve no linear-stack frames. Linear-stack sizing does not bound that separate stack.
-
-The Wasm binding uses the standard [non-shared memory growth detachment behavior](https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/Memory/grow#detachment_upon_growing): cached views become zero-length when growth detaches their buffer. Checking that length avoids an engine memory-buffer getter on each reuse while still detecting growth by another document in the global heap. The instance uses fixed, non-shared memory buffers; borrowed views never escape to callers. Growth, disposal and interleaved-document regressions cover this assumption.
-
-## Disposal and Node.js support decision
-
-The lifecycle contract is **explicit disposal with a GC fallback, on Node >=22.0.0**. `website-scrap-engine` owns disposal in `finally`; generic callers also get abandoned-owner cleanup. See the [lifetime design](design.md#disposal-decision-explicit-ownership-with-a-gc-fallback) for ownership and release-once rules.
-
-Use `napi_wrap` for a native document-owner finalizer. Use `FinalizationRegistry` for abandoned individual documents inside a global Wasm heap. An isolated per-document Wasm instance with no outside resources can rely on ordinary host GC when its ownership graph becomes unreachable, avoiding a redundant finalization registry. A retained selection must retain the owner in every backend; a registry's held value must not retain that owner.
-
-Reviewed the official [Node-API documentation](https://nodejs.org/api/n-api.html#napi_wrap): `napi_wrap` supports a native cleanup callback, and its optional returned reference is initially weak. Finalizers may be deferred. A tiny closed control record prevents explicit disposal followed by finalization from releasing the document twice. Do not create unnecessary strong native references back to the owner.
-
-The [external memory accounting API](https://nodejs.org/api/n-api.html#napi_adjust_external_memory) informs the runtime about addon-owned memory, but is not a guarantee of prompt GC. Account at backing-block boundaries and balance release paths. The [finalizer restrictions](https://nodejs.org/api/n-api.html#node_api_basic_finalize) explain why cleanup must avoid arbitrary JS/Node-API calls during GC. Use stable APIs supported at the package floor; newer or experimental post-finalizer machinery is unnecessary for native-only DOM cleanup.
-
-The official [Node release schedule](https://github.com/nodejs/Release/blob/main/schedule.json), checked for this update, lists:
-
-| Node line | End of life | Decision as of 2026-10-02 |
-|---|---|---|
-| 18 | 2025-04-30 | Exclude; already unsupported upstream |
-| 20 | 2026-04-30 | Exclude; already unsupported upstream |
-| 22 | 2027-04-30 | Minimum supported line; use patched releases in normal operation |
-| 24 | 2028-04-30 | Also validate; longer support runway |
-
-Cheerio 1.2.0 declares Node >=20.18.1, so Node 18 is also outside the current baseline's supported engines. FinalizationRegistry and basic Node-API finalizers existed before Node 22: the chosen minimum simplifies the support matrix rather than enabling an otherwise unavailable GC feature. The prototype now tests explicit disposal, retained handles, callback disposal, GC fallback, and worker teardown; full consumer lifecycle coverage remains open.
-
-## Cheerio declaration inspection
-
-The compatibility review uses Cheerio 1.2.0 and domhandler 5.0.3 declarations: Cheerio's public exports and `dist/esm/{cheerio,load,types,options}.d.ts`, plus domhandler's `lib/node.d.ts`. These package declarations describe the surface an adapter must satisfy; they do not prove runtime compatibility.
-
-- Cheerio supplies `Cheerio<T>`, `CheerioAPI`, `CheerioOptions`, `HTMLParser2Options`, and helper types such as `SelectorType`/`FilterFunction<T>` through its public entry point; no separate `@types/cheerio` is needed.
-- `Cheerio<T>` includes numeric indexing, iteration, internal-looking fields/methods, and methods whose return and `this` types refer back to Cheerio. Selecting a few properties does not automatically yield an independent, correctly typed GroveDOM collection.
-- `CheerioAPI` is callable and has generic selector/node overloads plus static helpers and plugin surface. Its declaration is not just a selector function returning opaque IDs.
-- Node inputs and outputs use domhandler's `AnyNode`/`Element` contracts, including mutable parents/siblings/children, names, attribute maps, and node methods. Reusing these types requires compatible wrappers or an explicit narrower surface.
-- `CheerioOptions` includes parse5 and selector extension points; blindly aliasing it would promise unsupported parser-specific behavior.
-
-The prototype uses public type-only imports/re-exports and local declarations for its narrower handles and supported methods. Representative declaration fixtures and 87 audited consumer TypeScript source files now compile. The isolated engine/MDN replay also passes; complete engine lifecycle integration and unaudited plugin surfaces remain outside that evidence. See [integration](integration.md).
-
-## XML and template implementation findings
-
-The current XML path is GroveDOM-owned iterative tokenization into the pinned Lexbor document arenas, shared by native and Wasm. It is compiled as `native/xml.c` with a private `xml.h`; allocator/buffer helpers shared with `kernel.c` remain hidden implementation symbols. This avoids adding another parser dependency or syscall-bearing runtime. It is a practical Cheerio-compatible DOM contract, not a validating XML implementation; see [the supported behavior](compatibility.md#xml-svg-and-sitemaps).
-
-Several details in the pinned Lexbor source require explicit handling without patching the dependency:
-
-- XML dtype does not disable lowercasing in element creation, type-selector lookup or attribute-selector lookup. GroveDOM preserves static lowercase IDs, and maps other local names to an impossible XML name containing lowercase hex. Qualified names keep the public spelling. The cached selector AST receives the same mapping, including nested lists. A reusable document buffer serves name conversion; unique names and plans use the existing arenas.
-- `lxb_dom_element_qualified_name_set` is exported by the pinned source but omitted from its header. GroveDOM declares its exact signature locally. This is a private dependency coupling, not a public ABI promise.
-- The document CDATA helper rejects XML dtype. Direct CDATA interface construction supplies the Cheerio-style wrapper with a text child. Its clone uses the matching interface; the generic clone would allocate only a node-sized record.
-- Generic element cloning omits the qualified-name field. The XML clone callback copies this interned field within the same document; cross-document adoption remains unsupported.
-- Lexbor's XML `:root` resolves to the first document child, which can be a declaration. GroveDOM maps this pseudo to `:not(* > *)` in the XML plan arena, matching elements without an element parent, including multiple fragment roots.
-- Specialized HTML destructors omit common element attribute destruction. The shared subtree recycler explicitly returns attributes before destroying interfaces. Repeated attribute-bearing replacement now plateaus after warmup, including template and XML cases; exposed subtrees remain retained until disposal.
-- XML documents created through the HTML document interface retain HTML insertion and attribute hooks unless explicitly disabled. GroveDOM sets `LXB_DOM_DOCUMENT_OPT_WO_EVENTS` for XML. The DOM primitives still maintain sibling links and the ID/class attribute pointers; this option concerns internal Lexbor hooks, not JavaScript callbacks. HTML retains its hooks.
-- The pinned `lxb_dom_attr_set_value` returns directly from an enabled attribute-change callback, bypassing its subsequent old-value cleanup. Growing an attached attribute therefore retains superseded buffers in the document arena. GroveDOM preserves the callback and releases the old buffer afterwards; with hooks disabled, Lexbor performs that cleanup itself. On allocation failure, GroveDOM restores the previous owned value. The pinned generic change callback is a no-op, and the option-specific callback only updates selectedness; neither takes ownership of the old value. Re-audit this workaround when updating Lexbor. See [the retention measurement](memory.md#attribute-value-retention).
-
-Parser, serializer and subtree cleanup walks are iterative. The XML additions preserve import-free release Wasm and the existing stack/heap defaults. Sanitizers, deep-tree tests and backing-allocation counters provide evidence for the exercised paths; allocation-failure injection, fuzzing and sustained allocator-fragmentation budgets remain open.
-
-## Consumer replay and selector findings
-
-The engine/MDN audit after `d29bb5f` found nested document loads but no required cross-document node transfer. The isolated adapter owns these loads through serialization and disposes in `finally`; original consumer repositories remain untouched. See [integration](integration.md) for frozen revisions, replay boundaries and reproduction.
-
-Lexbor's `:lexbor-contains` examines direct text children; simply renaming Cheerio's `:contains` would miss text spanning descendants. Its `:empty` counts a fragment child, and forward `:has` traversal skips fragment subtrees. GroveDOM keeps an owned compatibility evaluator in standard C/header files, reusing parsed/cached selector ASTs and Lexbor's ordinary atom matcher. Text matching uses one reusable document buffer, including Cheerio's `br` newline and template-fragment behavior. Selector recursion is capped at 64; tree walks are iterative. This adds no Lexbor patches, custom parser dependency or per-node JavaScript callbacks.
-
-Profiling real MDN transforms identified template-query evaluator restarts as the main avoidable kernel cost. Ordinary selectors now run once per fragment-free subtree. A preorder walk marks/emits matches through existing node records and result storage, preserving order and deduplication without sorting or temporary node arrays. Element-only query scopes stop at fragments, while global and fragment-root queries can cross them. Parent links are disconnected only around synchronous selector execution and restored before returning, including failures. The custom pseudo evaluator is used only for plans that need it.
-
-The form audit preserves Cheerio 1.2.0's actual successful behavior: disabled fieldsets do not exclude their descendant controls from `serializeArray`, and selected options in multiple selects contribute text. URL properties resolve against `baseURI` only for Cheerio's supported element/property pairs. Browser form semantics are not substituted for the migration baseline.
-
-The root Cheerio entry's private `_useHtmlParser2` flag alone is an unsuitable benchmark configuration: static serialization can lose it. Use `cheerio/slim` or the supported `xml: { xmlMode: false }` configuration. On the saved larger MDN pages, normalized output and resource events match parse5; generated-example and fragment cases still differ. A comparison must distinguish byte spelling from structural or discovery differences.
-
-## Selector optimization techniques reviewed
-
-The installed Cheerio 1.2.0 uses cheerio-select 2.1.0 and css-select 5.2.2. css-select's [rule ordering](https://github.com/fb55/css-select/blob/v5.2.2/src/sort.ts) and [compilation](https://github.com/fb55/css-select/blob/v5.2.2/src/compile.ts) put cheap rejection checks ahead of expensive predicates. Its descendant matcher can cache failures within a compiled query. That is useful evidence for reducing matcher work, but persistent match-result caching would require mutation invalidation in GroveDOM.
-
-[jQuery 3.7.1](https://github.com/jquery/jquery/blob/3.7.1/src/selector.js) recognizes simple ID, tag and class queries before its general selector path, uses browser lookup/query APIs, and bounds its compiler cache. [WebKit's selector query implementation](https://github.com/WebKit/WebKit/blob/49480340a1042ac7f482a3b0960ed3da3be1d4be/Source/WebCore/dom/SelectorQuery.cpp) likewise specializes single tag/class queries, can narrow searches using an ID, and retains general matching for complex cases. Its ID path explicitly handles duplicate IDs and scope. Browser implementations also have infrastructure such as maintained indexes and optional compiled selectors whose costs cannot be assumed away in a short-lived scraper DOM.
-
-The GroveDOM experiment takes the smaller applicable ideas: cache a necessary tag, ID or class from the rightmost compound of each branch in long lists; reject impossible branches before invoking Lexbor; directly match a standalone tag, ID or class. Names introduced by mutations must remain discoverable, so missing tag IDs are retried on each query rather than cached permanently. Unknown-only tag plans can return empty without a tree walk. The existing selector arena owns this bounded metadata; matching adds no per-element allocation, JS callbacks, result cache, maintained DOM index, JIT or Lexbor patch. Template boundaries, duplicate IDs, ordering and selection snapshots retain GroveDOM's existing contract. Release timing and lifetime tests determine whether these techniques are worth retaining.
-
-## XML algorithms reviewed
-
-The XML pass after `8c785fb` reviews [libxml2 2.14.6](https://github.com/GNOME/libxml2/blob/v2.14.6/parser.c), [pugixml 1.15](https://github.com/zeux/pugixml/blob/v1.15/src/pugixml.cpp), [TinyXML-2 11.0.0](https://github.com/leethomason/tinyxml2/blob/11.0.0/tinyxml2.cpp), and [WebKit's libxml2 parser](https://github.com/WebKit/WebKit/blob/49480340a1042ac7f482a3b0960ed3da3be1d4be/Source/WebCore/xml/parser/XMLDocumentParserLibxml2.cpp). These are algorithm references, not new dependencies or performance comparisons between libraries.
-
-Libxml2 has an ASCII-name fast path and dictionary-backed names, including hashed lookups. WebKit builds DOM qualified names from interned `AtomString` values after libxml2 SAX callbacks; its fragment parser explicitly disables libxml2's dictionary, so not every browser path shares the same policy. Pugixml combines compact character-class tables and ordinary-run scanning with arena allocation and in-place text conversion. TinyXML-2 uses node/attribute pools and lazy string normalization over owned input storage. GroveDOM already has arenas and iterative walks. Its immediate opportunities are avoiding repeated XML name conversion/hash work and scanning ordinary text efficiently.
-
-Borrowing input string slices wholesale would change GroveDOM's mutation, recycling and retained-node ownership rules. Keep text in existing document storage unless a separate measured design justifies that complexity. Keep caches bounded and document-owned, preserve case-sensitive identities and selectors, and never retain pointers into transient command/input buffers. No dependency fork or new parser/toolchain is needed to test these smaller techniques.
-
-The consumer audit also corrects an earlier benchmark classification: engine 0.9.1's sitemap transform calls `load` without options and therefore uses HTML mode. Its timing cannot establish XML-parser performance. Explicit XML authored workloads and the configured consumer SVG path provide XML evidence; preserve the engine's original call in consumer replays.
-
-The retained name-cache experiment uses 32 element and 32 attribute slots backed by the existing document arena. Interned names outlive removed/recycled nodes; a collision only causes the normal name-conversion path to run again. In a 300-group authored SVG replay, instrumentation records 2,991 hits and 22 misses; the 600-entry sitemap records 3,596 hits and eight misses. These are operation counts, not elapsed-time estimates. The closing-tag fast path also follows libxml2's `xmlParseNameAndCompare` idea: compare with the already known parent name and check the delimiter.
-
-Binding profiles identified additional work outside XML tokenization: callback setters constructed temporary selections, and each scalar read transported a one-element typed array. The candidate eliminates those internal selections, passes a single ID for scalar reads, and reuses command views with matching buffers/ranges. Callbacks still receive stable node handles and observe prior writes; multi-node reads retain their original selection arrays. No result prefetching, mutation reordering or per-node finalizer is introduced.
-
-The follow-up after `4d33ee8` extends the simple-tag specialization described above: a conservative ASCII identifier check resolves existing tag IDs before creating any CSS parser state. XML uses its existing case-preserving name mapping; escaped or more complex selectors still use the bounded parser cache. This applies the jQuery/WebKit simple-query idea without maintaining a new DOM index. Wasm also combines pending mutations and the following observation into one export call using existing transfer storage. Native read dispatch remains unchanged. Neither change alters compiler features, dependencies, the opcode format or public ABI promises.
-
-## Wasm-first selector and libc investigation
-
-Profiling after `2eef7b6` finds template queries and selector matching to be larger
-consumer costs than allocation or linked libc. Necessary-atom guards now also
-serve short lists and compound queries on template documents. Attribute presence
-is another necessary condition; value operators still use the ordinary matcher.
-Each query partitions possible guard records into an active prefix without
-changing the CSS AST, preorder output, or cached selection snapshots. Unknown
-tag/attribute IDs are resolved again on later queries, so mutations can reactivate
-a previously impossible branch.
-
-A lazy, document-owned 256-byte Bloom filter summarizes class and ID values for
-whole-document compound/list queries on template documents. It rejects definite
-misses only; collisions retain normal matching. Scoped and detached queries bypass
-it. Insertion and class/ID changes invalidate the summary. Removing a subtree can
-leave extra bits safely. The scan uses parent/sibling links, existing attribute
-strings and arena storage, with no per-node allocation or maintained node index.
-This is a smaller application of browser-style rejection filters to the measured
-short-lived DOM workload; it does not import a browser indexing subsystem.
-
-Dynamic libc-call counters show that most copies are shorter than 16 bytes.
-Replacing every call with a bulk instruction regresses the synthetic screen.
-The selected Wasm-only [memory helpers](../native/wasm-memory.c) instead use
-bounded scalar head/tail accesses through 16 bytes and bulk copy/fill above that
-size; overlapping moves use bulk `memory.copy`. Dependency source stays unchanged.
-Bulk memory was already required by the linked WASI runtime. Handwritten SIMD
-copy/fill, broad bulk-memory recompilation, forced writer inlining and command-view
-cache experiments were evaluated; their small, inconsistent workload gains do
-not justify default changes. Binaryen is an experimental post-link tool,
-not a new required build dependency.
-
-Seeded differential fuzzing also found observable empty-text and selector-case
-differences. `.empty()` has its own small opcode, while `.text('')` preserves an
-empty text child. `:empty` uses the bounded compatibility matcher for empty text
-and XML CDATA. Queries use Cheerio's case-sensitive class/ID defaults even when
-HTML parsing selected quirks mode; the parser mode is restored before later
-fragment construction. These fixes preserve normal successful observations;
-exact malformed-input/error-message parity remains outside the adoption gate.
-
-Later experiments also reject libc delimiter scans in the XML parser, an extra
-branch to skip invalidation-name checks, and native parser-mode/flag placement
-changes. None establishes a repeatable benefit across the relevant workloads and
-controls. Pure tag/attribute queries now avoid building the class/ID summary.
-Five document flags use ordinary C booleans to restore an unchanged shared-heap
-plateau assertion; [memory](memory.md#wasm-first-allocation-and-lifetime-recheck)
-records both the failed layout and the bounded follow-up.
-
-The eight-slot idle pool removes recurring consumer instance creation while
-retaining the 16 MiB idle-byte cap. Its final consumer CPU profile assigns about
-42.5% of samples to Wasm, 3.1% to linked libc and 7.0% to selection creation.
-Query scanning/matching, JS wrappers, parsing/string work, consumer URL/async
-handling and GC remain distributed costs. The profile has no sampled Instance
-frame after the pool change; the separate creation trace establishes the actual
-count reduction. Sample shares and independent profiler elapsed times are not
-paired speedups. A broader persistent DOM index would add mutation bookkeeping
-and retained state; no measured need justifies that design change here.
-
-### Private fields and ordinary properties
-
-All three private fields were compared with plain enumerable string keys,
-non-enumerable string keys, module-local symbols and WeakMaps. The kernels,
-fixtures and pool settings stay fixed. Fresh-process screens and fixed short
-repeats on Node 22/24 find no worthwhile overall improvement that preserves the
-current representation. [The measurements](benchmarks.md#private-field-comparison)
-retain failed controls and the shared-JS-heap limitation of the short repeats.
-
-Most selection methods already use the proxy's WeakMap entry; the private state
-field serves the target fallback. Replacing it with another WeakMap entry adds
-construction and GC work. Non-enumerable string properties also add constructor
-work. Enumerable keys expose records during enumeration/copying and fail worker
-structured cloning. Symbols and non-enumerable strings hide those records from
-ordinary enumeration but expose them through reflection; direct property lookup
-also recognizes prototype-forged handles. WeakMaps preserve opaque ownership but
-measure slower. Private fields remain, without assuming their checks are free.
-
-The selected release is rebuilt through the public scripts. Its Wasm executable
-sections and native executable/data sections match the measured artifact; file
-hash differences are confined to metadata/symbol information. Release Wasm has
-zero imports and no diagnostic exports, and the pinned dependency source
-fingerprint still matches. The selected settings remain O3/ThinLTO, 1 MiB initial
-memory, a 32 KiB linear stack, 16 KiB transfer scratch and no additional requested
-target features. These checks establish source/artifact pairing, not shipping
-platform support or production adoption.
+# Dependencies and implementation decisions
+
+The current kernel is pinned Lexbor/C with native Node-API and direct Wasm
+bindings. Wasm/Node is the primary target; Rust remains an unmeasured alternative,
+not another shipping backend. No dependency fork or library-managed threads are
+introduced by the architecture split.
+
+## Dependency pin
+
+[native/dependency.json](../native/dependency.json) records the reviewed source
+revision and fingerprint. Builds verify that source, independently of runtime
+loading. The pinned revision includes upstream allocator and array fixes that
+were absent from unpatched Lexbor 3.0.0. See the
+[maintenance review](history/research.md#lexbor-maintenance-assessment) for source
+references and rationale.
+
+GroveDOM owns its glue/kernel artifact pairing. Runtime loaders no longer read
+package/build JSON or compare versions; package assembly copies the selected
+artifact and generated ESM constants together. Diagnostic build metadata can be
+kept for reproducibility, but release loading does not depend on it.
+
+## Wasm portability
+
+Node and browser entries load the same import-free binary. The reviewed linked
+libraries declare bulk memory, multivalue, mutable globals, reference types and
+sign extension. An empty optional compiler-feature list is **not** MVP-only Wasm.
+No SIMD, shared-memory or thread requirement is added. See the
+[linked-feature audit](history/research.md#linked-wasm-compatibility).
+
+Browser loading uses ordinary fetch plus async compilation and a portable
+TextEncoder/TextDecoder path. Node retains Buffer decoding for performance.
+Browser support remains best-effort until actual engine/version testing; the
+portable module graph check alone cannot establish that matrix.
+
+## Tooling and scope
+
+Existing Node, Clang/LLVM, CMake/Ninja, reviewed Lexbor and WASI sysroot/builtins
+are sufficient for the current builds. Do not install compilers or introduce a
+new binding/code-generation stack merely for packaging. Build settings can use
+developer environment variables; public runtime options use `init`.
+
+[Historical research](history/research.md) preserves parser comparisons, source
+links, allocator findings, threading rationale and rejected optimization ideas.
+Those comparisons are not current full-workload backend rankings.

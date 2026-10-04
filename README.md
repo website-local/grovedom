@@ -1,69 +1,54 @@
 # GroveDOM
 
-DOM transformations through ordered operations.
+A Wasm-first, Cheerio-shaped HTML/XML DOM library for synchronous transformations.
+It parses, queries, mutates and serializes documents through ordered operations.
 
-GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
+**Experimental.** Node.js with pooled Wasm is the primary target. A separate
+`grovedom-native` package targets Linux Node-API. The browser entry is best-effort
+and uses the **same Wasm binary**, with asynchronous initialization followed by
+synchronous DOM calls. No target creates threads or fetches document resources.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Pooled Wasm is the primary optimization target; the API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#wasm-first-investigation-after-2eef7b6), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
+```js
+import { init, load } from 'grovedom';
 
-The latest [Wasm-first investigation](docs/benchmarks.md#wasm-first-investigation-after-2eef7b6) improves template queries, small memory operations and instance reuse, with seeded HTML/XML fuzzing. Selected consumer medians are 4.92× native and 4.62× pooled Wasm versus current Cheerio. Native mixed synthetic reaches 5.80×, below the best-effort 6× milestone. The individual XML and final regression confirmations pass, with narrow pooled-SVG and native-XML margins; earlier failed and inconclusive measurements remain documented. Private fields remain after comparison with string keys, symbols and WeakMaps. These scoped results do not establish production adoption or a universal multiplier.
-
-## Objective
-
-Replace the required Cheerio workload with an implementation that preserves required behavior and takes **at most one third of the elapsed time** of the current Cheerio implementation, including parsing, queries, mutations, JavaScript/kernel transfers, serialization, and lifecycle costs.
-
-GroveDOM must also be faster than the best behaviorally acceptable Cheerio configuration using **either `parse5` or `htmlparser2`**. Both are mandatory baselines, including their practical optimizations. The existing 3× target remains relative to current Cheerio; the additional gate is a demonstrated win over the fastest compatible configuration, not a new 3× multiplier over htmlparser2.
-
-Performance on normal successful workloads is the first priority. Exact invalid-input behavior and error-message parity with Cheerio are not adoption gates. Successful output behavior and safe ownership remain required.
-
-## Agreed direction
-
-- A separate DOM package with an application-independent API and downloader-specific integration kept in `website-scrap-engine`.
-- One ordered operation stream per document. Flush when JavaScript needs pending results, before supported callback observations, explicitly, and before final output.
-- Selections, intermediate strings, and mutations stay in the kernel where possible.
-- Keep implementation and build tooling simple. Use Node scripts and the selected kernel's compiler/build tools; introduce Python only if an unavoidable dependency requires it.
-- Synchronous execution on the calling thread, including caller-managed Node workers with independent documents. GroveDOM creates no threads or worker pool and provides no shared-document execution, out-of-order scheduler, speculation, or JIT.
-- Use document-owned arenas/pools, reusable command and scratch buffers, and bounded caches. Avoid unnecessary copies, per-node temporary objects, and small heap allocations inside hot loops; verify leaks, fragmentation, and memory retained after disposal.
-- Kernel and binding choices remain open until measured. Compare Lexbor/C and an arena-backed `html5ever`/Rust stack; compare direct Wasm exports and ordinary Node-API bindings.
-- For Wasm, compare a shared instance/heap, a fresh instance/heap per document, and a bounded pool of reusable instances. All reuse the compiled module.
-- Keep the private operation protocol small: opcodes, operands, payloads, and results. No protocol version, checksum, negotiation, or stable internal ABI promise. JS glue and its Node-API or Wasm kernel ship together on the same major/minor version.
-- Expose Cheerio-style `load`, callable `$`, chainable selections, callbacks, and node access so supported migrations need only an import change plus explicit lifecycle cleanup. Reuse Cheerio typedefs where they accurately describe runtime behavior; inventory remaining APIs and raw-node compatibility explicitly.
-- Use explicit, idempotent `$.dispose()` as the primary lifecycle contract, owned by `website-scrap-engine` in `finally`. Add GC cleanup as a fallback: a Node-API owner finalizer for native, `FinalizationRegistry` for a shared Wasm heap, and ordinary host GC for an independently owned per-document Wasm instance.
-- Minimum Node.js version: **22.0.0**. Validate maintained Node 22 and 24 releases initially; use stable runtime APIs and prebuilt artifacts. Node 18 and 20 are outside the supported range.
-
-## Read next
-
-1. [Design and feature set](docs/design.md)
-2. [Benchmark targets and adoption gates](docs/benchmarks.md)
-3. [Evidence, toolchains, and maintenance findings](docs/research.md)
-4. [Implementation roadmap](docs/roadmap.md)
-5. [Contributing and public repository policy](CONTRIBUTING.md)
-6. [Runnable prototype and compatibility inventory](docs/prototype.md)
-7. [Memory measurements and backend guidance](docs/memory.md)
-8. [Recursion audit and Wasm stack sizing](docs/stack.md)
-
-With the prototype's existing-toolchain prerequisites and disk-backed environment configured, run `npm run build:native`, `npm test`, `npm run test:types`, and `npm run bench`. The default benchmark uses authored deterministic fixtures and both Cheerio parsers. An [isolated engine/MDN replay](docs/integration.md) also runs real transforms with deterministic resource I/O; it is not a complete crawl. The production backend remains undecided.
-
-## Initial package boundary
-
-```text
-website-scrap-engine
-  download policies, URL hooks, scheduling, resource lifecycle
-        |
-        v
-GroveDOM JavaScript/TypeScript facade
-  load / callable $ / chainable Cheerio-style selections
-        |
-        v
-ordered operations + observation/flush boundaries
-        |
-        v
-kernel backend
-  parse, select, traverse, mutate, serialize, own memory
+// Optional on Node: first use otherwise initializes the bundled Wasm.
+init({ heap: 'pool', poolSize: 8, poolMaxBytes: 16 * 1024 * 1024 });
+const $ = load('<main><a href="/guide">Guide</a></main>');
+try {
+  $('a').attr('target', '_blank');
+  console.log($.html());
+} finally {
+  $.dispose();
+}
 ```
 
-Binary opcodes, pointers, and internal memory layout are private implementation details. Package users should not depend on Lexbor types or a specific Wasm memory representation.
+Use `init({ wasm: pathOrURL })` for a custom Wasm location, or supply bytes or a
+compiled `WebAssembly.Module`. Options are fixed after successful initialization;
+call `init` before any `load`, `contains` or `merge` call. The runtime does not
+read environment variables, package versions or build metadata.
 
-## Development prerequisites
+```js
+// Browser: await initialization before using the synchronous DOM API.
+import { init, load } from 'grovedom/browser';
+await init({ wasm: new URL('./grovedom.wasm', import.meta.url) });
+```
 
-Start with Node.js 22 or newer for API inventory and baseline work. Native prototypes need the selected kernel's compiler and Node-API headers. C/Wasm requires a suitable sysroot/libc in addition to Clang and wasm-ld; Rust/Wasm requires a matching target standard library. See [toolchain requirements](docs/research.md#minimal-toolchains-and-cross-compilation) before adding build dependencies.
+| Status | Scope |
+|---|---|
+| Primary, tested | Node 22/24, pooled Wasm, explicit document disposal |
+| Tested alternative | Shared/fresh Wasm heaps; independent caller-managed Node workers |
+| Secondary, tested on Linux | `grovedom-native`, separate artifact and initialization |
+| Best-effort | Browser entry; malformed-input parity; unaudited Cheerio edge cases |
+| Not released | Package publication, production deployment and broader platform support |
+
+[Compatibility](docs/compatibility.md) lists supported and unsupported behavior.
+[Setup and packaging](docs/prototype.md) explains local builds, target packages
+and the browser benchmark demo. [Architecture](docs/design.md),
+[performance evidence](docs/benchmarks.md), [memory](docs/memory.md) and
+[remaining work](docs/roadmap.md) describe practical limits.
+
+The accepted performance target remains at least 3× current Cheerio for the
+complete required DOM workload, including bindings and disposal, plus a win over
+the fastest compatible Cheerio configuration. Historical scoped consumer medians
+were 4.92× native and 4.62× pooled Wasm; these are not production or browser claims.
+No package or repository has been published.

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
-import { kernel } from '../src/kernel.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 const source = '<main><template id="outer"><p>A &amp; B</p><template id="inner"><b>C</b></template><!--tail--></template><p>D</p></main>';
 function compare(run, execution, html = source) {

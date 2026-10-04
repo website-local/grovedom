@@ -1,3 +1,4 @@
+#include "internal.h"
 #include "selectors.h"
 
 typedef lxb_css_selector_t selector;

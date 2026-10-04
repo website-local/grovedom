@@ -3,8 +3,8 @@ import { performance } from 'node:perf_hooks';
 import { createRequire } from 'node:module';
 import { load as parse5 } from 'cheerio';
 import { load as htmlparser2 } from 'cheerio/slim';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 import { page, replay } from '../test/fixtures.mjs';
 
 const require = createRequire(import.meta.url);
@@ -45,8 +45,8 @@ const baseline = median(cases[0].samples);
 const memory = process.memoryUsage();
 console.log(JSON.stringify({
   scope: 'authored DOM replay; not the full engine/MDN adoption gate',
-  backend: process.env.GROVEDOM_BACKEND ?? 'napi',
-  wasmHeap: process.env.GROVEDOM_BACKEND === 'wasm' ? process.env.GROVEDOM_WASM_HEAP ?? 'global' : undefined,
+  backend: process.env.GROVEDOM_BACKEND ?? 'wasm',
+  wasmHeap: (process.env.GROVEDOM_BACKEND ?? 'wasm') === 'wasm' ? process.env.GROVEDOM_WASM_HEAP ?? 'pool' : undefined,
   versions: { node: process.versions.node, cheerio: require('cheerio/package.json').version },
   rows, inputBytes: Buffer.byteLength(source), rounds, iterations, consumed,
   cases: cases.map(item => ({ name: item.name, exactOutput: item.compatible,

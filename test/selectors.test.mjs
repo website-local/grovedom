@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
-import { kernel } from '../src/kernel.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 const html = '<main><h2>Title</h2><section id="a">ab<b>cd</b><br>ef<!--gap--></section><section id="b">other</section><template id="t"><i>inside</i></template><form><input name="a"><input type="text"><input type="checkbox" checked><input type="radio"><button>send</button><select><option>one</option><option>two</option></select><textarea>value</textarea></form><p data-value=":input">:input</p></main>';
 for (const execution of ['direct', 'buffered']) test(`${execution}: common Cheerio pseudos compose with CSS and nested functions`, () => {

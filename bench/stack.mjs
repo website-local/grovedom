@@ -2,7 +2,9 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { createFacade } from '../src/facade/document.js';
+import { createWasmKernel } from '../src/wasm/kernel.js';
+import { nodePlatform, decodeInput } from '../src/wasm/node.js';
 import { page, replay } from '../test/fixtures.mjs';
 import { page as sitemap, svg, replay as xmlReplay } from './xml-fixtures.mjs';
 import { instrumentStack } from './wasm-stack-instrument.mjs';
@@ -20,26 +22,18 @@ try {
   mkdirSync(join(temporary, 'build'));
   writeFileSync(join(temporary, 'build', 'grovedom.wasm'), binary);
   writeFileSync(join(temporary, 'build', 'build.json'), JSON.stringify(metadata));
-  process.env.GROVEDOM_WASM_BUILD_DIR = join(temporary, 'build');
-  const source = readFileSync(new URL('../src/wasm-kernel.js', import.meta.url), 'utf8');
-  const point = 'const runtime = new WebAssembly.Instance(module, imports).exports;';
-  assert.equal(source.split(point).length, 2);
-  const instrumented = source.replace(point, `${point}
+  let stackPattern = 0xa5;
+  const stackRuntimes = [];
+  function stackReset(pattern) { stackRuntimes.length = 0; stackPattern = pattern; }
+  const platform = { ...nodePlatform, runtimeCreated(runtime) {
     if (!runtime.__stack_low || !runtime.__stack_high || !runtime.__stack_pointer) throw new Error('Build with GROVEDOM_WASM_PROFILE_STACK=1.');
     const low = runtime.__stack_low.value, high = runtime.__stack_high.value;
-    if (runtime.__stack_pointer.value !== high) throw new Error('Unexpected initial stack pointer');
+    assert.equal(runtime.__stack_pointer.value, high);
     new Uint8Array(runtime.memory.buffer, low, high - low).fill(stackPattern);
-    stackRuntimes.push(runtime);`);
-  writeFileSync(join(temporary, 'package.json'), readFileSync(new URL('../package.json', import.meta.url)));
-  mkdirSync(join(temporary, 'src'));
-  for (const file of ['index.js', 'kernel.js', 'selectors.js']) writeFileSync(join(temporary, 'src', file), readFileSync(new URL(`../src/${file}`, import.meta.url)));
-  writeFileSync(join(temporary, 'src', 'wasm-kernel.js'), `let stackPattern = 0xa5;
-  export const stackRuntimes = [];
-  export function stackReset(pattern) { stackRuntimes.length = 0; stackPattern = pattern; }
-  ${instrumented}`);
-
-  const { load } = await import(pathToFileURL(join(temporary, 'src', 'index.js')).href);
-  const { stackRuntimes, stackReset } = await import(pathToFileURL(join(temporary, 'src', 'wasm-kernel.js')).href);
+    stackRuntimes.push(runtime);
+  } };
+  const kernel = createWasmKernel(new WebAssembly.Module(binary), { heap: 'document' }, platform);
+  const { load } = createFacade(kernel, decodeInput);
   const cases = [120, 600, 5000].map(rows => ({ id: `authored-${rows}`, source: page(rows), run: replay }));
   for (const rows of [120, 600]) cases.push({ id: `sitemap-${rows}`, source: sitemap(rows), run: xmlReplay });
   for (const rows of [120, 300]) cases.push({ id: `svg-${rows}`, source: svg(rows), run: xmlReplay });

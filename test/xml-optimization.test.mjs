@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 import { load as cheerio } from 'cheerio';
 
 function compare(source, run, options = { xml: true }) {

@@ -1,0 +1,71 @@
+import fs from 'node:fs';
+import { fork, spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+import assert from 'node:assert/strict';
+import { checkHost } from './host-load.mjs';
+const args = Object.fromEntries(process.argv.slice(2).map(value => { const [key, ...rest] = value.split('='); return [key.replace(/^--/, ''), rest.join('=')]; }));
+if (!args.manifest)
+    throw new Error('Use --manifest=FILE [--groups=1..3]');
+const manifest = JSON.parse(fs.readFileSync(args.manifest));
+const groups = Number(args.groups ?? 1);
+if (!Number.isInteger(groups) || groups < 1 || groups > 3)
+    throw new Error('Short screens allow one to three fixed groups.');
+const variants = manifest.variants, n = variants.length, reps = groups, blocks = n, results = [];
+let expected, inputs;
+const median = a => { if (!a.length)
+    return null; const b = a.toSorted((x, y) => x - y); return (b[(b.length - 1) >> 1] + b[b.length >> 1]) / 2; };
+function message(child) { return new Promise((resolve, reject) => { function end(code) { reject(Error('Child exited ' + code)); } child.once('exit', end); child.once('error', reject); child.once('message', m => { child.off('exit', end); child.off('error', reject); resolve(m); }); }); }
+function pin(child, cpu) { const r = spawnSync('taskset', ['-pc', String(cpu), String(child.pid)], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); }
+const comparisons = paired => variants.slice(1).map((v, i) => { const ratio = b => median(b.milliseconds[0]) / median(b.milliseconds[i + 1]), kept = paired.filter(b => b.accepted); return { candidate: v.name, raw: median(paired.map(ratio)), filtered: median(kept.map(ratio)) }; });
+for (let replication = 0; replication < reps; replication++) {
+    const children = [], samples = [], paired = [], initialHost = await checkHost();
+    try {
+        let imports = variants.map((_, i) => (i + replication) % n);
+        if (replication % 2)
+            imports.reverse();
+        for (const index of imports) {
+            const v = variants[index], env = { ...process.env, ...v.env, GROVEDOM_PROCESS_ENTRY: pathToFileURL(v.entry).href, GROVEDOM_REPLAY_ENTRY: v.entry, GROVEDOM_PROCESS_FIXTURE: pathToFileURL(manifest.workload ?? process.cwd() + '/test/fixtures.mjs').href, GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows: 120, batches: 2, iterations: 1, warmups: 20, consumer: manifest.consumer, corpus: manifest.corpus, options: v.options }) };
+            const child = fork(new URL('./window-child.mjs', import.meta.url), [], { env, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+            children[index] = child;
+            child.stderr.on('data', b => process.stderr.write(b));
+            const ready = message(child);
+            pin(child, initialHost.chosen.cpu);
+            const report = await ready;
+            assert.equal(report.kind, 'ready');
+            expected ??= report.expected;
+            inputs ??= report.corpus;
+            assert.deepEqual(report.expected, expected);
+            assert.deepEqual(report.corpus, inputs);
+        }
+        for (let block = 0; block < blocks; block++) {
+            // All benchmark children are parked before checking load. Choose by independent
+            // CPU/sibling activity, never by a candidate time. Pin every child to one CPU.
+            const host = await checkHost();
+            for (const child of children)
+                pin(child, host.chosen.cpu);
+            const forward = variants.map((_, i) => (i + block + replication) % n), order = [...forward, ...forward.toReversed()], milliseconds = variants.map(() => []), probes = [];
+            for (const index of order) {
+                const pending = message(children[index]);
+                children[index].send('sample');
+                const r = await pending;
+                assert.equal(r.kind, 'sample');
+                const ms = median(r.samples);
+                milliseconds[index].push(ms);
+                probes.push(...r.controls.flat());
+                samples.push({ block, variant: variants[index].name, medianMilliseconds: ms, ...r });
+            }
+            paired.push({ order, milliseconds, host, accepted: Math.max(...probes) / Math.min(...probes) <= 1.5 });
+            console.error(JSON.stringify({ replication, block, preflightQuiet: host.quiet, siblingBusy: host.chosen.siblingMax, probeAccepted: paired.at(-1).accepted }));
+        }
+        results.push({ replication, initialHost, paired, samples, comparisons: comparisons(paired) });
+    }
+    finally {
+        await Promise.all(children.filter(Boolean).map(child => new Promise(resolve => { child.once('exit', resolve); if (child.exitCode !== null)
+            resolve();
+        else if (child.connected)
+            child.send('stop');
+        else
+            child.kill(); })));
+    }
+}
+console.log(JSON.stringify({ scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and 20 warmups excluded. Each sample has two batches of one whole-corpus replays. One to three fixed fresh process groups; rotate and mirror all variants in each block; rotate/reverse imports.', node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: 'Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load, never discard based on candidate timings.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. Busy preflight blocks remain recorded.', results }, null, 2));

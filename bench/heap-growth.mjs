@@ -2,8 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 const manifest = JSON.parse(readFileSync(process.env.GROVEDOM_HTML_MANIFEST, 'utf8'));
 const rounds = Number(process.env.GROVEDOM_BENCH_ROUNDS ?? 7);
@@ -49,5 +49,5 @@ for (const { id, path } of manifest) {
     medianGrowthCalls: median(growthCalls), samples });
 }
 console.log(JSON.stringify({ scope: parseOnly ? 'parse and explicit disposal, including templates; diagnostic only, not facade compatibility evidence' : 'parse, select, attribute write, serialize, explicit disposal; not the engine replay',
-  backend: process.env.GROVEDOM_BACKEND ?? 'napi', heap: process.env.GROVEDOM_WASM_HEAP,
+  backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP,
   initialPages: kernel.configuration?.initialPages, pages }, null, 2));

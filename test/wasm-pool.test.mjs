@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
-const pooled = process.env.GROVEDOM_BACKEND === 'wasm' && process.env.GROVEDOM_WASM_HEAP === 'pool';
+const pooled = (process.env.GROVEDOM_BACKEND ?? 'wasm') === 'wasm' && (process.env.GROVEDOM_WASM_HEAP ?? 'pool') === 'pool';
 test('Wasm pool reuses empty instances, isolates simultaneous documents, and invalidates old handles', { skip: !pooled }, () => {
   kernel.trim();
   const a = load('<p>A</p>'), old = a('p')[0], b = load('<p>B</p>');
@@ -28,8 +28,8 @@ test('Wasm pool enforces instance and byte limits and drops oversized heaps', { 
   for (const [limit, idle] of [[1572864, 1], [4194304, 2]]) {
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
       import assert from 'node:assert/strict';
-      import { load } from ${JSON.stringify(new URL('../src/index.js', import.meta.url).href)};
-      import { kernel } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
+      import { load } from ${JSON.stringify(new URL('../diagnostics/index.js', import.meta.url).href)};
+      import { kernel } from ${JSON.stringify(new URL('../diagnostics/kernel.js', import.meta.url).href)};
       const docs = Array.from({length: 4}, () => load('<p>x</p>'));
       for (const $ of docs) $.dispose();
       assert.equal(kernel.stats().idleInstances, ${idle});
@@ -48,8 +48,8 @@ test('Wasm pool enforces instance and byte limits and drops oversized heaps', { 
 test('Wasm pool GC fallback returns an abandoned instance for reuse', { skip: !pooled }, () => {
   const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', `
     import assert from 'node:assert/strict';
-    import { load } from ${JSON.stringify(new URL('../src/index.js', import.meta.url).href)};
-    import { kernel } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
+    import { load } from ${JSON.stringify(new URL('../diagnostics/index.js', import.meta.url).href)};
+    import { kernel } from ${JSON.stringify(new URL('../diagnostics/kernel.js', import.meta.url).href)};
     (() => { const $ = load('<p>abandoned</p>'); $('p').text(); })();
     for (let i = 0; i < 100; i++) {
       await new Promise(setImmediate); global.gc(); await new Promise(setImmediate);

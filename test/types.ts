@@ -1,3 +1,9 @@
+import { init } from 'grovedom';
+import { init as initBrowser } from '../src/browser.js';
+import { init as initNative } from '../src/native.js';
+init({ wasm: new Uint8Array(), heap: 'pool', poolSize: 8 });
+const browserReady: Promise<void> = initBrowser({ wasm: new Uint8Array() });
+initNative({ addon: new URL('file:///example.node') });
 import { load, merge, contains, type FilterFunction, type NodeHandle, type SelectorType } from 'grovedom';
 const $ = load('<p>Hello</p>', { scriptingEnabled: true });
 const selector: SelectorType = 'p';

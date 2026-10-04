@@ -2,15 +2,27 @@
   "name": "grovedom",
   "version": "0.1.0",
   "private": true,
-  "description": "An experimental Cheerio-shaped DOM facade with ordered native operations",
+  "description": "Wasm-first Cheerio-shaped HTML/XML DOM with ordered operations",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
   },
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "import": "./src/index.js"
+      "browser": {
+        "types": "./src/browser.d.ts",
+        "default": "./src/browser.js"
+      },
+      "node": {
+        "types": "./src/index.d.ts",
+        "default": "./src/index.js"
+      },
+      "types": "./src/browser.d.ts",
+      "default": "./src/browser.js"
+    },
+    "./browser": {
+      "types": "./src/browser.d.ts",
+      "import": "./src/browser.js"
     }
   },
   "scripts": {
@@ -19,7 +31,8 @@
     "test": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:fuzz": "node test/fuzz.mjs",
     "test:types": "node scripts/check-types.mjs",
-    "bench": "node bench/run.mjs"
+    "bench": "node bench/run.mjs",
+    "package:targets": "node scripts/package-targets.mjs"
   },
   "peerDependencies": {
     "cheerio": "1.2.0"
@@ -27,5 +40,11 @@
   "devDependencies": {
     "@types/node": "22.20.5",
     "cheerio": "1.2.0"
-  }
+  },
+  "browser": "./src/browser.js",
+  "files": [
+    "src",
+    "grovedom.wasm",
+    "README.md"
+  ]
 }

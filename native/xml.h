@@ -1,6 +1,6 @@
 #ifndef GROVEDOM_XML_H
 #define GROVEDOM_XML_H
-#include "kernel.h"
+#include "document.h"
 
 /* Private XML implementation interface; not an external ABI. */
 enum { XML_DECODE = 1, XML_LOWER_TAGS = 2, XML_LOWER_ATTRS = 4,

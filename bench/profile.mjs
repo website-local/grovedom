@@ -1,5 +1,5 @@
 // Run with --cpu-prof and a disk-backed --cpu-prof-dir.
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const { page, replay } = await import(process.env.GROVEDOM_PROFILE_WORKLOAD

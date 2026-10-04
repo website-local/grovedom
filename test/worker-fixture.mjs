@@ -6,8 +6,8 @@ import { replay } from './fixtures.mjs';
 // Let the parent start several first imports together, before it loads the addon.
 parentPort.postMessage({ phase: 'ready' });
 await once(parentPort, 'message');
-const { load } = await import('../src/index.js');
-const { kernel } = await import('../src/kernel.js');
+const { load } = await import('../diagnostics/index.js');
+const { kernel } = await import('../diagnostics/kernel.js');
 assert.equal(kernel.stats().liveDocuments, 0);
 assert.equal(kernel.stats().liveBytes, 0);
 const $ = load(`<p>worker ${workerData.id}</p>`);

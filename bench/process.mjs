@@ -52,9 +52,11 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 const importStart = performance.now();
-const { load } = await import(process.env.GROVEDOM_PROCESS_ENTRY);
+const facade = await import(process.env.GROVEDOM_PROCESS_ENTRY);
+const { load } = facade;
 const importMilliseconds = performance.now() - importStart;
 const config = JSON.parse(process.env.GROVEDOM_PROCESS_CONFIG);
+if (config.options !== undefined) await facade.init(config.options);
 const inputs = [];
 for (const item of config.corpus) {
   const { page, replay } = await import(item.workload ? pathToFileURL(item.workload).href : process.env.GROVEDOM_PROCESS_FIXTURE);
@@ -118,7 +120,7 @@ for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
           GROVEDOM_PROCESS_ENTRY: pathToFileURL(variant.entry).href,
           GROVEDOM_REPLAY_ENTRY: variant.entry,
           GROVEDOM_PROCESS_FIXTURE: manifest.workload ? pathToFileURL(manifest.workload).href : new URL('../test/fixtures.mjs', import.meta.url).href,
-          GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows, batches, iterations, warmups, consumer: manifest.consumer, corpus: manifest.aggregate ? corpus : [item] }),
+          GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows, batches, iterations, warmups, options: variant.options, consumer: manifest.consumer, corpus: manifest.aggregate ? corpus : [item] }),
         },
       });
       if (output.error) throw output.error;

@@ -7,8 +7,8 @@ import { page as sitemap, svg } from './xml-fixtures.mjs';
 
 if (!global.gc) throw new Error('Run with --expose-gc');
 const entry = process.env.GROVEDOM_MEMORY_ENTRY;
-const { load } = await import(entry ? pathToFileURL(entry).href : '../src/index.js');
-const { kernel } = await import(entry ? new URL('./kernel.js', pathToFileURL(entry)).href : '../src/kernel.js');
+const { load } = await import(entry ? pathToFileURL(entry).href : '../diagnostics/index.js');
+const { kernel } = await import(entry ? new URL('./kernel.js', pathToFileURL(entry)).href : '../diagnostics/kernel.js');
 const cycles = Number(process.env.GROVEDOM_MEMORY_CYCLES ?? 24);
 if (!Number.isSafeInteger(cycles) || cycles < 8) throw new Error('Expected at least eight cycles');
 const inputs = [
@@ -102,8 +102,8 @@ assert.equal(stats().liveBytes, 0); assert.equal(stats().liveDocuments, 0);
 // Optional private corpora have different sizes and are reported without these
 // authored-fixture ceilings. JS/allocator RSS retention remains diagnostic.
 const mib = 1024 * 1024;
-const wasm = process.env.GROVEDOM_BACKEND === 'wasm';
-const heap = process.env.GROVEDOM_WASM_HEAP ?? 'global';
+const wasm = (process.env.GROVEDOM_BACKEND ?? 'wasm') === 'wasm';
+const heap = process.env.GROVEDOM_WASM_HEAP ?? 'pool';
 const budgets = process.env.GROVEDOM_CORPUS_MANIFEST ? null : {
   trackedLiveBytes: (wasm ? 14 : 24) * mib,
   wasmCapacityBytes: (heap === 'global' ? 16 : heap === 'pool' ? 32 : 24) * mib,
@@ -119,7 +119,7 @@ if (budgets) {
 console.log(JSON.stringify({
   scope: 'explicit disposal, eight mixed live owners, retained disposed selections, repeated child replacement; no timing claims',
   limits: 'Backing allocations include arena capacity, not live node payload. Wasm capacity minus tracked bytes includes static data, stack, allocator overhead, free blocks and slack; it is not a fragmentation measurement. RSS/GC are observations, not deterministic budgets.',
-  backend: process.env.GROVEDOM_BACKEND ?? 'napi', heap: process.env.GROVEDOM_WASM_HEAP,
+  backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP,
   cycles, checksum, inputs: inputs.map(({ id, source }) => ({ id, bytes: Buffer.byteLength(source) })),
   budgets, peakLiveBytes, peakMemoryBytes, windows, samples,
 }, null, 2));

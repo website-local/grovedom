@@ -16,7 +16,9 @@ for (const value of [rounds, iterations, rows]) if (!Number.isSafeInteger(value)
 const variants = [];
 for (const config of manifest.variants) {
   Object.assign(process.env, config.env);
-  const { load } = await import(pathToFileURL(config.entry).href);
+  const facade = await import(pathToFileURL(config.entry).href);
+  if (config.options !== undefined) facade.init(config.options);
+  const { load } = facade;
   variants.push({ name: config.name, load });
 }
 const corpus = manifest.corpus?.map(({ id, path }) => ({ id, source: readFileSync(path, 'utf8') }))

@@ -1,21 +1,11 @@
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import { kernel } from '../src/kernel.js';
+import { kernel } from '../diagnostics/kernel.js';
 import { instrument } from './instrument-kernel.mjs';
 if (!process.env.TMPDIR) throw new Error('Set disk-backed TMPDIR for the instrumented facade.');
 if (!kernel.profile) throw new Error('Build with GROVEDOM_PROFILE=1; use global heap for Wasm core timing.');
-const temporary = join(process.env.TMPDIR, `grovedom-phase-facade-${process.pid}.mjs`);
-const source = readFileSync(new URL('../src/index.js', import.meta.url), 'utf8')
-  .replace("'./selectors.js'", JSON.stringify(new URL('../src/selectors.js', import.meta.url).href));
-const instrumented = source.replace("import { kernel } from './kernel.js';", `import { kernel as raw } from ${JSON.stringify(new URL('../src/kernel.js', import.meta.url).href)};
-import { instrument } from ${JSON.stringify(new URL('./instrument-kernel.mjs', import.meta.url).href)};
-export const measurement = instrument(raw);
-const kernel = measurement.kernel;`);
-writeFileSync(temporary, instrumented);
-const { load, measurement } = await import(pathToFileURL(temporary).href);
-unlinkSync(temporary);
+const { load, measurement } = await import('../diagnostics/instrumented.js');
 const iterations = Number(process.env.GROVEDOM_PROFILE_ITERATIONS ?? 600);
 const rows = Number(process.env.GROVEDOM_BENCH_ROWS ?? 120);
 const { page, replay } = await import(process.env.GROVEDOM_PROFILE_WORKLOAD
@@ -34,7 +24,7 @@ const start = performance.now();
 for (let i = 0; i < iterations; i++) checksum += replay(load, html).length;
 const milliseconds = performance.now() - start;
 console.log(JSON.stringify({ scope: 'instrumented authored replay; validate optimizations with uninstrumented paired timing',
-  backend: process.env.GROVEDOM_BACKEND ?? 'napi', rows, iterations, checksum, milliseconds,
+  backend: process.env.GROVEDOM_BACKEND ?? 'wasm', rows, iterations, checksum, milliseconds,
   calibration: { probeRecordedNs: probe[1] / probe[0], probeWallNs, wrapperTimerFloorNs },
   columns: ['calls', 'inclusiveNanoseconds', 'exclusiveNanoseconds', 'referenceTscTicks', 'units'],
   core: kernel.profile(), boundary: measurement.snapshot(), allocator: kernel.stats() }, null, 2));

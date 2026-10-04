@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createEngineAdapter } from '../integration/engine-adapter.mjs';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 test('engine scope owns nested loads, explicit disposal and exceptional exits', async () => {
   const adapter = createEngineAdapter(load);

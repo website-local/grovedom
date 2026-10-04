@@ -1,5 +1,5 @@
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 import { page } from '../test/fixtures.mjs';
 if (!global.gc) throw new Error('Run this diagnostic with --expose-gc.');
 const samples = [];
@@ -25,4 +25,4 @@ for (const index of [5, 1, 7, 0, 6, 2, 4, 3]) nested[index].dispose();
 nested = null;
 await sample('all-disposed');
 if (kernel.trim) { kernel.trim(); await sample('pool-trimmed'); }
-console.log(JSON.stringify({ backend: process.env.GROVEDOM_BACKEND ?? 'napi', heap: process.env.GROVEDOM_WASM_HEAP, scope: 'retention diagnostic; not a fragmentation proof', samples }, null, 2));
+console.log(JSON.stringify({ backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP, scope: 'retention diagnostic; not a fragmentation proof', samples }, null, 2));

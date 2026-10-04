@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { load as reference } from 'cheerio';
-import { load } from '../src/index.js';
-import { kernel } from '../src/kernel.js';
+import { load } from '../diagnostics/index.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 const directory = process.env.GROVEDOM_FUZZ_DIR;
 assert(process.env.TMPDIR && directory, 'Set disk-backed TMPDIR and GROVEDOM_FUZZ_DIR.');
@@ -97,4 +97,4 @@ for (let i = 0; i < (supplied ? 1 : count); i++) {
   }
 }
 console.log(JSON.stringify({ scope: 'Seeded DOM transformation differential and malformed-input safety checks; no performance claim.',
-  seed, completed, rejectedMalformed, backend: process.env.GROVEDOM_BACKEND ?? 'napi', heap: process.env.GROVEDOM_WASM_HEAP, kernel: kernel.stats() }));
+  seed, completed, rejectedMalformed, backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP, kernel: kernel.stats() }));

@@ -1,5 +1,4 @@
 import type { CheerioOptions, FilterFunction } from 'cheerio';
-import type { Buffer } from 'node:buffer';
 export type { FilterFunction, SelectorType } from 'cheerio';
 
 export type XMLOptions = Pick<Exclude<CheerioOptions['xml'], boolean | undefined>,
@@ -164,6 +163,19 @@ export interface GroveDOMAPI {
   /** Discard pending operations and free the document; safe to call repeatedly. */
   dispose(): void;
 }
-export function load(content: string | Buffer, options?: LoadOptions | null, isDocument?: boolean): GroveDOMAPI;
+export function load(content: string | Uint8Array, options?: LoadOptions | null, isDocument?: boolean): GroveDOMAPI;
 export function contains(container: NodeHandle, contained: NodeHandle): boolean;
 export const merge: typeof import('cheerio').merge;
+
+/** Opaque compiled module; init validates WebAssembly.Module identity at runtime.
+ * Structural object avoids requiring DOM globals in Node-only TypeScript projects. */
+export type CompiledWasmModule = object;
+export interface InitOptions {
+  /** A local path, file URL, bytes, or compiled module. Defaults to the bundled Wasm. */
+  wasm?: string | URL | ArrayBuffer | Uint8Array | CompiledWasmModule;
+  heap?: 'pool' | 'global' | 'document';
+  poolSize?: number;
+  poolMaxBytes?: number;
+}
+/** Configure once before load, contains or merge. Initialization is synchronous on Node. */
+export function init(options?: InitOptions): void;

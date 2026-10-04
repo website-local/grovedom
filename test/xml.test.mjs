@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load } from '../src/index.js';
+import { load } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
-import { kernel } from '../src/kernel.js';
+import { kernel } from '../diagnostics/kernel.js';
 
 const svg = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE svg><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 10 10"><defs><linearGradient id="G"><stop offset="0"/></linearGradient></defs><g class="icon"><Path ID="upper" d="M0 0"/><path id="lower" d="M1 1"/><use xlink:href="#G"/></g><title>é &amp; &#x1f600; &quot; &apos;</title><desc><![CDATA[x<y && z>0]]></desc><!--tail--></svg>';
 const sitemap = '<?xml version="1.0"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://example.test/a.xml?x=1&amp;y=2</loc><lastmod>2026-01-01</lastmod></sitemap><sitemap><loc>https://example.test/二.xml</loc></sitemap></sitemapindex>';

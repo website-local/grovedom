@@ -22,6 +22,7 @@ if (mode !== 'cpu') {
 }
 Object.assign(process.env, variant.env, { GROVEDOM_REPLAY_ENTRY: variant.entry });
 const entry = pathToFileURL(variant.entry), facade = await import(entry.href), { load } = facade;
+if (variant.options !== undefined) await facade.init(variant.options);
 const kernel = variant.env?.GROVEDOM_BACKEND ? (await import(new URL('kernel.js', entry).href)).kernel : null;
 const inputs = [];
 for (const scenario of manifest.corpus) {

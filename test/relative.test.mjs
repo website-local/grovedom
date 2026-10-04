@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { load, contains, merge } from '../src/index.js';
+import { load, contains, merge } from '../diagnostics/index.js';
 import { load as cheerio } from 'cheerio';
 
 test('relative selectors keep context, order, escaped tokens and pending writes', () => {
