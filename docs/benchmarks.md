@@ -3,6 +3,9 @@
 The [Wasm-first investigation](#wasm-first-investigation-after-2eef7b6) records the
 latest direct native/Wasm/Cheerio comparison and the experiments retained or
 rejected in this pass.
+The subsequent [candidate recheck](#candidate-recheck-after-b27dbe2) retains the
+release defaults after mixed results, finishing its missing panels with short
+batches and checking sibling-thread load before every balanced block.
 
 ## Accepted performance requirements
 
@@ -1263,3 +1266,95 @@ The best-effort native 6× milestone is unmet. Final regression confirmations pa
 with a narrow native XML margin and earlier failed/inconclusive evidence retained.
 Production traffic weights, broader failure testing and shipping-platform/backend
 selection remain adoption work.
+
+## Candidate recheck after `b27dbe2`
+
+**No candidate is promoted.** Five isolated experiments revisit Binaryen 133 O3,
+forced `gd_write` inlining, additional JS command-view caching, query-wide native
+parser-mode scope, and earlier placement of native document flags. Baseline and
+control run identical `b27dbe2` source/artifacts in separate persistent processes.
+The candidates use the same reviewed dependencies and corpus; no combination,
+new dependency patch, or release-default change is retained.
+
+The original protocol uses three fresh process groups per panel, 200 whole-corpus
+warmups per implementation and six batches of two replays per request. Every
+block rotates and mirrors all implementations, including the baseline control;
+only one process executes a request at a time. Native has six variants and six
+blocks per group; pooled Wasm has five of each. Ratios below are baseline elapsed
+divided by candidate elapsed: median batch time per request, median of the two
+mirrored requests per variant, then median of block ratios across all groups.
+They are not normalized by controls.
+
+Before initialization and every block, an independent one-second CPU sample
+checks each permitted CPU and its sibling threads. All children are pinned to
+the group with the lowest maximum sibling activity. Activity above 15% causes
+at most two retries, each after a two-second wait; persistent activity is recorded
+as busy. The unchanged independent-probe filter rejects complete blocks only
+when maximum/minimum probe time exceeds 1.5. Busy prechecks remain in raw and
+probe-filtered results; quiet counts are additional diagnostics, not a new
+post-hoc filter. Neither check proves an uninterrupted measurement window.
+
+The interrupted original run completed ten of fourteen panels: 163/165 blocks
+pass the probe filter, but only 139 of those have quiet prechecks. All original
+samples, including the empty interrupted Node 24 pooled-consumer result, remain
+preserved. Each cell shows raw / filtered ratios when they differ. XML uses the
+four authored sitemap/SVG inputs; synthetic combines authored HTML/XML; consumer
+uses the complete nineteen-scenario replay with the refreshed archive samples.
+
+| Backend / Node / panel | Binaryen | Inline | Cache | Scope | Fields | Control | Kept / total; quiet kept |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Native / 22 / consumer | — | 1.008 / 1.009 | 0.998 / 0.998 | 1.004 / 1.004 | 1.002 / 1.002 | 1.003 / 1.002 | 17/18; 12 |
+| Native / 22 / synthetic | — | 1.036 | 1.017 | 1.002 | 0.990 | 1.015 | 18/18; 18 |
+| Native / 24 / synthetic | — | 1.009 / 1.012 | 1.043 / 1.042 | 1.002 / 1.002 | 0.996 / 1.000 | 1.016 / 1.009 | 17/18; 17 |
+| Native / 22 / XML | — | 0.990 | 1.010 | 0.981 | 0.986 | 0.987 | 18/18; 13 |
+| Native / 24 / XML | — | 1.017 | 0.950 | 1.183 | 1.062 | 0.986 | 18/18; 18 |
+| Pool / 22 / consumer | 0.986 | 1.003 | 1.002 | — | — | 1.002 | 15/15; 15 |
+| Pool / 22 / synthetic | 1.030 | 1.020 | 1.016 | — | — | 1.024 | 15/15; 15 |
+| Pool / 24 / synthetic | 0.974 | 1.026 | 1.026 | — | — | 0.994 | 15/15; 15 |
+| Pool / 22 / XML | 0.995 | 0.973 | 1.041 | — | — | 1.011 | 15/15; 1 |
+| Pool / 24 / XML | 0.993 | 1.009 | 1.020 | — | — | 1.005 | 15/15; 15 |
+
+The declared prioritization screen requires raw/filtered gains above 2%, controls
+within 0.98–1.02, at least two groups with three retained blocks, and improvement
+in at least two groups. Promotion additionally requires checking other panels
+and both runtimes. Individual favorable cells are insufficient. For example,
+native scope and field placement improve Node 24 XML but not Node 22 XML;
+Binaryen's Node 22 consumer ratio is below one in all three groups. Pooled Node 22
+synthetic has an invalid control, and pooled Node 22 XML has only one quiet block.
+Substantial group variation survives even some acceptable aggregate controls.
+
+### Short completion screens
+
+To fit brief idle windows, the four missing panels use a separate, fixed protocol:
+one fresh group, 20 whole-corpus warmups, two batches of one replay per request,
+and one complete rotated/mirrored cycle. This reduces a request from twelve
+complete timed replays to two. Load checks, output assertions, separate processes
+and probe thresholds remain unchanged. These screens cannot satisfy the original
+two-group requirement; shorter warmup also leaves greater runtime-tiering
+uncertainty. They are diagnostic completion checks, not promotion gates, and are
+never combined with the original protocol. No extensions were run.
+
+| Backend / Node / panel | Binaryen | Inline | Cache | Scope | Fields | Control | Kept / total |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Native / 24 / consumer | — | 0.981 | 0.971 | 0.978 | 0.955 | 0.992 | 6/6 |
+| Native / 22 / HTML | — | 0.957 | 1.073 | 1.079 | 0.924 | 1.019 | 6/6 |
+| Native / 24 / HTML | — | 0.941 | 0.966 | 1.036 | 0.902 | 0.957 | 6/6 |
+| Pool / 24 / consumer | 1.011 | 0.987 | 0.989 | — | — | 1.015 | 5/5 |
+
+All 23 blocks have quiet prechecks and pass the probe filter, so raw and filtered
+ratios agree. Nevertheless, the native Node 24 HTML control fails the 2% tolerance.
+That row is inconclusive: a quiet precheck does not remove runtime or order
+effects. The other panels supply no consistent cross-workload reason to promote
+these candidates. Inlining/caching retain isolated synthetic leads; native scope
+retains a Node 24 XML lead, but neither establishes a release-wide benefit.
+
+All fourteen applicable candidate/backend/runtime suites had already passed
+before timing: 726 cases each, native 709 passes/17 skips and pooled Wasm 715/11,
+on Node 22.22.2 and 24.18.0. Each timing group checks exact baseline/candidate
+outputs and input hashes before sampling. The completion audit recomputes block
+ratios and probe decisions from raw samples, verifies every candidate artifact
+against its recorded hash, and confirms current runtime/kernel source and main
+artifacts still match the baseline. No runtime change requires new sanitizer or
+memory-budget runs. This closes the bounded candidate review with the existing
+release retained; it does not establish universal regressions or production
+adoption.
