@@ -485,7 +485,7 @@ class Selection {
   insertBefore(target) { const { state, ids } = entry(this); return selection(state, edit(state, 14 | 256, entry(state.api(target)).ids, ids), this); }
   insertAfter(target) { const { state, ids } = entry(this); return selection(state, edit(state, 15 | 256, entry(state.api(target)).ids, ids), this); }
   clone() { const { state, ids } = entry(this); return selection(state, edit(state, 2, ids), this); }
-  empty() { const { state, ids } = entry(this); enqueue(state, ids, 3, ''); return this; }
+  empty() { const { state, ids } = entry(this); enqueue(state, ids, 7); return this; }
   remove(selector) { const { state, ids } = entry(selector ? this.filter(selector) : this); enqueue(state, ids, 6); return this; }
   detach(selector) { return this.remove(selector); }
   replaceWith(value) {

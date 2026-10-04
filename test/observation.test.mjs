@@ -4,6 +4,21 @@ import { load } from '../src/index.js';
 import { load as cheerio } from 'cheerio';
 import { kernel } from '../src/kernel.js';
 
+test('cached command transfers survive growth with equal UTF-8 output lengths', () => {
+  for (const xml of [false, true]) {
+    const $ = load('<p>initial</p>', { xml });
+    try {
+      const p = $('p');
+      p.text('雪'.repeat(400));
+      assert.equal(p.text(), '雪'.repeat(400));
+      p.text('x'.repeat(1200));
+      assert.equal(p.text(), 'x'.repeat(1200));
+      $('p').attr('title', 'after');
+      assert.equal(p.attr('title'), 'after');
+    } finally { $.dispose(); }
+  }
+});
+
 test('empty snapshots stay independent across edits, documents, and disposal', () => {
   const $ = load('<main></main>'), other = load('<main></main>');
   try {

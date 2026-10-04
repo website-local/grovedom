@@ -13,7 +13,8 @@ function normalized(output) {
   for (const item of value.outputs) item[1] = reference.load(item[1]).html();
   return JSON.stringify(value);
 }
-if (manifest.variants?.length !== 2) throw new Error('Expected two isolated source/artifact variants.');
+if (!Array.isArray(manifest.variants) || manifest.variants.length < 2) throw new Error('Expected at least two isolated source/artifact variants.');
+if (new Set(manifest.variants.map(v => v.name)).size !== manifest.variants.length) throw new Error('Variant names must be unique.');
 const rows = Number(process.env.GROVEDOM_BENCH_ROWS ?? 120);
 const blocks = Number(process.env.GROVEDOM_BENCH_BLOCKS ?? 3);
 const batches = Number(process.env.GROVEDOM_BENCH_ROUNDS ?? 30);
@@ -50,7 +51,9 @@ import { performance } from 'node:perf_hooks';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+const importStart = performance.now();
 const { load } = await import(process.env.GROVEDOM_PROCESS_ENTRY);
+const importMilliseconds = performance.now() - importStart;
 const config = JSON.parse(process.env.GROVEDOM_PROCESS_CONFIG);
 const inputs = [];
 for (const item of config.corpus) {
@@ -61,7 +64,9 @@ for (const item of config.corpus) {
 const corpus = inputs.map(({ source, scenario }) => ({ id: scenario.id,
   bytes: Buffer.byteLength(source), sha256: createHash('sha256').update(source).digest('hex') }));
 const expected = [];
+const firstStart = performance.now();
 for (const { source, replay, scenario } of inputs) expected.push(config.consumer ? await replay(source, scenario) : replay(load, source));
+const firstCorpusMilliseconds = performance.now() - firstStart;
 const invoke = config.consumer ? async () => {
   let length = 0;
   for (const { source, replay, scenario } of inputs) length += (await replay(source, scenario)).length;
@@ -90,7 +95,7 @@ for (let batch = 0; batch < config.batches; batch++) {
   samples.push((performance.now() - start) / config.iterations);
   controls.push([before, probe()]);
 }
-console.log(JSON.stringify({ expected, corpus, consumed, samples, controls, probeSink }));
+console.log(JSON.stringify({ expected, corpus, consumed, samples, controls, probeSink, importMilliseconds, firstCorpusMilliseconds }));
 `;
 const results = [];
 const corpus = manifest.corpus ?? [{ id: 'authored' }];
@@ -99,10 +104,11 @@ for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
   const samples = [], paired = [];
   let expected, inputs;
   for (let block = 0; block < blocks; block++) {
-    // Select independently of either implementation's timings. Keep all four
-    // processes of a balanced block on the same CPU; never retry a slow block.
+    // Select independently of implementation timings. Every variant runs twice
+    // in mirrored order on the same CPU; rotate the first position per block.
     const cpu = quietAffinity ? await quietCPU() : null;
-    const order = block % 2 ? [1, 0, 0, 1] : [0, 1, 1, 0], milliseconds = [[], []];
+    const forward = manifest.variants.map((_, index) => (index + block) % manifest.variants.length);
+    const order = [...forward, ...forward.toReversed()], milliseconds = manifest.variants.map(() => []);
     for (const index of order) {
       const variant = manifest.variants[index];
       const args = ['--input-type=module', '-e', child];
@@ -131,15 +137,26 @@ for (const item of manifest.aggregate ? [{ id: 'corpus' }] : corpus) {
     }
     const total = values => values.reduce((a, b) => a + b, 0);
     const probes = samples.filter(sample => sample.block === block).flatMap(sample => sample.controls.flat());
-    paired.push({ order: block % 2 ? 'BAAB' : 'ABBA', milliseconds, accepted: Math.max(...probes) / Math.min(...probes) <= 1.5,
+    paired.push({ order: manifest.variants.length === 2 ? (block % 2 ? 'BAAB' : 'ABBA') : order.map(i => manifest.variants[i].name),
+      milliseconds, accepted: Math.max(...probes) / Math.min(...probes) <= 1.5,
       speedup: total(milliseconds[0]) / total(milliseconds[1]) });
   }
   const accepted = paired.filter(b => b.accepted);
-  results.push({ id: item.id, corpus: inputs, medianPairedSpeedup: median(paired.map(b => b.speedup)), filteredSpeedup: accepted.length ? median(accepted.map(b => b.speedup)) : null, acceptedBlocks: accepted.length, paired, samples });
+  const comparisons = [];
+  for (let a = 0; a < manifest.variants.length; a++) for (let b = a + 1; b < manifest.variants.length; b++) {
+    const ratio = block => median(block.milliseconds[a]) / median(block.milliseconds[b]);
+    comparisons.push({ baseline: manifest.variants[a].name, candidate: manifest.variants[b].name,
+      medianPairedSpeedup: median(paired.map(ratio)), filteredSpeedup: accepted.length ? median(accepted.map(ratio)) : null,
+      minimumRetained: accepted.length ? Math.min(...accepted.map(ratio)) : null,
+      maximumRetained: accepted.length ? Math.max(...accepted.map(ratio)) : null });
+  }
+  results.push({ id: item.id, corpus: inputs, medianPairedSpeedup: median(paired.map(b => b.speedup)), filteredSpeedup: accepted.length ? median(accepted.map(b => b.speedup)) : null, acceptedBlocks: accepted.length, comparisons, paired, samples });
 }
 console.log(JSON.stringify({ scope: manifest.consumer ? 'isolated engine/MDN transform replay with deterministic resource I/O; includes adapter disposal and URL/async overhead; excludes startup/warmup and network/disk' : 'one variant per fresh process; excludes startup and warmup; not the full engine workload',
-  filterPolicy: 'All raw samples retained. Filter complete ABBA/BAAB blocks only when max/min independent CPU probes exceeds 1.5; never filter by implementation timings or speedup.',
-  affinityPolicy: quietAffinity ? 'Choose a permitted CPU by independent activity before each block; pin all four processes to it.' : 'Inherit process affinity.',
+  filterPolicy: 'All raw samples retained. Filter complete mirrored process blocks only when max/min independent CPU probes exceeds 1.5; never filter by implementation timings or speedup.',
+  affinityPolicy: quietAffinity ? 'Choose a permitted CPU by independent activity before each block; pin all processes of the block to it.' : 'Inherit process affinity.',
+  orderPolicy: 'Rotate the first variant by block, then run the reverse order. Use a multiple of the variant count for equal position coverage. Two variants retain ABBA/BAAB ordering.',
+  startupScope: 'Diagnostic import and first-corpus wall times in each fresh process; input preparation and process startup excluded, no noise-filtered startup claim.',
   outputComparison: manifest.normalizeHTML ? 'HTML reparsed through Cheerio/parse5 outside timing; resource events compared exactly' : 'exact output',
   aggregation: manifest.aggregate ? 'Each timed iteration executes the entire listed corpus in order, once per entry; ratios use total elapsed time, not averages of per-case speedups.' : 'Each corpus entry is timed separately.',
   node: process.versions.node, rows, blocks, batches, iterations, warmups,

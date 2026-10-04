@@ -5,6 +5,19 @@ import { load } from '../src/index.js';
 import { documents, page, replay } from './fixtures.mjs';
 
 for (const execution of ['buffered', 'direct']) {
+  test(`${execution}: html insertion, replacement and emptying preserve fragment context`, () => {
+    for (const markup of ['', '<span data-v="">new</span>', '<head><meta name="a"></head><body><p>b</p></body>'])
+    for (const [selector, method] of [['html', 'prepend'], ['head', 'before'], ['head', 'after'], ['html', 'append'], ['html', 'html'], ['html', 'empty']]) {
+      const source = '<!doctype html><html><head><title>x</title></head><body><p>body</p></body></html>';
+      const $ = load(source, { execution }), c = cheerio(source);
+      try {
+        $(selector)[method](markup);
+        c(selector)[method](markup);
+        assert.equal($.html(), c.html(), selector + '.' + method);
+      } finally { $.dispose(); }
+    }
+  });
+
   test(`${execution}: parser output, fragment mode, scripting defaults`, () => {
     for (const source of documents) for (const isDocument of [true, false]) for (const scriptingEnabled of [true, false]) {
       const $ = load(source, { execution, scriptingEnabled }, isDocument);

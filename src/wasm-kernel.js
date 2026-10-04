@@ -14,7 +14,7 @@ if (!['global', 'document', 'pool'].includes(heap)) throw new Error('Expected gl
 const perDocument = heap !== 'global';
 const pooled = heap === 'pool';
 const growth = { calls: 0, pages: 0, milliseconds: 0 };
-const poolSize = Number(process.env.GROVEDOM_WASM_POOL_SIZE ?? 4);
+const poolSize = Number(process.env.GROVEDOM_WASM_POOL_SIZE ?? 8);
 const poolMaxBytes = Number(process.env.GROVEDOM_WASM_POOL_MAX_BYTES ?? 16 * 1024 * 1024);
 if (!Number.isSafeInteger(poolSize) || poolSize < 0 || !Number.isSafeInteger(poolMaxBytes) || poolMaxBytes < 0) throw new Error('Wasm pool limits must be nonnegative integers.');
 const pool = [];

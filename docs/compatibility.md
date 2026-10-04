@@ -44,7 +44,13 @@ Leading `>`, `+`, `~` and `:scope` queries support compound selectors and subseq
 
 Template content is an owned fragment child exposed by `contents()`. Global and fragment-root queries can visit it. Queries scoped entirely to elements stop at fragment boundaries, matching Cheerio; this applies to `main.find(...)` as well as direct `template.find(...)`. Use `template.contents().find(...)` for content. Parent traversal and selector ancestry stop at the fragment, while raw parent links and `contains` retain the connection.
 
-CSS `:has` and `:empty` work on template documents, including nested occurrences and retained detached templates. `:has` can discover descendants through fragments while selector ancestry between components stops at a fragment. `:empty` ignores a fragment child, as Cheerio does. Compatibility evaluation limits selector nesting to 64 levels and fails explicitly beyond that; DOM depth does not consume recursive selector stack. Ordinary Lexbor plans retain their existing evaluator. Getters preserve template structure; they do not reproduce Cheerio's incidental HTML-getter mutation of its child array. Empty-template serialization produces valid empty HTML rather than reproducing Cheerio's serialization exception.
+CSS `:has` and `:empty` work on template documents, including nested occurrences and retained detached templates. `:has` can discover descendants through fragments while selector ancestry between components stops at a fragment. `:empty` ignores a fragment child and a zero-length text child, while nonempty XML CDATA makes the element nonempty. Empty-text matching uses the compatibility evaluator on ordinary documents too. Compatibility evaluation limits selector nesting to 64 levels and fails explicitly beyond that; DOM depth does not consume recursive selector stack. Other ordinary Lexbor plans retain their existing evaluator. Getters preserve template structure; they do not reproduce Cheerio's incidental HTML-getter mutation of its child array. Empty-template serialization produces valid empty HTML rather than reproducing Cheerio's serialization exception.
+
+`.text('')` preserves an observable empty text child, including paired XML tags;
+`.empty()` removes all children. Insertion under the HTML element uses ordinary
+mutation fragments, while `.html()` replacement retains its HTML-element parsing
+context and resulting head/body wrappers. These distinctions are covered by
+differential regressions discovered through seeded mutation fuzzing.
 
 ## XML, SVG and sitemaps
 

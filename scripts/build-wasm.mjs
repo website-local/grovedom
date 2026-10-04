@@ -57,7 +57,7 @@ const exports = ['gk_init', 'gk_new', 'gk_dispose', 'gk_delete', 'gk_input', 'gk
   'gk_query', 'gk_read', 'gk_observe', 'gk_traverse', 'gk_edit', 'gk_execute', 'gk_stats', 'gk_error_code', 'gk_error_message'];
 const output = join(build, profileGrowth ? 'grovedom-growth.wasm' : 'grovedom.wasm');
 run(compiler, [...target, ...flags, '-std=c11', `-O${optimize}`, '-Wall', '-Wextra', '-fvisibility=hidden', '-nostartfiles', '-nodefaultlibs',
-  '-I', join(source, 'source'), join(root, 'native/kernel.c'), join(root, 'native/xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
+  '-I', join(source, 'source'), join(root, 'native/wasm-memory.c'), join(root, 'native/kernel.c'), join(root, 'native/xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
   ...(profileGrowth ? ['-DGROVEDOM_PROFILE_GROWTH', join(root, 'native/wasm-growth.c'), '-Wl,--wrap=sbrk', '-Wl,--export=gk_parse_profile'] : []),
   ...(profile ? ['-DGROVEDOM_PROFILE', join(root, 'native/profile.c'), ...['snapshot', 'name', 'count', 'reset', 'probe'].map(name => `-Wl,--export=gk_profile_${name}`)] : []),
   `-Wl,--threads=${jobs}`, '-Wl,--gc-sections', '-Wl,--no-entry', '-Wl,--export-memory', '-Wl,--stack-first', `-Wl,-z,stack-size=${stackBytes}`,
@@ -66,9 +66,32 @@ run(compiler, [...target, ...flags, '-std=c11', `-O${optimize}`, '-Wall', '-Wext
   ...exports.map(name => `-Wl,--export=${name}`), '-lc', '-lm', resolve(builtins), '-o', output]);
 // Reject accidental libc I/O dependencies instead of supplying syscall stubs.
 const allowedImports = new Set([...(profile ? ['profile_now'] : []), ...(profileGrowth ? ['growth_now', 'growth_sample'] : [])]);
-const unexpected = WebAssembly.Module.imports(new WebAssembly.Module(readFileSync(output)))
+const linked = new WebAssembly.Module(readFileSync(output));
+const unexpected = WebAssembly.Module.imports(linked)
   .filter(value => value.module !== 'env' || value.kind !== 'function' || !allowedImports.has(value.name));
 if (unexpected.length) throw new Error(`Unexpected Wasm imports: ${unexpected.map(value => `${value.module}.${value.name}`).join(', ')}`);
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-writeFileSync(join(build, profileGrowth ? 'growth-build.json' : 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, initialPages, stackBytes, profileStack, profile, optimize, lto, features }) + '\n');
+// Requested compiler flags do not describe the features of prebuilt libraries.
+// Preserve the linked declaration separately; missing metadata means unknown.
+const sections = WebAssembly.Module.customSections(linked, 'target_features');
+const targetFeatures = sections.length ? [] : null;
+for (const section of sections) {
+  const bytes = new Uint8Array(section); let offset = 0;
+  const unsigned = () => {
+    let value = 0, shift = 0, byte;
+    do {
+      if (offset >= bytes.length || shift > 28) throw new Error('Invalid target_features metadata');
+      byte = bytes[offset++]; value |= (byte & 127) << shift; shift += 7;
+    } while (byte & 128);
+    return value >>> 0;
+  };
+  const count = unsigned();
+  for (let i = 0; i < count; i++) {
+    const prefix = String.fromCharCode(bytes[offset++]), length = unsigned();
+    if (!['+', '-'].includes(prefix) || length > bytes.length - offset) throw new Error('Invalid target_features metadata');
+    targetFeatures.push(prefix + new TextDecoder().decode(bytes.subarray(offset, offset + length)));
+    offset += length;
+  }
+}
+writeFileSync(join(build, profileGrowth ? 'growth-build.json' : 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, initialPages, stackBytes, profileStack, profile, optimize, lto, features, targetFeatures }) + '\n');
 console.log('Wasm prototype built. Reuse GROVEDOM_WASM_BUILD_DIR with GROVEDOM_BACKEND=wasm.');

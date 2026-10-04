@@ -93,6 +93,35 @@ Design constraint: keep only the tools required for the chosen production backen
 
 ### Prototype prerequisites
 
+#### Linked Wasm compatibility
+
+An empty requested feature list does not produce an MVP-only binary. With the
+reviewed WASI SDK 25 runtime libraries and LLVM 19 build, the linked module
+declares bulk memory, multivalue, mutable globals, reference types and sign
+extension. Build metadata records this declaration as `targetFeatures`, separately
+from requested compiler `features`. Release modules still have zero host imports:
+using WASI libc for allocation and strings does not require a WASI host when all
+reachable code is compute-only.
+
+The code contains `memory.copy`, `memory.fill` and `i32.extend8_s`. LLVM also emits
+padded table-index LEB encodings for `call_indirect`; their acceptance is part of
+the reference-types encoding rules. Do not advertise MVP compatibility based
+solely on an instruction-name inventory or a validator accepting disabled
+reference types. The conservative artifact target is the full linked declaration.
+Node 22 and 24 are the tested runtime lines; the exact 22.0.0 floor still needs its
+release smoke check. The current glue uses Node APIs, so this is not a browser
+package support claim.
+
+Binaryen 133 experiments preserve those features and additionally name
+`bulk-memory-opt`, Binaryen's feature grouping for copy/fill instructions. Input
+`target_features` metadata can enable features even when a command-line probe
+tries to disable them. Diagnostic minimum-feature validation therefore strips
+only that custom section from a temporary copy before applying an explicit
+feature set. Such probes complement the binary-encoding audit; they do not
+replace the tested-runtime contract. See the [WebAssembly binary instruction
+grammar](https://webassembly.github.io/spec/core/binary/instructions.html) and
+[Binaryen](https://github.com/WebAssembly/binaryen) for feature and encoding rules.
+
 | Work | Required tools and checks |
 |---|---|
 | API inventory and baseline | Supported Node.js, a package manager, TypeScript for compatibility checks, and pinned consumer dependencies |
@@ -203,3 +232,87 @@ The retained name-cache experiment uses 32 element and 32 attribute slots backed
 Binding profiles identified additional work outside XML tokenization: callback setters constructed temporary selections, and each scalar read transported a one-element typed array. The candidate eliminates those internal selections, passes a single ID for scalar reads, and reuses command views with matching buffers/ranges. Callbacks still receive stable node handles and observe prior writes; multi-node reads retain their original selection arrays. No result prefetching, mutation reordering or per-node finalizer is introduced.
 
 The follow-up after `4d33ee8` extends the simple-tag specialization described above: a conservative ASCII identifier check resolves existing tag IDs before creating any CSS parser state. XML uses its existing case-preserving name mapping; escaped or more complex selectors still use the bounded parser cache. This applies the jQuery/WebKit simple-query idea without maintaining a new DOM index. Wasm also combines pending mutations and the following observation into one export call using existing transfer storage. Native read dispatch remains unchanged. Neither change alters compiler features, dependencies, the opcode format or public ABI promises.
+
+## Wasm-first selector and libc investigation
+
+Profiling after `2eef7b6` finds template queries and selector matching to be larger
+consumer costs than allocation or linked libc. Necessary-atom guards now also
+serve short lists and compound queries on template documents. Attribute presence
+is another necessary condition; value operators still use the ordinary matcher.
+Each query partitions possible guard records into an active prefix without
+changing the CSS AST, preorder output, or cached selection snapshots. Unknown
+tag/attribute IDs are resolved again on later queries, so mutations can reactivate
+a previously impossible branch.
+
+A lazy, document-owned 256-byte Bloom filter summarizes class and ID values for
+whole-document compound/list queries on template documents. It rejects definite
+misses only; collisions retain normal matching. Scoped and detached queries bypass
+it. Insertion and class/ID changes invalidate the summary. Removing a subtree can
+leave extra bits safely. The scan uses parent/sibling links, existing attribute
+strings and arena storage, with no per-node allocation or maintained node index.
+This is a smaller application of browser-style rejection filters to the measured
+short-lived DOM workload; it does not import a browser indexing subsystem.
+
+Dynamic libc-call counters show that most copies are shorter than 16 bytes.
+Replacing every call with a bulk instruction regresses the synthetic screen.
+The selected Wasm-only [memory helpers](../native/wasm-memory.c) instead use
+bounded scalar head/tail accesses through 16 bytes and bulk copy/fill above that
+size; overlapping moves use bulk `memory.copy`. Dependency source stays unchanged.
+Bulk memory was already required by the linked WASI runtime. Handwritten SIMD
+copy/fill, broad bulk-memory recompilation, forced writer inlining and command-view
+cache experiments were evaluated; their small, inconsistent workload gains do
+not justify default changes. Binaryen is an experimental post-link tool,
+not a new required build dependency.
+
+Seeded differential fuzzing also found observable empty-text and selector-case
+differences. `.empty()` has its own small opcode, while `.text('')` preserves an
+empty text child. `:empty` uses the bounded compatibility matcher for empty text
+and XML CDATA. Queries use Cheerio's case-sensitive class/ID defaults even when
+HTML parsing selected quirks mode; the parser mode is restored before later
+fragment construction. These fixes preserve normal successful observations;
+exact malformed-input/error-message parity remains outside the adoption gate.
+
+Later experiments also reject libc delimiter scans in the XML parser, an extra
+branch to skip invalidation-name checks, and native parser-mode/flag placement
+changes. None establishes a repeatable benefit across the relevant workloads and
+controls. Pure tag/attribute queries now avoid building the class/ID summary.
+Five document flags use ordinary C booleans to restore an unchanged shared-heap
+plateau assertion; [memory](memory.md#wasm-first-allocation-and-lifetime-recheck)
+records both the failed layout and the bounded follow-up.
+
+The eight-slot idle pool removes recurring consumer instance creation while
+retaining the 16 MiB idle-byte cap. Its final consumer CPU profile assigns about
+42.5% of samples to Wasm, 3.1% to linked libc and 7.0% to selection creation.
+Query scanning/matching, JS wrappers, parsing/string work, consumer URL/async
+handling and GC remain distributed costs. The profile has no sampled Instance
+frame after the pool change; the separate creation trace establishes the actual
+count reduction. Sample shares and independent profiler elapsed times are not
+paired speedups. A broader persistent DOM index would add mutation bookkeeping
+and retained state; no measured need justifies that design change here.
+
+### Private fields and ordinary properties
+
+All three private fields were compared with plain enumerable string keys,
+non-enumerable string keys, module-local symbols and WeakMaps. The kernels,
+fixtures and pool settings stay fixed. Fresh-process screens and fixed short
+repeats on Node 22/24 find no worthwhile overall improvement that preserves the
+current representation. [The measurements](benchmarks.md#private-field-comparison)
+retain failed controls and the shared-JS-heap limitation of the short repeats.
+
+Most selection methods already use the proxy's WeakMap entry; the private state
+field serves the target fallback. Replacing it with another WeakMap entry adds
+construction and GC work. Non-enumerable string properties also add constructor
+work. Enumerable keys expose records during enumeration/copying and fail worker
+structured cloning. Symbols and non-enumerable strings hide those records from
+ordinary enumeration but expose them through reflection; direct property lookup
+also recognizes prototype-forged handles. WeakMaps preserve opaque ownership but
+measure slower. Private fields remain, without assuming their checks are free.
+
+The selected release is rebuilt through the public scripts. Its Wasm executable
+sections and native executable/data sections match the measured artifact; file
+hash differences are confined to metadata/symbol information. Release Wasm has
+zero imports and no diagnostic exports, and the pinned dependency source
+fingerprint still matches. The selected settings remain O3/ThinLTO, 1 MiB initial
+memory, a 32 KiB linear stack, 16 KiB transfer scratch and no additional requested
+target features. These checks establish source/artifact pairing, not shipping
+platform support or production adoption.

@@ -20,6 +20,11 @@ This audit covers GroveDOM's facade and kernel, the reachable parts of the [pinn
 
 The source review includes Lexbor's DOM `document.c`/`node.c`, HTML tokenizer/tree insertion modes and mutation interfaces, CSS selector destruction/parser states, and selector evaluator. The linked release disassembly complements the source audit: 724 functions, 120 writes to the linear stack pointer, and 60 functions with fixed reservations and matching restores. The largest individual reservation is 496 bytes; all distinct reservations sum to 2,912 bytes. That sum is a diagnostic inventory, not a worst-case call-chain bound: recursive multiplicity and indirect-call feasibility must be considered separately.
 
+Empty-text compatibility also routes `:empty` through the bounded matcher on
+documents without templates. It uses the same depth guard; it does not add a
+recursive DOM walk. Compiler and post-link optimization experiments must repeat
+the stack diagnostic on their own generated code.
+
 The direct-call graph identifies the compatibility matcher, tokenizer unref, and HTML insertion-mode cycles. Indirect calls were also reviewed through allocator hooks, selector destructors, parser state tables, DOM interface/mutation tables, serializers, match collectors and the sort comparator. A direct-call graph alone would miss the AST cleanup recursion.
 
 ## Measurements and decision
@@ -36,7 +41,16 @@ The [stack diagnostic](../bench/stack.mjs) instruments every stack-pointer assig
 |---|---:|---:|---:|
 | O3 / ThinLTO | 120 | 6,256 bytes | 6,200 bytes |
 | Kernel O2 / Lexbor O3, LTO off | 140 | 6,256 bytes | 6,200 bytes |
+| Wasm-first selector/memory candidate, O3 / ThinLTO | 122 | 6,256 bytes | 6,200 bytes |
 
 Every pointer restores. The only reported errors are the expected compatibility-selector depth rejections. Ordinary sitemap/SVG replays reach 48 bytes in the default build; the 5,000-node sort reaches 1,216 bytes. Both configurations use the existing compiler and prebuilt libc/builtins. The second changes GroveDOM to O2 and disables LTO; Lexbor retains the build script's O3 setting. No dependency source is patched.
+
+The Wasm-first recheck instruments the actual selected release module, including
+the scalar/bulk memory shadows, and repeats all 48 workloads with both patterns
+and the eight restored MDN inputs. The new summary and guard-compaction walks
+are iterative; they add no recursive edge. All pointers restore and the observed
+maximum is unchanged. Separate temporary copies of the earlier Binaryen and
+memory-helper candidates also pass their stack probes; optimizer results are
+not assumed to share the LLVM artifact's stack usage.
 
 32 KiB leaves about 5.2 times the largest observed depth while halving the former reservation. Keep this margin for unmeasured call combinations and compiler changes instead of deriving a minimum stack size solely from one watermark. The setting remains configurable with `GROVEDOM_WASM_STACK_BYTES`; rerun the audit and diagnostics after changing recursive kernel paths, dependencies or compiler settings. These observations support the chosen default; they are not a proof for every possible input or future build.

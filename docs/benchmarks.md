@@ -1,6 +1,18 @@
 # Benchmark targets and adoption gates
 
+The [Wasm-first investigation](#wasm-first-investigation-after-2eef7b6) records the
+latest direct native/Wasm/Cheerio comparison and the experiments retained or
+rejected in this pass.
+
 ## Accepted performance requirements
+
+The current investigation prioritizes pooled Wasm, with best-effort milestones of
+6× current Cheerio on native mixed synthetic work and 4.5× on the pooled-Wasm
+19-scenario consumer panel. These are milestones, not stopping conditions. The
+pass also examines selector algorithms, linked libc calls, compiler/post-link
+optimization, allocations, retention and seeded fuzz failures. The established
+HTML/XML behavior and regression gates remain in force. Optimization candidates
+must earn their additional code and memory through paired measurements.
 
 Adoption requires **at least 3× faster elapsed time for the complete Cheerio DOM workload, including binding overhead**.
 
@@ -919,3 +931,335 @@ The explicit XML baseline is Cheerio 1.2.0 XML/htmlparser2. Both pooled SVG size
 The fastest-compatible HTML baseline is also rechecked with Cheerio/slim. The mixed synthetic panel measures 3.962×, minimum retained 3.933×, with a 1.003 control. The eight saved-MDN scenarios measure 2.944×, minimum 2.906×, with a 1.014 control. Every comparison/control block survives, and raw/filtered medians agree. Both pass the required demonstrated-win screen (>1×, not a separate 3× HTML/htmlparser2 gate). Saved outputs match after normalization outside timing, with exact ordered resource events. This fixed run requires no extension or changed filter.
 
 The 718-case suite passes on all three Wasm heaps under Node 22: shared 703 passes/15 skips, fresh 704/14, pool 707/11. Pool also passes on Node 24. All 19 refreshed consumer outputs and ordered events match on each heap policy. The authored 2,430-lifetime budget panel and separate restored-corpus lifecycle diagnostics pass. Native C and declarations are unchanged; the previous native sanitizer and type checks remain applicable. Release Wasm has zero imports and no diagnostic exports. See [memory results](memory.md#audited-32-kib-stack-and-view-refresh) for the reduced fresh/pool capacity and unchanged shared-heap high-water mark.
+
+## Wasm-first investigation after `2eef7b6`
+
+Pooled Wasm is the primary optimization target in this completed investigation.
+The best-effort milestones are 6× native on the fixed mixed synthetic corpus and
+4.5× pooled Wasm on the 19-scenario consumer corpus. Selected medians reach
+5.80× and 4.62× respectively. The investigation continued through algorithm,
+memory, libc, compiler, post-link and private-field experiments; it did not stop
+at a favorable multiplier. Final native regression confirmations pass with
+narrow margins and documented earlier failures. Production adoption remains open.
+
+Input identities and weights stay fixed, using the refreshed eight-page MDN
+corpus. Each fresh process runs one implementation; starting positions rotate and
+each order is mirrored. Synthetic and saved-page panels use six balanced blocks,
+and the consumer panel uses five. Each child performs 40 whole-corpus warmups
+and six batches of two complete replays. Native and pooled identical-code controls
+share the blocks. The independent probe max/min cutoff stays 1.5. All raw samples
+remain available, with no ratio-based rejection, control normalization, or timing
+overlap with builds, tests or profilers.
+
+### Direct selected-release comparison
+
+These Node 22.22.2 results compare the selected LLVM code and eight-slot pool
+directly with Cheerio 1.2.0. They are not products of experimental speedups.
+Ratios above one favor GroveDOM. The minimum is the smallest retained balanced
+block; a slash separates raw and filtered medians when they differ.
+
+| Panel | Backend | Median vs current Cheerio | Minimum | Identical-code control | Blocks |
+|---|---|---:|---:|---:|---:|
+| Mixed synthetic HTML/XML | Native | 5.804× | 5.309× | 1.029 | 6/6 |
+| Mixed synthetic HTML/XML | Pooled Wasm | 5.400× | 5.239× | 0.982 | 6/6 |
+| Complete consumer, 19 scenarios | Native | 4.920× | 4.124× | 1.008 | 5/5 |
+| Complete consumer, 19 scenarios | Pooled Wasm | 4.621× | 3.848× | 0.995 | 5/5 |
+| Saved MDN, eight pages | Native | 5.480× / 5.500× | 5.365× | 1.004 / 1.011 | 5/6 |
+| Saved MDN, eight pages | Pooled Wasm | 5.102× / 5.055× | 4.957× | 1.026 / 1.026 | 5/6 |
+
+All six rows clear the established aggregate 3× rule and 10% adoption-control
+tolerance. That tolerance is distinct from the 2% regression checks below.
+The pooled consumer median reaches the best-effort 4.5× milestone, while its
+minimum remains below 4.5×. Its identical-code duplicate measures 4.625×.
+Native synthetic remains below 6×, including its 5.979× duplicate. Duplicates
+are controls, not replacements for the selected result.
+
+The consumer replay includes actual transforms, bindings, disposal, URL work and
+async overhead, while excluding network and disk. It is not a whole-crawl speedup.
+Native remains slightly faster than pooled Wasm in these direct panels.
+
+| Compatible Cheerio/slim baseline | Native raw / filtered | Pooled Wasm raw / filtered | Native / pool minimum |
+|---|---:|---:|---:|
+| Mixed synthetic | 4.343× / 4.343× | 4.006× / 4.006× | 3.942× / 3.941× |
+| Saved MDN | 4.292× / 4.269× | 3.991× / 3.984× | 4.187× / 3.634× |
+
+These ratios are recomputed from the same raw blocks in the requested direction,
+not obtained by inverting an even-count median. They clear the required
+faster-than-compatible-htmlparser2 rule. Synthetic output matches exactly.
+The saved comparison checks normalized HTML and exact resource events outside
+timing. The complete consumer panel still excludes slim because four authored
+fragment/generated cases have incompatible behavior; that exclusion does not
+weaken the output contract.
+
+### Startup diagnostics
+
+The same fresh processes record import and first-corpus wall times separately.
+The following are unfiltered medians in milliseconds, before steady-state
+warmup. Input/workload preparation and process startup are excluded.
+
+| Panel | Implementation | Import | First complete corpus |
+|---|---|---:|---:|
+| Complete consumer | Current Cheerio | 357.7 | 482.0 |
+| Complete consumer | Native | 6.6 | 105.1 |
+| Complete consumer | Pooled Wasm | 9.2 | 146.6 |
+| Saved MDN | Current Cheerio | 346.8 | 363.2 |
+| Saved MDN | Cheerio/slim | 89.6 | 270.0 |
+| Saved MDN | Native | 6.4 | 77.3 |
+| Saved MDN | Pooled Wasm | 8.6 | 110.7 |
+
+Import includes each package's actual loading work; first-corpus time includes
+initial DOM instances and runtime warmup. Filesystem caches were not reset, and
+package footprints/loading paths differ. These are scoped startup diagnostics,
+not portable cold-start multipliers or isolated Wasm compilation measurements.
+
+### Retained changes and rejected candidates
+
+Template-query restarts and selector matching were larger initial costs than
+libc. Short-list guards repeat at about 1.12× consumer improvement over the
+corrected source baseline. Attribute-presence guards, a lazy 256-byte class/ID
+Bloom summary and compaction of possible branches improve that screen further.
+The compact combination measures 1.127× versus short guards alone, with a 0.998
+control. Those incremental ratios remain diagnostic; the direct table above
+measures the final combination.
+
+| Experiment | Result and decision |
+|---|---|
+| Short template/attribute guards and compact possible branches | Repeated consumer gain; retain the bounded algorithm |
+| Lazy document class/ID summary | Retain definite-miss rejection, conservative invalidation and detached-scope bypass; pure tag/attribute lists avoid constructing it |
+| Per-node class signature | No advantage over simpler guards; reject extra per-node state/work |
+| Bulk-only libc memory shadows | Synthetic slowdown and consumer parity; reject |
+| Scalar copies/fills through 16 bytes, bulk above | Retain the bounded Wasm-only helpers |
+| Recompile dependency with bulk-memory enabled | Small inconsistent gain; no new default flags |
+| Command-view cache and forced writer inlining | Initial synthetic gain disappears in the fixed repeat; retain original code |
+| Handwritten SIMD memory helpers, alone and with cache/inlining | No repeatable gain beyond control drift across XML/synthetic/consumer; no SIMD default or dependency fork |
+| Binaryen 133 O3/O4/Oz and aggressive inlining | Mixed results and larger binaries; aggressive-inline output identical to O4 |
+| Final Binaryen O3 follow-up | XML 1.023×, synthetic 1.033×, consumer 1.008×; controls 1.000/1.016/0.996 and broad spread; no default post-link pass |
+| Skip inactive-summary invalidation checks | No repeatable gain; reject the extra branch |
+| XML delimiter loops replaced with libc memchr | Mixed native results and pooled regressions; reject |
+| Native parser-mode scope and flag placement | Three isolated variants pass behavior tests but show no reliable benefit; retain the reviewed layout |
+| Invalidate selector summary once per command | Focused tests pass, but native HTML slows in the controlled screen; retain per-node invalidation |
+| Compact document booleans | Restore an unchanged shared-heap plateau assertion; retain, without an incremental timing claim |
+| Eight idle pool slots under the existing byte cap | Remove recurring consumer instantiation with modest extra retention; retain |
+| Ordinary string/symbol fields and WeakMaps | No worthwhile overall gain preserving the current representation; retain private fields |
+
+The SIMD experiment uses explicit intrinsics in GroveDOM-owned helpers. Scalar
+and SIMD helpers pass direct byte checks over short/large sizes, alignments,
+overlap where applicable, zero lengths and end-of-memory boundaries, plus full
+suites and template-focused fuzzing. The selected release keeps zero imports and
+the existing linked feature target. Binaryen adds no mandatory build dependency.
+See [the implementation rationale](research.md#wasm-first-selector-and-libc-investigation)
+and [linked-feature audit](research.md#linked-wasm-compatibility).
+
+The final pooled consumer CPU profile assigns about 42.5% of samples to Wasm,
+3.1% to linked libc and 7.0% to selection creation. Query scans/matching, wrappers,
+parsing/string handling, consumer URL/async work and GC remain distributed costs.
+Profile shares and independent profiler elapsed times are not paired speedups.
+A broad DOM index or wrapper redesign would add invalidation, identity and
+lifetime complexity without a demonstrated benefit from the smaller experiments.
+
+### Pool reuse and memory tradeoff
+
+Across 40 complete consumer replays, four idle slots create 124 instances;
+eight slots create five in total and eliminate three recurring creations per
+replay after warmup. Idle capacity rises from 8 to 9.125 MiB. The byte cap remains
+16 MiB, and both configurations trim to zero.
+
+A fixed comparison and repeat retain eight of twelve balanced blocks. The
+four/eight ratio is 1.053 raw / 1.056 filtered, with a 0.984 four/four control.
+The retained range is 0.976–1.078, so no universal gain is claimed. The authored
+lifetime budget's pooled peak rises from 21.6875 to 24.4375 MiB, still below its
+unchanged 32 MiB ceiling. See [the complete memory results](memory.md#wasm-first-allocation-and-lifetime-recheck).
+
+### XML case and aggregate screens
+
+These screens use the selected kernel/facade before the idle-slot-only change.
+The single-document XML replays do not reach the former pool limit. Each case
+uses five mirrored blocks, 80 warmups, six batches and eight replays per batch,
+with native/pool controls in the same rotation. The reference is Cheerio
+XML/htmlparser2.
+
+| XML input | Backend | Raw / filtered median | Minimum retained | Control raw / filtered | Blocks |
+|---|---|---:|---:|---:|---:|
+| Sitemap, 120 entries | Native | 4.303× / 4.303× | 4.019× | 1.002 / 1.002 | 5/5 |
+| Sitemap, 600 entries | Native | 4.886× / 4.886× | 3.847× | 0.974 / 0.974 | 5/5 |
+| SVG, 120 groups | Native | 3.665× / 3.665× | 3.424× | 1.002 / 1.002 | 5/5 |
+| SVG, 300 groups | Native | 3.514× / 3.524× | 3.487× | 0.988 / 1.011 | 4/5 |
+| Sitemap, 120 entries | Pooled Wasm | 4.037× / 4.037× | 3.506× | 0.956 / 0.956 | 5/5 |
+| Sitemap, 600 entries | Pooled Wasm | 4.752× / 4.752× | 4.718× | 0.984 / 0.984 | 5/5 |
+| SVG, 120 groups | Pooled Wasm | 3.172× / 3.172× | 3.010× | 0.984 / 0.984 | 5/5 |
+| SVG, 300 groups | Pooled Wasm | 3.266× / 3.391× | 3.014× | 0.962 / 0.960 | 4/5 |
+
+All eight rows pass the strict 3× case rule, including every retained minimum and
+the 10% control tolerance. Pooled SVG margins are narrow. An earlier candidate's
+2.904× small-SVG block and its failed case result remain preserved; this later
+pass does not erase that replication.
+
+The XML aggregate uses the initial five blocks plus a fixed five-block extension,
+retaining five of ten. Native measures 4.257× raw / 4.437× filtered, minimum
+3.905×, with control 0.907 / 0.921. Pool measures 4.652× / 4.656×, minimum
+4.190×, with control 1.058 / 1.074. Both pass the aggregate 3× and 10% control rules.
+The native control is close to that tolerance boundary and is not a 2% control.
+
+### Paired regression checks and native confirmations
+
+These compare with `2eef7b6` using separate persistent processes: five fresh
+process pairs, five balanced blocks per pair, 40 warmups and six batches of two
+whole-corpus replays. The selected kernel's four-slot pool is used here; the
+idle-slot comparison is reported separately above. Native HTML/XML include a
+fixed additional five pairs. Ratios above one favor the candidate. A pass needs
+both raw/filtered comparison medians at least 0.98, both controls within
+0.98–1.02, and at least three qualifying pairs with three retained blocks.
+
+| Panel | Backend | Raw / filtered ratio | Comparison blocks | Control raw / filtered | Control blocks | 2% screen |
+|---|---|---:|---:|---:|---:|---|
+| Authored HTML | Native | 0.966 / 0.956 | 39/50 | 1.011 / 1.007 | 35/50 | Fails |
+| Authored HTML | Pool | 1.014 / 1.020 | 24/25 | 0.988 / 0.988 | 25/25 | Pass |
+| Four XML inputs | Native | 1.043 / 1.025 | 40/50 | 1.032 / 1.054 | 41/50 | Inconclusive control |
+| Four XML inputs | Pool | 1.012 / 1.012 | 25/25 | 1.009 / 1.009 | 25/25 | Pass |
+| Saved MDN | Native | 1.280 / 1.280 | 25/25 | 0.996 / 0.996 | 25/25 | Pass |
+| Saved MDN | Pool | 1.303 / 1.303 | 25/25 | 0.989 / 0.992 | 24/25 | Pass |
+| Complete consumer | Native | 1.204 / 1.204 | 25/25 | 0.991 / 0.991 | 25/25 | Pass |
+| Complete consumer | Pool | 1.240 / 1.240 | 25/25 | 0.982 / 0.982 | 25/25 | Pass |
+
+The earlier intermediate candidate passed all eight panels. The selected
+memory-layout correction's native HTML failure is not removed in favor of that
+earlier result. Native phase instrumentation finds unchanged operation,
+allocation, query and output counts; it does not establish elapsed-time parity.
+
+A fixed longer diagnostic uses 400 warmups and twelve batches of eight complete
+replays in five pairs of five blocks. Native HTML measures 1.009, but its control
+is 1.021 raw / 0.978 filtered and fails the unchanged tolerance. XML measures
+1.006 with a 0.925 control. Neither establishes a valid separate-process
+non-regression result.
+
+A complementary within-process check uses separate source/kernel and fixture
+copies, five fresh processes, reversed imports in alternate processes, 200
+warmups and twenty balanced blocks of eight whole-corpus replays. Ratios are
+recomputed from raw milliseconds in the baseline/candidate direction.
+
+| Native panel | Raw / filtered ratio | Comparison blocks | Control raw / filtered | Control blocks |
+|---|---:|---:|---:|---:|
+| Authored HTML | 1.001 / 0.997 | 93/100 | 1.004 / 1.002 | 94/100 |
+| Four XML inputs | 1.001 / 1.001 | 95/100 | 1.001 / 0.997 | 94/100 |
+
+Those medians meet the 2% tolerance, but the implementations share a JS heap.
+They are complementary evidence, not replacements for the failed/inconclusive
+separate-process screens. No unconditional native HTML/XML non-regression claim
+is made. The scoped absolute 3× results and template-heavy consumer gains are
+stronger than the evidence for small native differences.
+
+The final extension of the original short protocol combines all thirty process
+pairs per native comparison and control. HTML remains below the unchanged floor:
+0.979900 raw / 0.975607 filtered, with control 1.015536 / 1.008265; comparison and
+control retain 132/150 and 129/150 blocks. XML measures 1.024788 / 1.005312, with
+control 1.031927 / 1.041046 and 135/150 versus 138/150 blocks. These are still a
+failed HTML screen and an inconclusive XML control, not rounded passes.
+
+A subsequent fixed eight-block screen puts baseline, selected release, a
+command-invalidation candidate and an identical baseline control into the same
+rotated/mirrored fresh-process blocks. The selected release measures HTML
+0.994 / 1.005 with control 0.986 / 1.010 (7/8 blocks), and XML 1.060 with control
+1.010 (8/8). The command-level candidate is rejected: selected/candidate HTML
+is 0.930 / 0.937. No implementation change survives that screen.
+
+The final confirmation retains separate persistent processes, but now includes
+baseline, selected release and identical baseline control **within every block**.
+Only one process executes a requested replay at a time. Starting positions rotate
+over three variants and each order is mirrored; import order also rotates.
+Inputs, outputs, compiler settings and the 1.5 independent-probe cutoff are
+unchanged. Ratios are computed from raw milliseconds, first per balanced block,
+then as a median per process triplet and a median across triplets. No ratio is
+normalized by its control. The acceptance rule remains raw/filtered ratios at
+least 0.98, both controls within 0.98–1.02, and at least three triplets with three
+retained blocks.
+
+| Native confirmation | Raw / filtered ratio | Control raw / filtered | Retained blocks | Qualifying triplets |
+|---|---:|---:|---:|---:|
+| Authored HTML, 18 triplets | 0.990863 / 0.990863 | 0.992299 / 0.992299 | 107/108 | 18/18 |
+| Four XML inputs, longer warmup, 12 triplets | 0.994318 / 0.981486 | 0.991485 / 0.999377 | 55/72 | 9/12 |
+
+HTML uses six blocks per triplet, 40 whole-corpus warmups and six batches of two
+replays. The initial XML confirmation uses the same settings for eighteen
+triplets: ratio 1.007297 and control 0.970040 / 0.970970, with 97/108 blocks.
+A predeclared 42-triplet extension combines all sixty: ratio 1.001437 / 1.012116,
+control 0.978513 / 0.979462, 330/360 blocks and 58 qualifying triplets. Its control
+still fails; all samples remain in the record.
+
+The separate longer-warmup XML confirmation uses 1,000 whole-corpus warmups,
+24 batches of eight replays and six blocks per triplet. It addresses variation
+in the short samples without changing the corpus or threshold. It passes, but
+the filtered ratio has only 0.001486 headroom above the floor and seventeen
+blocks fail the probe filter. The longer protocol is not combined with the
+short protocol. Together with the six passing panels above, these confirmations
+close this investigation's scoped regression checks. They do not erase earlier
+failures or establish unconditional native parity. Logical-CPU activity selection
+also does not account for sibling-thread load or guarantee an idle physical core.
+
+### Private-field comparison
+
+All three private fields are replaced together in isolated facade variants:
+plain enumerable string keys, non-enumerable string keys, module-local symbols,
+and WeakMaps. Each uses the same selected kernels and eight-slot pool.
+A six-variant screen, including a byte-identical private-field control, runs all
+three panels on native/pool in separate processes: 432 processes and 36 mirrored
+blocks, with 24 retained. Several controls drift, and no overall winner emerges.
+
+A fixed complementary repeat runs two fresh processes on each of Node 22.22.2
+and 24.18.0 for native/pool, reversing imports in the second. Every variant has
+separate facade, fixture and consumer-transform modules; an assertion checks
+that each adapter captured the intended facade. Each panel uses 40 warmups and
+twelve rotated/mirrored blocks of two complete replays per batch. A CPU is chosen
+independently before each process. All 288 blocks survive the unchanged probe
+filter. The following consumer ratios compare private fields with each
+alternative; raw and filtered medians agree.
+
+| Runtime / backend | Enumerable string | Non-enumerable string | Symbol | WeakMap | Private/private control |
+|---|---:|---:|---:|---:|---:|
+| Node 22 / pool | 1.006 | 0.944 | 1.001 | 0.918 | 0.995 |
+| Node 22 / native | 1.015 | 0.949 | 1.003 | 0.944 | 0.998 |
+| Node 24 / pool | 1.017 | 0.939 | 1.007 | 0.943 | 0.961 |
+| Node 24 / native | 1.012 | 0.955 | 1.000 | 0.940 | 0.996 |
+
+Symbols are approximately at parity on consumer work. Non-enumerable strings
+and WeakMaps are slower. The Node 24 pooled consumer control fails the 2% rule;
+its row does not establish a precise incremental multiplier. Synthetic/XML
+results are mixed, including failed controls and large individual-block spreads.
+The apparent native XML and some Node 24 gains are not treated as established.
+The short repeat shares a JS heap and does not replace fresh-process gates.
+
+Enumerable string keys change object enumeration/copying and cause worker
+structured-clone failures. Non-enumerable strings, symbols and WeakMaps pass the
+applicable existing native/pool suites; reflection checks additionally show that
+the property variants expose metadata and recognize prototype-forged handles.
+WeakMaps preserve opaque ownership but add allocation/lookup work. Private
+fields remain. This evaluates full construction, use and disposal costs without
+assuming private checks are free or that faster isolated property access wins
+the workload.
+
+### Validation and readiness
+
+The selected 726-case matrix passes: native 709/17 skips, shared Wasm 711/15,
+fresh Wasm 712/14 and pooled Wasm 715/11. Native/pool also pass Node 24, and public
+types pass. Native ASan/UBSan with leak detection and the three seeded fuzz modes
+are clean. The full validation sequence covers 18,000 fuzz case executions,
+including the eight-slot pool repeat. All 19 consumer outputs/events match on
+the four backends.
+
+The unchanged authored 2,430-lifetime budgets pass on every backend. Separate
+saved-corpus lifecycle checks are diagnostics, not authored-budget passes.
+The selected stack diagnostic covers 48 workloads with two patterns and 122
+instrumented writes: maximum pointer depth 6,256 bytes, written watermark
+6,200 bytes, all pointers restored. It does not measure the engine machine stack
+or prove a universal bound.
+
+The selected source matches its promoted artifacts. Public rebuilds reproduce
+Wasm executable sections and native executable/data sections; whole-file
+differences are metadata/symbol information. Release Wasm has zero imports and
+no diagnostic exports. Compiler defaults, initial memory, stack and scratch
+sizes remain unchanged; only the idle-slot default increases to eight.
+
+This completes the bounded optimization investigation and candidate review.
+The best-effort native 6× milestone is unmet. Final regression confirmations pass,
+with a narrow native XML margin and earlier failed/inconclusive evidence retained.
+Production traffic weights, broader failure testing and shipping-platform/backend
+selection remain adoption work.

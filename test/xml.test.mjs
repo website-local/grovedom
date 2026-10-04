@@ -16,6 +16,23 @@ function shape(node) {
     children: (node.children ?? []).map(shape) };
 }
 
+for (const execution of ['direct', 'buffered']) test(`${execution}: empty text keeps an observable child and paired XML tags`, () => {
+  for (const xml of [false, true]) for (const source of ['<r></r>', '<r>old</r>', '<r><child/></r>']) {
+    compare(source, $ => {
+      const target = $('r');
+      target.text('');
+      const child = target.contents()[0];
+      const first = [target.toString(), target.contents().length, child?.type, child?.data, $('r:empty').length];
+      target.text('next');
+      const replaced = [child?.data, target.text(), target.contents()[0] === child];
+      target.empty();
+      const emptied = [target.toString(), target.contents().length];
+      target.text('next').html('');
+      return [first, replaced, emptied, target.toString(), target.contents().length];
+    }, { xml, execution });
+  }
+});
+
 for (const execution of ['direct', 'buffered']) {
   test(`${execution}: SVG and sitemap XML parsing, declarations, CDATA and serialization`, () => {
     for (const source of [svg, sitemap, '', '<A/><a/>', '<r a="">\r\n&#65; &#x41; &unknown; &amp</r>']) {

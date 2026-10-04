@@ -1,5 +1,16 @@
 # Memory and backend assessment
 
+The Wasm-first investigation adds inspector allocation sampling and warmed
+retention snapshots on the fixed consumer corpus. Initial native/pooled runs
+estimated about 1.95–1.98 GB of cumulative JS allocation over 160 corpus replays;
+consumer transforms, URL processing, strings and promises dominated. This is
+sampled allocation volume, not simultaneous live memory or Wasm arena usage.
+Snapshots showed no accumulating node/selection wrappers, stable typed-array
+counts, and zero live document/control bytes after GC and disposal. Trimming the
+idle pool reduced its owned linear memory to zero. Engine code/metadata accounted
+for much of the remaining heap growth. These observations identify retention
+sites; they do not prove absence of allocator fragmentation.
+
 This pass starts from `2c3c16e`. It measures explicit disposal and bounded reuse on deterministic workloads. It does not establish a universal fragmentation bound, an RSS limit, or production readiness.
 
 ## What the counters mean
@@ -106,6 +117,67 @@ The same authored 2,430-lifetime panel passes every existing budget. Each mode s
 
 The Wasm binding also avoids repeatedly reading the engine's memory-buffer getter. Growth of its non-shared memory detaches the cached buffer and makes its byte-view length zero; that triggers rebuilding the existing byte/word views. Growth by another document in the shared instance follows the same rule. This adds no buffer, field or cache, and disposal still clears the views. Node 22 checks pass on all three heap modes, with pooled Wasm also checked on Node 24. Native code and allocation behavior are unchanged by this follow-up.
 
+## Wasm-first allocation and lifetime recheck
+
+The selector summary uses 256 bytes from the document arena, allocated only when
+a whole-document template query actually examines a class or ID condition.
+Pure tag/attribute lists do not build it. Scoped queries bypass it, and disposal
+clears the pointer with the other arena references. The memory helpers add no
+allocation or retained storage.
+
+The first candidate enlarged the Wasm document control record to 912 bytes.
+Tracked live backing capacity stayed flat, but shared-heap capacity gained one
+64 KiB page at the end of the 500-replacement pinned-owner test, failing its
+plateau assertion. Grouping five flags as ordinary C booleans reduces the record
+to 896 bytes and restores that unchanged assertion. No packing extension, new
+allocator, relaxed budget or extra retained object is introduced. This illustrates
+how small allocation-layout changes can affect allocator reuse.
+
+The selected code passes the authored 2,430-lifetime budgets on every backend:
+
+| Backend | Peak tracked bytes | Peak owned linear capacity | Final live/control bytes | Capacity after trim |
+|---|---:|---:|---:|---:|
+| Native | 22,521,160 | — | 0 / 0 | — |
+| Shared Wasm | 12,849,224 | 13.75 MiB | 0 / 0 | 13.75 MiB |
+| Fresh Wasm | 12,849,224 | 15.8125 MiB | 0 / 0 | 0 |
+| Pooled Wasm, eight idle slots | 12,849,224 | 24.4375 MiB | 0 / 0 | 0 |
+
+The idle-instance default increases from four to eight while retaining the
+16 MiB idle-byte cap. Across 40 complete consumer replays, four slots create
+124 instances, including three recurring creations per replay after warmup.
+Eight slots create five instances in total and need no recurring creation.
+Idle capacity rises from 8 MiB to 9.125 MiB; both configurations trim to zero.
+The fixed paired comparison and repeat give a 1.053 raw / 1.056 filtered ratio,
+with a 0.984 identical-code control and eight of twelve blocks retained. The
+retained range includes a 0.976 block, so this is not a universal gain.
+
+In the authored lifetime budget above, the eight-slot pool raises peak aggregate
+capacity from 21.6875 to 24.4375 MiB. The existing 32 MiB ceiling and all plateau
+assertions remain unchanged and pass. These peaks include active instances;
+the idle-byte cap does not limit total active-document memory.
+
+Separate saved-corpus lifecycle diagnostics also pass, including the eight-slot
+pool. Those custom-corpus runs disable the authored fixed budgets and are not
+additional budget passes. An extended shared-heap
+diagnostic keeps the three pinned owners while performing 5,000 replacements.
+Capacity eventually reaches 14.125 MiB, 384 KiB above the shorter test's peak,
+then remains unchanged from the sample at replacement 2,140 through 5,000. It
+stays under the existing 16 MiB ceiling and releases all live/control bytes.
+This is bounded observed convergence, not proof of zero holes or fragmentation.
+
+Inspector sampling of the selected kernel with the former four-slot pool
+estimates about 1.94 GB native and 1.97 GB pooled JS allocation over 160 consumer
+replays. Three GC/trimmed snapshots over 240 replays
+show no accumulating node/selection wrappers and stable typed-array counts;
+engine code and metadata explain most residual growth. Native ASan/UBSan with
+leak detection passes the full suite and all three fuzz modes. The final fuzz
+matrix executes 1,000 valid, 1,000 malformed and 1,000 template-focused cases on
+native, three Wasm heaps and sanitized native: 15,000 case executions, including
+repeated seeds across backends. The eight-slot pool also passes 1,000 cases in
+each mode, bringing this validation sequence to 18,000 executions. Every case
+checks zero live document/backing bytes after cleanup. These bounded checks complement explicit disposal; they do
+not promise prompt GC or exhaustive malformed-input coverage.
+
 ## Reproduction
 
 Use existing dependencies and approved disk-backed temporary/cache/build directories. Run memory diagnostics separately from release timing.
@@ -120,6 +192,6 @@ Repeat for `global` and `document`. `GROVEDOM_MEMORY_ENTRY` selects an isolated 
 
 ## Backend guidance
 
-Native remains the leading candidate for a Node deployment; the performance panel and its limits are recorded in [benchmarks](benchmarks.md). Retain explicit disposal at the complete transform/serialization boundary, including errors. Independent caller-managed workers each own their documents; this work introduces no threads.
+Pooled Wasm is the current primary optimization target; native remains a required comparison rather than an assumed winner. The performance panel and its limits are recorded in [benchmarks](benchmarks.md). Retain explicit disposal at the complete transform/serialization boundary, including errors. Independent caller-managed workers each own their documents; this work introduces no threads.
 
-For a portable Wasm deployment, a bounded pool offers capacity reuse while allowing idle memory to be discarded. Shared Wasm has lower aggregate capacity in this mixed workload but retains its high-water mark. Fresh heaps provide simple isolation and drop library ownership promptly, with repeated instantiation costs and GC-dependent physical reclamation. Keep all three as measured experiments for now; this pass does not select a shipping backend or change heap/stack defaults.
+For a portable Wasm deployment, a bounded pool offers capacity reuse while allowing idle memory to be discarded. Shared Wasm has lower aggregate capacity in this mixed workload but retains its high-water mark. Fresh heaps provide simple isolation and drop library ownership promptly, with repeated instantiation costs and GC-dependent physical reclamation. Keep all three as measured experiments for now; this pass changes the idle-slot default but does not select a shipping backend or change initial-memory/stack sizes.

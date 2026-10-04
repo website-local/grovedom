@@ -2,6 +2,25 @@
 
 ## Current state
 
+The [Wasm-first investigation after `2eef7b6`](benchmarks.md#wasm-first-investigation-after-2eef7b6)
+retains template selector guards, a bounded class/ID summary, tiny Wasm memory
+helpers and eight idle pool slots under the existing byte cap. Selected
+current-Cheerio consumer medians are 4.92× native and 4.62× pooled Wasm; native
+mixed synthetic reaches 5.80× and does not establish the best-effort 6× milestone.
+The scoped aggregate and individual XML 3× screens pass, with narrow pooled SVG
+margins. Six initial separate-process regression panels pass; final native
+HTML/XML confirmations also pass with controls in the same blocks. The native
+XML filtered result is close to the 2% floor, and earlier failed/inconclusive
+checks remain documented. This is not a universal or production-adoption claim.
+
+The bounded investigation is complete: remaining measured candidates and their
+tradeoffs are documented, including string/symbol/WeakMap alternatives to private
+fields, which remain unchanged. The 726-case matrix, native sanitizers, seeded
+fuzzing and fixed lifecycle budgets pass. SIMD, broad inlining and Binaryen
+experiments add no mandatory target features or build dependencies. Production
+traffic weights, broader regression replication, allocation-failure coverage,
+platform packaging and backend selection remain adoption work.
+
 The XML follow-up after `7bdfdfc` removes repeated Wasm memory-buffer getter calls and reduces the default linear stack to 32 KiB following a [recursion audit](stack.md). Both backends pass the XML, mixed synthetic and refreshed consumer aggregate 3× rules and all four individual XML screens. Pooled SVG passes with little margin; earlier failed measurements remain documented. Authored-HTML, saved-MDN and complete-consumer regression screens preserve the accepted baseline. See [the results and limits](benchmarks.md#audited-stack-reduction-and-wasm-view-refresh) and [memory measurements](memory.md#audited-32-kib-stack-and-view-refresh). Initial memory, transfer storage, compiler features and threading defaults are unchanged.
 
 The repository contains a shared C/Lexbor kernel with Linux Node-API and direct Wasm bindings, a partial Cheerio-shaped ESM facade, package metadata, truthful TypeScript declarations, differential/lifecycle tests, and a deterministic authored benchmark. See the [prototype guide and consumer inventory](prototype.md). Native direct and buffered execution share the same facade. This establishes a runnable diagnostic candidate; it does not select the production backend or complete consumer migration.

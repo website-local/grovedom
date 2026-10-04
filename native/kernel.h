@@ -1,12 +1,13 @@
 #ifndef GROVEDOM_KERNEL_H
 #define GROVEDOM_KERNEL_H
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <lexbor/html/html.h>
 #include <lexbor/css/css.h>
 #include <lexbor/selectors/selectors.h>
 #include "profile.h"
-enum { SET_ATTR = 1, REMOVE_ATTR, SET_TEXT, SET_HTML, APPEND_HTML, REMOVE_NODE };
+enum { SET_ATTR = 1, REMOVE_ATTR, SET_TEXT, SET_HTML, APPEND_HTML, REMOVE_NODE, EMPTY_NODE };
 enum { READ_ATTR = 1, READ_TEXT, READ_HTML, READ_OUTER, READ_NAME, READ_TYPE, READ_ATTRS, READ_DATA, READ_INNER_TEXT, READ_ALL_OUTER, READ_XML, READ_XML_OPTIONS };
 #define PLAN_COUNT 32
 
@@ -38,12 +39,13 @@ struct gd_document {
     char error_buffer[96];
     size_t bytes;
     int64_t accounted;
-    int closed, templates, xml;
     unsigned xml_flags;
     unsigned selector_flags;
-    int selector_custom;
+    uint32_t *selector_summary;
+    size_t selector_guard_active;
     gd_selector_guard *selector_guard;
     gd_xml_name_entry *xml_names;
+    bool closed, templates, xml, selector_summary_valid, selector_custom;
 };
 
 /* Shared implementation helpers. Hidden by both builds; not binding exports. */

@@ -4,46 +4,122 @@ typedef lxb_css_selector_t selector;
 typedef lxb_css_selector_list_t selector_list;
 typedef lxb_dom_node_t node;
 
-struct gd_selector_guard { selector *atom; lxb_tag_id_t tag; };
+/* Tag and attribute IDs share Lexbor's pointer-sized identifier representation. */
+struct gd_selector_guard { selector *atom; lxb_tag_id_t tag; int possible; };
 static lxb_status_t found(node *, lxb_css_selector_specificity_t, void *);
 
 static selector *guard_atom(selector_list *list) {
-    selector *best = NULL;
+    selector *best = NULL, *attribute = NULL;
     for (selector *s = list->last; s; s = s->prev) {
         if (s->type == LXB_CSS_SELECTOR_TYPE_ID) return s;
+        if (s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE && !s->ns.length) attribute = s;
         if (s->type == LXB_CSS_SELECTOR_TYPE_CLASS) best = s;
         else if (!best && s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) best = s;
         if (s->combinator != LXB_CSS_SELECTOR_COMBINATOR_CLOSE) break;
     }
-    return best;
+    return best ? best : attribute;
 }
 
 gd_selector_guard *gd_selector_guard_create(gd_document *doc, selector_list *list) {
     size_t count = 0;
     for (selector_list *group = list; group; group = group->next) {
-        if (!guard_atom(group)) return NULL;
+        selector *candidate = guard_atom(group);
+        if (!candidate || (candidate->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE && !doc->templates)) return NULL;
         count++;
     }
-    if (doc->selector_flags || (count < 8 && !(count == 1 && list->first == list->last))) return NULL;
+    if (doc->selector_flags || (!doc->templates && count < 8 && !(count == 1 && list->first == list->last))) return NULL;
     if (count > SIZE_MAX / sizeof(gd_selector_guard) - 1) {
         gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector guard capacity exceeded"); return NULL;
     }
     gd_selector_guard *guards = lexbor_mraw_alloc(doc->css->memory->mraw, (count + 1) * sizeof(*guards));
     if (!guards) { gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector guard allocation failed"); return NULL; }
     size_t i = 0;
-    for (selector_list *group = list; group; group = group->next) guards[i++] = (gd_selector_guard) { guard_atom(group), 0 };
+    for (selector_list *group = list; group; group = group->next) guards[i++] = (gd_selector_guard) { guard_atom(group), 0, 1 };
     guards[i] = (gd_selector_guard) {0};
     return guards;
 }
 
-int gd_selector_guard_prepare(gd_document *doc) {
+/* A 256-byte Bloom filter rejects only definitely absent class/ID values.
+ * It belongs to the document text arena and is built lazily for whole-document
+ * compound/list queries on template documents. Scoped/detached queries bypass
+ * it. Insertions and class/ID writes invalidate it; removed nodes may safely
+ * leave extra bits. No node index or allocation inside the scan is needed. */
+static uint32_t summary_hash(const lxb_char_t *data, size_t length, unsigned kind) {
+    uint32_t hash = 2166136261u ^ kind;
+    for (size_t i = 0; i < length; i++) hash = (hash ^ data[i]) * 16777619u;
+    return hash;
+}
+static void summary_add(gd_document *doc, const lxb_char_t *data, size_t length, unsigned kind) {
+    uint32_t hash = summary_hash(data, length, kind), a = hash & 2047, b = (hash >> 11) & 2047;
+    doc->selector_summary[a >> 5] |= 1u << (a & 31);
+    doc->selector_summary[b >> 5] |= 1u << (b & 31);
+}
+static int summary_build(gd_document *doc) {
+    if (!doc->selector_summary) doc->selector_summary = lexbor_mraw_alloc(doc->html->dom_document.text, 256);
+    if (!doc->selector_summary) return gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector summary allocation failed");
+    memset(doc->selector_summary, 0, 256);
+    node *root = &doc->html->dom_document.node, *n = root;
+    for (;;) {
+        if (n->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+            lxb_dom_element_t *element = lxb_dom_interface_element(n);
+            lxb_dom_attr_t *attr = element->attr_id;
+            if (attr && attr->value && attr->value->length) summary_add(doc, attr->value->data, attr->value->length, LXB_CSS_SELECTOR_TYPE_ID);
+            attr = element->attr_class;
+            if (attr && attr->value && attr->value->length) {
+                const lxb_char_t *p = attr->value->data, *end = p + attr->value->length;
+                while (p < end) {
+                    while (p < end && lexbor_utils_whitespace(*p, ==, ||)) p++;
+                    const lxb_char_t *start = p;
+                    while (p < end && !lexbor_utils_whitespace(*p, ==, ||)) p++;
+                    if (p != start) summary_add(doc, start, p - start, LXB_CSS_SELECTOR_TYPE_CLASS);
+                }
+            }
+        }
+        if (n->first_child) { n = n->first_child; continue; }
+        while (n != root && !n->next) n = n->parent;
+        if (n == root) break;
+        n = n->next;
+    }
+    doc->selector_summary_valid = 1;
+    return 1;
+}
+static int summary_branch(gd_document *doc, selector_list *list) {
+    for (selector *s = list->first; s; s = s->next) {
+        if (s->type != LXB_CSS_SELECTOR_TYPE_ID && s->type != LXB_CSS_SELECTOR_TYPE_CLASS) continue;
+        /* Pure tag/attribute lists have no use for a class/ID summary. */
+        if (!doc->selector_summary_valid && !summary_build(doc)) return 0;
+        uint32_t hash = summary_hash(s->name.data, s->name.length, s->type), a = hash & 2047, b = (hash >> 11) & 2047;
+        if (!(doc->selector_summary[a >> 5] & (1u << (a & 31))) || !(doc->selector_summary[b >> 5] & (1u << (b & 31)))) return 0;
+    }
+    return 1;
+}
+int gd_selector_guard_prepare(gd_document *doc, int document_scope) {
     int possible = doc->selector_guard == NULL;
+    gd_selector_guard *first = doc->selector_guard;
+    int filter = document_scope && doc->templates && !doc->xml && first &&
+        (first[1].atom || first->atom->list->first != first->atom->list->last);
     for (gd_selector_guard *g = doc->selector_guard; g && g->atom; g++) {
+        g->possible = !filter || summary_branch(doc, g->atom->list);
+        if (!g->possible) { if (doc->error_code) return 0; continue; }
         // An unknown name can become known after insertion or renaming. Resolve
         // missing IDs on each query, never on each element and never cache a miss.
         if (!g->tag && g->atom->type == LXB_CSS_SELECTOR_TYPE_ELEMENT)
             g->tag = lxb_tag_id_by_name(doc->html->dom_document.tags, g->atom->name.data, g->atom->name.length);
-        if (g->tag || g->atom->type != LXB_CSS_SELECTOR_TYPE_ELEMENT) possible = 1;
+        if (!g->tag && g->atom->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE) {
+            const lxb_dom_attr_data_t *data = lxb_dom_attr_data_by_local_name(doc->html->dom_document.attrs, g->atom->name.data, g->atom->name.length);
+            if (data) g->tag = data->attr_id;
+        }
+        if (g->tag || (g->atom->type != LXB_CSS_SELECTOR_TYPE_ELEMENT && g->atom->type != LXB_CSS_SELECTOR_TYPE_ATTRIBUTE)) possible = 1;
+        else g->possible = 0;
+    }
+    /* Partition guard records, not the CSS AST. OR-branch order does not affect
+     * boolean membership; results still follow DOM preorder. Prepare all records
+     * again for every query so mutations and scope changes can reactivate them. */
+    doc->selector_guard_active = 0;
+    for (gd_selector_guard *g = doc->selector_guard; g && g->atom; g++) {
+        if (!g->possible) continue;
+        gd_selector_guard *next = doc->selector_guard + doc->selector_guard_active++;
+        if (next != g) { gd_selector_guard saved = *next; *next = *g; *g = saved; }
     }
     return possible;
 }
@@ -66,27 +142,24 @@ lxb_tag_id_t gd_selector_simple_tag(gd_document *doc) {
     return g->tag;
 }
 
-static int guard_equal(const lxb_char_t *value, const lexbor_str_t *name, int quirks) {
-    return quirks ? lexbor_str_data_ncasecmp(value, name->data, name->length) : memcmp(value, name->data, name->length) == 0;
-}
-
-static int guard_candidate(gd_selector_guard *g, node *n, lxb_dom_element_t *element, int quirks) {
+static int guard_candidate(gd_selector_guard *g, node *n, lxb_dom_element_t *element) {
     selector *s = g->atom;
     if (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) {
         return g->tag && n->local_name == g->tag;
     }
+    if (s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE) return g->tag && lxb_dom_element_attr_by_id(element, g->tag) != NULL;
     lxb_dom_attr_t *attr = s->type == LXB_CSS_SELECTOR_TYPE_ID ? element->attr_id : element->attr_class;
     if (!attr || !attr->value || attr->value->length < s->name.length) return 0;
     lexbor_str_t *value = attr->value;
     if (s->type == LXB_CSS_SELECTOR_TYPE_ID) {
-        if (value->length == s->name.length && guard_equal(value->data, &s->name, quirks)) return 1;
+        if (value->length == s->name.length && memcmp(value->data, s->name.data, s->name.length) == 0) return 1;
     } else {
         const lxb_char_t *p = value->data, *end = p + value->length;
         while (p < end) {
             while (p < end && lexbor_utils_whitespace(*p, ==, ||)) p++;
             const lxb_char_t *start = p;
             while (p < end && !lexbor_utils_whitespace(*p, ==, ||)) p++;
-            if ((size_t) (p - start) == s->name.length && guard_equal(start, &s->name, quirks)) return 1;
+            if ((size_t) (p - start) == s->name.length && memcmp(start, s->name.data, s->name.length) == 0) return 1;
         }
     }
     return 0;
@@ -95,11 +168,12 @@ static int guard_candidate(gd_selector_guard *g, node *n, lxb_dom_element_t *ele
 int gd_selector_guard_match(gd_document *doc, node *n) {
     GD_PROFILE_ADD(GP_GUARD_NODES, 1);
     lxb_dom_element_t *element = lxb_dom_interface_element(n);
-    int quirks = n->owner_document->compat_mode == LXB_DOM_DOCUMENT_CMODE_QUIRKS;
-    for (gd_selector_guard *g = doc->selector_guard; g->atom; g++) {
-        if (!guard_candidate(g, n, element, quirks)) continue;
+    for (size_t i = 0; i < doc->selector_guard_active; i++) {
+        gd_selector_guard *g = doc->selector_guard + i;
+        if (!guard_candidate(g, n, element)) continue;
         GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
-        if (g->atom->list->first == g->atom->list->last) return 1;
+        if (g->atom->list->first == g->atom->list->last &&
+            (g->atom->type != LXB_CSS_SELECTOR_TYPE_ATTRIBUTE || !g->atom->u.attribute.value.data)) return 1;
         // Only validate branches whose necessary atom passed. The cached AST
         // never escapes this synchronous call; restore its link on every path.
         selector_list *list = g->atom->list, *next = list->next;
@@ -132,10 +206,10 @@ unsigned gd_selector_flags(selector_list *list) {
     unsigned flags = 0;
     selector *s = list->first;
     while (s) {
-        if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) flags |= GD_SELECTOR_TEMPLATE;
+        if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) flags |= GD_SELECTOR_CUSTOM;
         if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) {
             if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) flags |= GD_SELECTOR_TEMPLATE;
-            if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_LEXBOR_CONTAINS) flags |= GD_SELECTOR_TEXT;
+            if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_LEXBOR_CONTAINS) flags |= GD_SELECTOR_CUSTOM;
         }
         selector_list *nested = nested_plan(s);
         if (nested && nested->first) { s = nested->first; continue; }
@@ -217,6 +291,8 @@ static int atom(gd_document *doc, node *n, selector *s, unsigned depth) {
     if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) {
         for (node *child = n->first_child; child; child = child->next) {
             if (child->type == LXB_DOM_NODE_TYPE_ELEMENT || (child->type == LXB_DOM_NODE_TYPE_TEXT && lxb_dom_interface_character_data(child)->data.length)) return 0;
+            if (child->type == LXB_DOM_NODE_TYPE_CDATA_SECTION && child->first_child &&
+                lxb_dom_interface_character_data(child->first_child)->data.length) return 0;
         }
         return 1;
     }

@@ -4,9 +4,9 @@ DOM transformations through ordered operations.
 
 GroveDOM is an experimental JavaScript-facing HTML/XML DOM package for workloads with many queries and mutations. Its initial integration target is `website-scrap-engine`, using MDN offline transformations as a representative workload.
 
-**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Native and pooled Wasm pass the XML, mixed synthetic and refreshed consumer aggregate performance gates on Node 22. The API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#audited-stack-reduction-and-wasm-view-refresh), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
+**Status: C/Lexbor prototypes for Linux Node-API and direct Wasm are implemented. Pooled Wasm is the primary optimization target; the API is partial and production adoption remains open.** See the [measurements and remaining gates](docs/benchmarks.md#wasm-first-investigation-after-2eef7b6), [prototype guide](docs/prototype.md), and [compatibility inventory](docs/compatibility.md).
 
-The latest [XML optimization checkpoint](docs/benchmarks.md#audited-stack-reduction-and-wasm-view-refresh) removes repeated Wasm memory-buffer getter calls and preserves the accepted HTML/MDN regression screens. Both native and pooled Wasm now clear all four individual XML screens; pooled SVG retains little margin over 3×. A [recursion audit](docs/stack.md) supports reducing the Wasm stack to 32 KiB. These scoped passes do not establish the same multiplier for every input.
+The latest [Wasm-first investigation](docs/benchmarks.md#wasm-first-investigation-after-2eef7b6) improves template queries, small memory operations and instance reuse, with seeded HTML/XML fuzzing. Selected consumer medians are 4.92× native and 4.62× pooled Wasm versus current Cheerio. Native mixed synthetic reaches 5.80×, below the best-effort 6× milestone. The individual XML and final regression confirmations pass, with narrow pooled-SVG and native-XML margins; earlier failed and inconclusive measurements remain documented. Private fields remain after comparison with string keys, symbols and WeakMaps. These scoped results do not establish production adoption or a universal multiplier.
 
 ## Objective
 

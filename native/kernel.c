@@ -152,6 +152,7 @@ static void gd_release(gd_document *doc) {
     doc->html = NULL;
     doc->css = NULL;
     doc->selectors = NULL;
+    doc->selector_summary = NULL;
     doc->xml_names = NULL;
     doc->nodes = NULL;
     doc->results = NULL;
@@ -675,9 +676,10 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     } else {
         plan = gd_plan_get(doc);
         if (!plan) return gd_failed();
-        doc->selector_custom = (doc->selector_flags & GD_SELECTOR_TEXT) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+        doc->selector_custom = (doc->selector_flags & GD_SELECTOR_CUSTOM) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
         if (doc->selector_custom) doc->selector_guard = NULL;
-        possible = gd_selector_guard_prepare(doc);
+        possible = gd_selector_guard_prepare(doc, !match && count == 1 && ids[0] == 1);
+        if (doc->error_code) return gd_failed();
         simple_tag = gd_selector_simple_tag(doc);
     }
     gd_results_reset(doc);
@@ -689,6 +691,10 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     for (size_t i = 0; i < count; i++) {
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+        /* Cheerio does not infer selector quirks mode from a missing doctype.
+         * Preserve the parser's mode for later fragment construction. */
+        lxb_dom_document_cmode_t mode = doc->html->dom_document.compat_mode;
+        doc->html->dom_document.compat_mode = LXB_DOM_DOCUMENT_CMODE_NO_QUIRKS;
         lxb_status_t status;
         if (simple_tag && match) {
             GD_PROFILE_ADD(GP_GUARD_NODES, 1);
@@ -703,6 +709,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         else if (doc->selector_custom || doc->selector_guard) status = gd_find_compatibility(doc, node, plan, cross_fragments);
         else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
         else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
+        doc->html->dom_document.compat_mode = mode;
         if (status != LXB_STATUS_OK) { if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
     }
     return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
@@ -800,7 +807,10 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
 
 static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_node) {
     if (doc->xml) return gd_xml_parse(doc, doc->input.data, doc->input.length);
-    int temporary = !context_node || context_node->type != LXB_DOM_NODE_TYPE_ELEMENT;
+    /* Lexbor inserts head/body wrappers for an HTML-element fragment context.
+     * Cheerio/parse5 keeps these mutation fragments as direct children. */
+    int temporary = !context_node || context_node->type != LXB_DOM_NODE_TYPE_ELEMENT ||
+        (context_node->ns == LXB_NS_HTML && context_node->local_name == LXB_TAG_HTML);
     lxb_dom_element_t *context = temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(context_node);
     if (!context) return NULL;
     lxb_dom_node_t *fragment = lxb_html_document_parse_fragment(doc->html, context, doc->input.data, doc->input.length);
@@ -870,6 +880,8 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
     gd_results_reset(doc);
     int collect = (operation & 256) != 0;
     operation &= ~256U;
+    /* Moving previously detached nodes can introduce new names into the root. */
+    if ((operation >= 3 && operation <= 10) || operation >= 14) doc->selector_summary_valid = 0;
     if (operation == 1) {
         lxb_dom_node_t *fragment = gd_fragment(doc, count ? doc->nodes[ids[0]].node : NULL);
         if (!fragment) goto failed;
@@ -970,6 +982,10 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
                              const lxb_char_t *a, size_t alen, const lxb_char_t *b, size_t blen) {
     if (operation == REMOVE_NODE) { lxb_dom_node_remove(node); return LXB_STATUS_OK; }
     if (node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) return LXB_STATUS_OK;
+    if (operation == EMPTY_NODE) { gd_clear_children(node); return LXB_STATUS_OK; }
+    if ((operation == SET_ATTR || operation == REMOVE_ATTR) && ((alen == 2 && lexbor_str_data_ncasecmp(a, (const lxb_char_t *) "id", 2)) ||
+        (alen == 5 && lexbor_str_data_ncasecmp(a, (const lxb_char_t *) "class", 5)))) doc->selector_summary_valid = 0;
+    if (operation == SET_HTML || operation == APPEND_HTML) doc->selector_summary_valid = 0;
     if (operation == SET_ATTR || operation == REMOVE_ATTR) {
         if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return LXB_STATUS_OK;
         if (!alen) return LXB_STATUS_ERROR_WRONG_ARGS;
@@ -1002,28 +1018,33 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
     }
     if (operation == SET_TEXT) {
         lxb_dom_node_t *old = node->first_child;
-        if (alen && old && old == node->last_child && old->type == LXB_DOM_NODE_TYPE_TEXT && !old->user) {
+        if (old && old == node->last_child && old->type == LXB_DOM_NODE_TYPE_TEXT && !old->user) {
             return lxb_dom_character_data_replace(lxb_dom_interface_character_data(old), a, alen, 0, 0);
         }
-        lxb_dom_node_t *text = NULL;
-        if (alen) {
-            text = lxb_dom_interface_node(lxb_dom_document_create_text_node(&doc->html->dom_document, a, alen));
-            if (!text) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        }
+        /* Cheerio keeps a text child even for an empty string. Besides contents()
+         * and retained identity, this distinguishes paired XML tags from <x/>. */
+        lxb_dom_node_t *text = lxb_dom_interface_node(lxb_dom_document_create_text_node(&doc->html->dom_document, a, alen));
+        if (!text) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
         gd_clear_children(node);
-        if (text) lxb_dom_node_insert_child(node, text);
+        lxb_dom_node_insert_child(node, text);
         return LXB_STATUS_OK;
     }
     if (operation == SET_HTML || operation == APPEND_HTML) {
+        if (!alen && (doc->xml || operation == APPEND_HTML || node->ns != LXB_NS_HTML || node->local_name != LXB_TAG_HTML)) {
+            if (operation == SET_HTML) gd_clear_children(node);
+            return LXB_STATUS_OK;
+        }
         /* Detach old nodes instead of Lexbor's inner_html_set, which destroys
          * them and would invalidate selections that still refer to them. */
         lxb_dom_node_t *fragment;
         if (doc->xml) fragment = gd_xml_parse(doc, a, alen);
         else {
-            lxb_dom_element_t *context = node->type == LXB_DOM_NODE_TYPE_ELEMENT ? lxb_dom_interface_element(node) : lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL);
+            int temporary = node->type != LXB_DOM_NODE_TYPE_ELEMENT ||
+                (operation == APPEND_HTML && node->ns == LXB_NS_HTML && node->local_name == LXB_TAG_HTML);
+            lxb_dom_element_t *context = temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(node);
             if (!context) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
             fragment = lxb_html_document_parse_fragment(doc->html, context, a, alen);
-            if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) lxb_dom_node_destroy(lxb_dom_interface_node(context));
+            if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));
         }
         if (!fragment) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
         if (!doc->xml && !gd_templates(doc, fragment)) { gd_destroy_subtree(fragment); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
@@ -1047,7 +1068,7 @@ int gk_execute(gd_document *doc, const uint32_t *words, size_t length, const uns
         if (length - cursor < 6) goto invalid;
         uint32_t op = words[cursor], count = words[cursor + 1];
         uint32_t ao = words[cursor + 2], al = words[cursor + 3], bo = words[cursor + 4], bl = words[cursor + 5];
-        if (op < SET_ATTR || op > REMOVE_NODE || count > length - cursor - 6 || ao > bytes || al > bytes - ao || bo > bytes || bl > bytes - bo) goto invalid;
+        if (op < SET_ATTR || op > EMPTY_NODE || count > length - cursor - 6 || ao > bytes || al > bytes - ao || bo > bytes || bl > bytes - bo) goto invalid;
         const uint32_t *ids = words + cursor + 6;
         if (!gd_valid_ids(doc, ids, count)) goto failed;
         GD_PROFILE_ADD(GP_COMMANDS, 1); GD_PROFILE_ADD(GP_MUTATED_NODES, count);
