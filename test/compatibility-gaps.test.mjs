@@ -137,3 +137,14 @@ test('ASCII comparisons preserve Unicode boundaries and operator-specific foldin
     return ['=', '^=', '$=', '*=', '~=', '|='].map(op => $(`[data-x${op}${quote(operand)} i]`).length);
   }, { xml });
 });
+
+test('token searches reject partial words and preserve multibyte boundaries', () => {
+  const values = ['aba ab abc', 'xa aaz a', 'x\u00a0a', 'x\u2003a', 'a\ufeffx',
+    'x\u0085a', 'x\u180ea', 'x\u200ba', 'a\u200bb', 'x\u00a0é', 'x\u3000中',
+    'é\u202fx', 'a b', 'a\u00a0b', '', ' ', 'x  y', 'a'.repeat(128) + ' b'];
+  for (const xml of [false, true]) for (const value of values) compare('<p/>', $ => {
+    $('p').attr('class', value);
+    return ['a', 'ab', 'abc', 'é', '中', 'a b', 'a\u00a0b', ''].flatMap(operand =>
+      ['', ' s'].map(flag => $(`[class~=${quote(operand)}${flag}]`).length));
+  }, { xml });
+});

@@ -329,6 +329,37 @@ stays in JS. None of these panels was extended to obtain a passing result.
 All experimental code and raw evidence remain preserved locally; the runtime
 still uses the validated compatibility checkpoint.
 
+### Token-search follow-up
+
+A native phase capture of the six authored selectors found repeated matching
+more expensive than cached-plan lookup: 200 queries per selector spent
+1.9–5.4 ms in the exclusive query phase versus 0.01–0.02 ms in plan lookup.
+The compound ancestor selector was largest. These instrumented timings locate
+work, not speedups. A short Node inspector capture retained 95 samples; it is
+too small for precise attribution within native calls.
+
+A prototype used `memchr` to find candidate token starts before checking Unicode
+boundaries. It passed 31,008 additional differential comparisons per backend,
+the native/Wasm suites, sanitizers, saved-input and consumer replay checks.
+However, a dense repeated-character token exposed repeated search calls within
+one word. A revised prototype skipped each failed token once and passed the
+differential checks, but did not pass its fixed performance screen. Neither
+version was retained.
+
+| Fixed token-search screen | Baseline/candidate | Control | Retained / quiet blocks | Result |
+|---|---:|---:|---|---|
+| Initial version, selectors | 1.0070 | 1.0057 | 8/9 / 9/9 | Pass |
+| Initial version, consumer | 1.0425 | 1.0573 | 9/9 / 8/9 | Inconclusive control |
+| Skip failed tokens, selectors | 0.9796 | 0.9831 | 9/9 / 8/9 | Below 0.98 threshold |
+
+Each panel used the warmed three-group protocol above. Aggregate raw and
+filtered ratios agree; no control normalization or extra blocks were used.
+Median/max batch times were 5.2/13.2, 28.3/71.2 and 5.8/12.3 ms, respectively.
+The revised version's conditional consumer panel did not run. Boundary
+regressions were retained, including near-whitespace characters that are not JS
+separators. The runtime and its unresolved compatibility-screen result remain
+unchanged.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol
