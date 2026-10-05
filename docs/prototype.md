@@ -1,6 +1,7 @@
 # Setup and packages
 
-The repository is a development workspace, not a published release. Use existing
+Both packages are published at experimental 0.1.0; this page covers development
+builds and package assembly. Use existing
 Node, Clang/LLVM, CMake/Ninja and reviewed Lexbor/WASI libraries. Builds install no
 toolchains. Put temporary files, caches and outputs in a disk-backed scratch
 location appropriate for your environment.
@@ -125,5 +126,6 @@ pass Node 24. Public entries match all nineteen consumer outputs/events; type
 checks, native ASan/UBSan with leak detection, owned buffer failure injection and
 1,200 additional deterministic fuzz cases pass. Separate target packages load on
 Node 22/24 without build metadata. Portable browser checks include missing
-FinalizationRegistry and TextEncoder.encodeInto fallbacks; actual browsers and
-the exact Node 22.0.0 floor remain untested.
+FinalizationRegistry and TextEncoder.encodeInto fallbacks. Later hosted CI passed
+the exact Node 22.0.0 floor and the [release platform matrix](releasing.md);
+actual browser engines remain untested.

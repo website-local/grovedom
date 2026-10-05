@@ -11,6 +11,9 @@ synchronous DOM calls. No target creates threads or fetches document resources.
 Both packages are standalone, including their TypeScript declarations. Cheerio
 is a development comparison dependency only; applications do not need it installed.
 
+Version **0.1.0** is available on npm: `npm install grovedom`. Use
+`grovedom-native` for the optional Linux x64/glibc package.
+
 [MIT licensed](LICENSE), like Cheerio. Bundled libraries retain their
 [third-party licenses and notices](THIRD_PARTY_NOTICES.md).
 
@@ -45,7 +48,7 @@ await init({ wasm: new URL('./grovedom.wasm', import.meta.url) });
 | Tested alternative | Shared/fresh Wasm heaps; independent caller-managed Node workers |
 | Secondary, tested on Linux | `grovedom-native`, separate artifact and initialization |
 | Best-effort | Browser entry; malformed-input parity; unaudited Cheerio edge cases |
-| Not released | Package publication, production deployment and broader platform support |
+| Not validated | Production deployments and platforms outside the CI matrix |
 
 [Compatibility](docs/compatibility.md) lists supported and unsupported behavior.
 [Setup and packaging](docs/prototype.md) explains local builds, target packages
@@ -61,7 +64,7 @@ The accepted performance target remains at least 3× current Cheerio for the
 complete required DOM workload, including bindings and disposal, plus a win over
 the fastest compatible Cheerio configuration. Historical scoped consumer medians
 were 4.92× native and 4.62× pooled Wasm; these are not production or browser claims.
-No npm package has been published.
+Both packages have been published as experimental 0.1.0 releases.
 
 The architectural refactor passes its scoped Node/Wasm regression screen within
 the stated 2% tolerance; XML on Node 24 has a narrow margin. See the

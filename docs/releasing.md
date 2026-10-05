@@ -18,8 +18,8 @@ Actions are pinned to commit IDs. Dependabot groups monthly action updates into
 one PR. Node declarations stay on major 22; TypeScript stays on major 6 until the
 type-check scripts support its replacement for the `typescript/bin/tsc` entry.
 Pull requests receive no release credentials; default token permissions are
-read-only. No benchmark runs on shared CI hosts. A successful hosted run is
-required to establish the complete platform matrix. Actual
+read-only. No benchmark runs on shared CI hosts. Hosted CI passed for the initial
+0.1.0 artifacts, and both npm packages match those validated tarballs. Actual
 Chromium/Firefox/WebKit checks remain future work.
 
 Verification uses ten runner jobs: two builds, one sanitizer job, package
@@ -128,5 +128,19 @@ overwriting or silently skipping. Matching versions get the requested dist-tag.
 An existing Git tag must identify the same commit. npm versions are immutable;
 if source or artifacts need changing, commit a new version instead.
 
-GitHub releases remain drafts until their assets have uploaded. Retrying that
-job verifies existing assets and fills in missing ones without overwriting them.
+GitHub publication uses the official [GitHub CLI](https://cli.github.com/manual/gh_release_create)
+already installed on hosted runners. `GH_TOKEN: ${{ github.token }}` authenticates
+it with the job's `contents: write` permission; no interactive login or personal
+GitHub token is needed.
+
+New releases pass all four assets to one `gh release create` command. The CLI
+creates a temporary draft, uploads the assets, then publishes using that release's
+ID. It may clean up its temporary draft on failure. Existing drafts and partial
+manual releases are verified before missing assets are uploaded, without
+overwriting existing files. Tag verification resolves lightweight and annotated
+Git tags to the tested commit; `target_commitish` alone can be a branch name.
+
+If npm succeeded but GitHub publication failed, the npm version stays published.
+For a manually completed GitHub release, attach both tested `.tgz` files,
+`SHA256SUMS` and `release.json` from that run's `npm-tarballs` artifact. Do not
+rebuild or republish the same npm version from a newer commit.

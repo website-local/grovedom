@@ -53,12 +53,12 @@ GC cleanup is secondary and has no guaranteed deadline.
 
 Thirteen selected Cheerio/jQuery cases remain excluded; their reasons are in
 [test/upstream/README.md](../test/upstream/README.md). Tests specific to another
-backend/heap also skip. The declared Node floor is 22.0.0, but that exact runtime
-has not been executed here; maintained Node 22/24 are the tested versions.
+backend/heap also skip. Hosted CI passed on Linux with Node 22.0.0 and maintained
+Node 22/24, plus pooled Wasm on Windows and macOS with Node 24. Packed installs
+are checked on those platforms; the native package remains Linux x64/glibc only.
 Browser graph/portable-path checks run under Node, not Chromium/Firefox/WebKit.
-Native Windows/macOS and published-package installation are not validated.
 The [CI release policy](releasing.md) defines the native build baseline and
-additional platform checks; their first hosted execution is still pending.
+platform matrix. Both 0.1.0 npm packages match the validated artifact hashes.
 
 The [WPT-derived suite](testing.md) adds independent HTML/CSS/DOM expectations.
 Literal U+00A0 and U+2003 in CSS identifiers remain known failures in pinned
