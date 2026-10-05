@@ -295,6 +295,53 @@ screen supports the scoped 2% tolerance; insertion control drift prevents a
 precise non-regression conclusion for that panel. No speedup is established and
 neither panel was extended. Earlier selector results describe their own checkpoint.
 
+### Fragment and consumer profiling follow-up
+
+Native source counters/timers and short Node inspector captures revisited the
+same five-case consumer panel after the quality fix. Three measured passes after
+two warmup passes made 45 loads/disposals and 219 HTML fragment parses. Only six
+requests used the default insertion context, creating three contexts. Fragment
+parsing accounted for 0.33% of exclusive native phase time, compared with 37.7%
+for queries, 19.1% for binding checks and 2.47% for allocation/free hooks. These
+are instrumented native shares, not whole-pipeline or Wasm percentages.
+
+Separate operation counters on native and pooled Wasm recorded 11,214
+`is('a')` calls, 5,172 `is('iframe')` calls and 19,905 attribute read/observe calls
+across the three passes. Inspector captures on both backends and a native V8
+tick capture remain consistent with substantial consumer URL-processing cost.
+The tick capture includes startup/warmup; inspector captures cover only the
+fixed replay loops plus verification. Neither establishes speedup from its
+elapsed time. Outputs matched the preceding uninstrumented runtime.
+
+The authored [fragment diagnostic](../bench/fragment-profile.mjs) tests a different
+opportunity: inserting identical markup at 80 destinations. Explicitly creating
+the fragment once, for example `$('article').append($('<i>text</i>'))`, uses the
+existing cloning path. Both strategies match Cheerio on this workload.
+
+| Per authored replay | String insertion | Parse once, then clone |
+|---|---:|---:|
+| HTML fragment parses | 320 | 4 |
+| Reusable insertion contexts created | 1 | 1 |
+| Subtree clones | 0 | 316 |
+| Arena backing allocation/reallocation requests | 163 | 163 |
+
+One predeclared pooled-Wasm comparison used 100 warmups, three groups of three
+balanced blocks, and two batches of eight replays per sample. Raw/filtered
+baseline/clone ratios were both **1.4606**, with a **0.9913** identical-code control.
+All nine blocks passed the independent probe rule and had quiet prechecks;
+median/max batches were 4.49/5.63 ms. Group ratios ranged from 1.3623 to 1.4823;
+controls ranged from 0.9912 to 1.0276. The aggregate uses the median of group
+medians without control normalization. No additional panels were run.
+
+This supports parse-once/cloning for the tested bulk-insertion case. It does not
+establish an MDN improvement or justify caching arbitrary mutation results.
+`html(value)` still requires destination-context parsing. Repeated scalar tag
+checks and attribute operations remain higher priorities for the sampled consumer;
+heap/pool tuning or an allocator rewrite would not address the measured fragment
+cost. This pass adds developer diagnostics only; insertion behavior is unchanged.
+Matched native and Wasm release builds were byte-identical to the quality
+checkpoint, with no diagnostic imports/exports in release Wasm.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol

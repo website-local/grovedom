@@ -19,6 +19,16 @@ and ASCII-probe calls, bytes and logical scalar loads. Byte counts include
 overlapping tail reads; load counts describe the C algorithm, not retired CPU
 instructions. These counters also compile out of release builds.
 
+Fragment diagnostics report HTML fragment-parser calls/time, input bytes, lazy
+insertion-context requests/creation attempts, and subtree-clone calls/time.
+They distinguish repeated parsing from allocation of the reusable template
+context; XML fragments use the existing XML phases. Run
+`GROVEDOM_BACKEND=napi node bench/fragment-profile.mjs` against a native build
+made with `GROVEDOM_PROFILE=1` for a fixed, Cheerio-checked comparison of string
+insertion and explicit fragment cloning. It reports ten measured replays per
+strategy after twenty warmups. Its independent instrumented times are diagnostic,
+not a release-speed comparison.
+
 For Wasm, build with `GROVEDOM_WASM_PROFILE_GROWTH=1`, then use that setting with
 `GROVEDOM_WASM_BUILD_DIR` when loading the diagnostic entry. `growthStats()` reports
 cumulative positive linear-memory growth calls, pages and milliseconds. Subtract

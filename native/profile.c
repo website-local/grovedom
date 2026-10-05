@@ -48,7 +48,9 @@ static const char *names[GP_COUNT] = {
     "malloc", "calloc", "realloc", "free",
     "selectorAsciiCalls", "selectorAsciiBytes", "selectorAsciiLoads", "selectorUnicode",
     "selectorCaseEqual", "selectorCasePrefix", "selectorCaseSuffix",
-    "selectorCaseDash", "selectorCaseSubstring", "selectorCaseToken"
+    "selectorCaseDash", "selectorCaseSubstring", "selectorCaseToken",
+    "fragmentParse", "fragmentBytes", "insertionContextCalls",
+    "insertionContextCreates", "clone"
 };
 
 gp_scope gp_start(unsigned phase) {

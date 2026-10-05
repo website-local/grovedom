@@ -19,11 +19,25 @@ static lxb_dom_element_t *gd_insertion_context(gd_document *doc) {
     /* Cheerio's _makeDomArray parses insertion strings without a target,
      * using parse5's template context. Reuse this detached, arena-owned element
      * instead of allocating a temporary context for every insertion. */
-    if (!doc->insertion_context)
+    GD_PROFILE_ADD(GP_INSERTION_CONTEXT_CALLS, 1);
+    if (!doc->insertion_context) {
+        GD_PROFILE_ADD(GP_INSERTION_CONTEXT_CREATES, 1);
         doc->insertion_context = lxb_dom_document_create_element(&doc->html->dom_document,
             (const lxb_char_t *) "template", 8, NULL);
+    }
     return doc->insertion_context;
 }
+#ifdef GROVEDOM_PROFILE
+static lxb_dom_node_t *gd_html_fragment(gd_document *doc, lxb_dom_element_t *context,
+                                      const lxb_char_t *data, size_t length) {
+    GD_PROFILE_SCOPE(GP_FRAGMENT_PARSE);
+    GD_PROFILE_ADD(GP_FRAGMENT_BYTES, length);
+    return lxb_html_document_parse_fragment(doc->html, context, data, length);
+}
+#else
+#define gd_html_fragment(doc, context, data, length) \
+    lxb_html_document_parse_fragment((doc)->html, context, data, length)
+#endif
 static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_node) {
     if (doc->xml) return gd_xml_parse(doc, doc->input.data, doc->input.length);
     /* Lexbor inserts head/body wrappers for an HTML-element fragment context.
@@ -32,7 +46,7 @@ static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_nod
         (context_node->ns == LXB_NS_HTML && context_node->local_name == LXB_TAG_HTML);
     lxb_dom_element_t *context = temporary ? gd_insertion_context(doc) : lxb_dom_interface_element(context_node);
     if (!context) return NULL;
-    lxb_dom_node_t *fragment = lxb_html_document_parse_fragment(doc->html, context, doc->input.data, doc->input.length);
+    lxb_dom_node_t *fragment = gd_html_fragment(doc, context, doc->input.data, doc->input.length);
     if (fragment && !gd_templates(doc, fragment)) {
         gd_destroy_subtree(fragment);
         gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Template allocation failed");
@@ -42,6 +56,7 @@ static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_nod
 }
 
 static lxb_dom_node_t *gd_clone(gd_document *doc, lxb_dom_node_t *source) {
+    GD_PROFILE_SCOPE(GP_CLONE);
     lxb_dom_node_t *root = lxb_dom_node_clone(source, true), *node = root;
     // Lexbor copies user fields. Clones must receive their own GroveDOM IDs.
     while (node) {
@@ -273,7 +288,7 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
             lxb_dom_element_t *context = operation == APPEND_HTML ? gd_insertion_context(doc) :
                 temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(node);
             if (!context) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-            fragment = lxb_html_document_parse_fragment(doc->html, context, a, alen);
+            fragment = gd_html_fragment(doc, context, a, alen);
             if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));
         }
         if (!fragment) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
