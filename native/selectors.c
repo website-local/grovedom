@@ -30,7 +30,7 @@ gd_selector_guard *gd_selector_guard_create(gd_document *doc, selector_list *lis
         if (!candidate || (candidate->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE && !doc->templates)) return NULL;
         count++;
     }
-    if (doc->selector_flags || (!doc->templates && count < 8 && !(count == 1 && list->first == list->last))) return NULL;
+    if ((doc->selector_flags & (GD_SELECTOR_TEMPLATE | GD_SELECTOR_CUSTOM)) || (!doc->templates && count < 8 && !(count == 1 && list->first == list->last))) return NULL;
     if (count > SIZE_MAX / sizeof(gd_selector_guard) - 1) {
         gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Selector guard capacity exceeded"); return NULL;
     }
@@ -231,6 +231,7 @@ unsigned gd_selector_flags(gd_document *doc, selector_list *list) {
     unsigned flags = 0;
     selector *s = list->first;
     while (s) {
+        if (s->prev && s->combinator != LXB_CSS_SELECTOR_COMBINATOR_CLOSE) flags |= GD_SELECTOR_ANCESTRY;
         if (!doc->xml && (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT || s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE)) {
             for (size_t i = 0; i < s->name.length; i++) if (s->name.data[i] >= 'A' && s->name.data[i] <= 'Z') s->name.data[i] += 'a' - 'A';
             if (html_adjusted_name(doc, s)) flags |= GD_SELECTOR_CUSTOM;
@@ -244,7 +245,7 @@ unsigned gd_selector_flags(gd_document *doc, selector_list *list) {
                 s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_WHERE ||
                 s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NOT ||
                 s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS)) flags |= GD_SELECTOR_CUSTOM;
-            if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) flags |= GD_SELECTOR_TEMPLATE;
+            if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) flags |= GD_SELECTOR_CUSTOM;
             if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_LEXBOR_CONTAINS) flags |= GD_SELECTOR_CUSTOM;
         }
         selector_list *nested = nested_plan(s);
@@ -280,7 +281,7 @@ static int anchored(node *n, node *scope, unsigned relation) {
     return 0;
 }
 
-static int has(gd_document *doc, node *scope, selector_list *list, unsigned depth) {
+static int has_relative(gd_document *doc, node *scope, selector_list *list, unsigned depth) {
     for (; list; list = list->next) {
         unsigned relation = list->first->combinator;
         node *start = relation == LXB_CSS_SELECTOR_COMBINATOR_SIBLING || relation == LXB_CSS_SELECTOR_COMBINATOR_FOLLOWING ? scope->next : scope->first_child;
@@ -295,6 +296,30 @@ static int has(gd_document *doc, node *scope, selector_list *list, unsigned dept
                 n = n->next;
             }
         }
+    }
+    return 0;
+}
+
+static int has(gd_document *doc, node *scope, selector_list *list, unsigned depth) {
+    /* :has establishes its own context. Only a direct traversal in its list
+     * gives nested :is/:not branches a relative context in Cheerio. */
+    gd_selector_context previous = doc->selector_context;
+    doc->selector_context = (gd_selector_context) {0};
+    for (selector_list *group = list; group; group = group->next)
+        for (selector *s = group->first; s; s = s->next)
+            if ((s->prev && s->combinator != LXB_CSS_SELECTOR_COMBINATOR_CLOSE) ||
+                (!s->prev && s->combinator != LXB_CSS_SELECTOR_COMBINATOR_DESCENDANT)) doc->selector_context.node = scope;
+    int result = has_relative(doc, scope, list, depth);
+    doc->selector_context = previous;
+    return result;
+}
+
+static int within_scope(gd_document *doc, node *n) {
+    gd_selector_context context = doc->selector_context;
+    if (!context.node && !context.count) return 1;
+    for (; n; n = n->parent) {
+        if (n == context.node) return 1;
+        for (size_t i = 0; i < context.count; i++) if (n == doc->nodes[context.ids[i]].node) return 1;
     }
     return 0;
 }
@@ -386,7 +411,7 @@ static int match_chain(gd_document *doc, node *n, selector *s, node *scope, unsi
     if (depth >= 64) return gd_set_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "Compatibility selector nesting exceeds 64");
     for (;;) {
         if (!atom(doc, n, s, depth) || doc->error_code) return 0;
-        if (!s->prev) return anchored(n, scope, s->combinator);
+        if (!s->prev) return scope ? anchored(n, scope, s->combinator) : within_scope(doc, n);
         unsigned relation = s->combinator;
         s = s->prev;
         if (relation == LXB_CSS_SELECTOR_COMBINATOR_CLOSE) continue;

@@ -161,6 +161,17 @@ static napi_value gd_query(napi_env env, napi_callback_info info) {
     if (napi_get_value_bool(env, args[3], &match) != napi_ok) return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected matching flag"));
     return gd_value(env, doc, gk_query(doc, ids, count, match));
 }
+static napi_value gd_matches(napi_env env, napi_callback_info info) {
+    napi_value args[3];
+    if (!gd_arguments(env, info, 3, args)) return NULL;
+    gd_document *doc = gd_owner(env, args[0], 0);
+    if (!doc) return NULL;
+    uint32_t one, *ids; size_t count;
+    if (!gd_string(env, doc, args[1])) return gd_finish(env, doc, NULL);
+    if (napi_get_value_uint32(env, args[2], &one) == napi_ok) { ids = &one; count = 1; }
+    else if (!gd_typed(env, args[2], napi_uint32_array, (void **) &ids, &count)) return gd_finish(env, doc, NULL);
+    return gd_value(env, doc, gk_query(doc, ids, count, GD_QUERY_ANY));
+}
 static napi_value gd_read_args(napi_env env, gd_document *doc, napi_value *args) {
     uint32_t operation, one, *ids; size_t count;
     if (napi_get_value_uint32(env, args[1], &operation) != napi_ok) return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected read operation"));
@@ -287,6 +298,7 @@ NAPI_MODULE_INIT() {
         { "createXML", NULL, gd_create_xml, NULL, NULL, NULL, napi_default, NULL },
         { "dispose", NULL, gd_dispose, NULL, NULL, NULL, napi_default, NULL },
         { "query", NULL, gd_query, NULL, NULL, NULL, napi_default, NULL },
+        { "matches", NULL, gd_matches, NULL, NULL, NULL, napi_default, NULL },
         { "read", NULL, gd_read, NULL, NULL, NULL, napi_default, NULL },
         { "observe", NULL, gd_observe, NULL, NULL, NULL, napi_default, NULL },
         { "traverse", NULL, gd_traverse, NULL, NULL, NULL, napi_default, NULL },

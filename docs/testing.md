@@ -63,6 +63,12 @@ Ancestor-selector tests check backtracking through nested list pseudo-classes;
 XML serializer tests cover entities and doctype identifiers. Dependency-patch
 tests reject modified inputs, patches and cached trees, and ensure preparation
 does not modify the supplied upstream source.
+Scoped-selector regressions check ancestry bounds, overlapping contexts, nested
+`:has()` predicates and the deliberate difference from browser query scoping.
+Tag-predicate tests cover snapshots, buffered mutations, renaming, disposal,
+HTML/XML case rules and positional-selector fallbacks. The follow-up local
+Node 22/24 suites contain 1,715 cases with no unexpected failures; native
+sanitizers, shared/fresh Wasm checks and 500 seeded fuzz cases also pass.
 Use [short performance checks](benchmarks.md) only when a runtime change warrants
 them; adding correctness fixtures does not require another benchmark campaign.
 

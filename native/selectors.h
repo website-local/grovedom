@@ -1,7 +1,7 @@
 #ifndef GROVEDOM_SELECTORS_H
 #define GROVEDOM_SELECTORS_H
 #include "document.h"
-enum { GD_SELECTOR_TEMPLATE = 1, GD_SELECTOR_CUSTOM = 2 };
+enum { GD_SELECTOR_TEMPLATE = 1, GD_SELECTOR_CUSTOM = 2, GD_SELECTOR_ANCESTRY = 4 };
 unsigned gd_selector_flags(gd_document *doc, lxb_css_selector_list_t *list);
 int gd_selector_tag_case(gd_document *doc, lxb_dom_node_t *node);
 int gd_selector_match(gd_document *doc, lxb_dom_node_t *node, lxb_css_selector_list_t *list);

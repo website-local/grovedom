@@ -104,6 +104,41 @@ or an allocator/dependency rewrite. All defaults remain unchanged.
 The reusable [diagnostic collectors](../diagnostics/README.md) are excluded from
 published packages; allocator scopes compile out of release C.
 
+### Scoped selectors and tag predicates
+
+A subsequent correctness sweep checked 20,980 generated selector/context
+combinations against Cheerio. Scoped ancestry and nested `:has()` fixes remove
+all 320 observed differences; additional regressions cover overlapping contexts.
+Both backends still match all 174 saved-input checks and all 193 pipeline cases
+on each of the two consumer snapshots. These fixes use GroveDOM's compatibility
+matcher and require no additional dependency patch.
+
+Plain-tag `.is()` calls now request a scalar result and stop at the first match.
+Other selectors retain their existing collection semantics. One five-case real
+consumer replay returns 1,360 ID arrays instead of 6,822, with 5,462 calls using
+the scalar path. Both backends keep the same 14,401 binding calls and exact
+outputs. These count array returns, including empty arrays reused by Wasm, not
+5,462 newly allocated objects or an equivalent elapsed-time improvement.
+
+Two fixed Node/pooled-Wasm screens compare the predicate/scoping change with its predecessor
+and an identical-code control. Each has one group of three rotated/mirrored
+blocks and two batches per sample. The authored link/tag replay uses ten warmups
+and four replays per batch; the saved MDN consumer page uses five warmups and one
+replay per batch. All host prechecks are busy; each screen retains two of three
+blocks under the unchanged independent probe filter.
+
+| Short screen | Candidate raw / filtered | Control raw / filtered |
+|---|---:|---:|
+| Authored link/tag checks | 1.236 / 1.188 | 1.114 / 1.152 |
+| Saved MDN consumer page | 1.160 / 1.037 | 1.193 / 0.972 |
+
+Ratios are baseline/candidate; neither screen passes the control tolerance.
+Both remain inconclusive and were not extended. The change establishes fewer
+result-array returns, not a repeatable speedup or a precise non-regression bound.
+The final covered-root ordering fix has correctness validation only and was not
+included in these timing screens.
+Initial heap and pool defaults remain unchanged.
+
 ### Earlier acceptance panels
 
 The pre-refactor `b27dbe2` checkpoint measured:

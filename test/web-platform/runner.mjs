@@ -34,6 +34,7 @@ export function* selectorCases(selectors) {
     // Keep one visible skip for an excluded upstream record, rather than hiding
     // it at import time or counting it as a passing assertion.
     for (const context of row.skip ? ['excluded'] : row.contexts)
-      yield { row, context, name: `WPT ${row.id} ${context}: ${row.name} (${row.selector})` };
+      yield { row: { ...row, skip: row.skip ?? row.contextSkips?.[context] }, context,
+        name: `WPT ${row.id} ${context}: ${row.name} (${row.selector})` };
   }
 }

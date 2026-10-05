@@ -5,6 +5,13 @@ static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
     return node;
 }
 
+static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index) {
+    for (size_t i = 0; i < index; i++) if (ids[i] == ids[index]) return 1;
+    for (lxb_dom_node_t *parent = doc->nodes[ids[index]].node->parent; parent; parent = parent->parent)
+        for (size_t i = 0; i < count; i++) if (parent == doc->nodes[ids[i]].node) return 1;
+    return 0;
+}
+
 static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lxb_dom_node_t *boundary, lxb_css_selector_list_t *plan) {
     /* Selector ancestry stops at the fragment, while raw parent identity stays
      * connected. No JS callback can run during this synchronous kernel call. */
@@ -188,6 +195,14 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     GD_PROFILE_SCOPE(GP_QUERY);
     if (!gd_begin(doc)) return NULL;
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
+    /* Cheerio bounds ordinary find ancestry when every context has an element
+     * parent. Root sibling/position tests still inspect the original tree. */
+    int scoped = !match && count != 0;
+    for (size_t i = 0; scoped && i < count; i++) {
+        lxb_dom_node_t *root = doc->nodes[ids[i]].node;
+        scoped = root->type == LXB_DOM_NODE_TYPE_ELEMENT && root->parent && root->parent->type == LXB_DOM_NODE_TYPE_ELEMENT;
+    }
+    doc->selector_context = (gd_selector_context) {0};
     lxb_css_selector_list_t *plan = NULL;
     lxb_tag_id_t simple_tag = 0;
     int possible;
@@ -199,19 +214,25 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     } else {
         plan = gd_plan_get(doc);
         if (!plan) return gd_failed();
-        doc->selector_custom = (doc->selector_flags & GD_SELECTOR_CUSTOM) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+        doc->selector_custom = (doc->selector_flags & GD_SELECTOR_CUSTOM) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE)) ||
+            (scoped && (doc->selector_flags & GD_SELECTOR_ANCESTRY));
         if (doc->selector_custom) doc->selector_guard = NULL;
         possible = gd_selector_guard_prepare(doc, !match && count == 1 && ids[0] == 1);
         if (doc->error_code) return gd_failed();
         simple_tag = gd_selector_simple_tag(doc);
     }
     gd_results_reset(doc);
-    if (!possible) return gd_result_set(doc, GD_IDS, doc->results, 0, 0);
+    if (!possible) return gd_result_set(doc, match == GD_QUERY_ANY ? GD_NUMBER : GD_IDS, doc->results, 0, 0);
     int cross_fragments = 0;
     if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
         if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
     }
+    if (scoped) doc->selector_context = count == 1 ?
+        (gd_selector_context) { .node = doc->nodes[ids[0]].node } : (gd_selector_context) { .ids = ids, .count = count };
     for (size_t i = 0; i < count; i++) {
+        // Search a containing context once even when a descendant appears
+        // earlier. Disjoint contexts still retain caller order, as in Cheerio.
+        if (!match && count > 1 && gd_covered_root(doc, ids, count, i)) continue;
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         /* Cheerio does not infer selector quirks mode from a missing doctype.
@@ -224,7 +245,8 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
             status = LXB_STATUS_OK;
             if (node->local_name == simple_tag && gd_selector_tag_case(doc, node)) {
                 GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
-                status = gd_collect(node, 0, doc);
+                if (match == GD_QUERY_ANY) doc->result_count = 1;
+                else status = gd_collect(node, 0, doc);
             }
         }
         else if (simple_tag) status = gd_find_tag(doc, node, simple_tag, cross_fragments);
@@ -233,7 +255,13 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
         else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
         doc->html->dom_document.compat_mode = mode;
-        if (status != LXB_STATUS_OK) { if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed(); }
+        if (status != LXB_STATUS_OK) {
+            doc->selector_context = (gd_selector_context) {0};
+            if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed();
+        }
+        if (match == GD_QUERY_ANY && doc->result_count) break;
     }
+    doc->selector_context = (gd_selector_context) {0};
+    if (match == GD_QUERY_ANY) return gd_result_set(doc, GD_NUMBER, NULL, 0, doc->result_count != 0);
     return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
 }

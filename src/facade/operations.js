@@ -127,6 +127,14 @@ export function createOperations(kernel) {
         }
         return kernel.query(state.owner, selector, roots, match);
     }
+    function matches(state, selector, ids) {
+        // The common tag-only is() path needs one boolean, not snapshot IDs.
+        // Positional selectors, aliases and relative selectors keep query semantics.
+        if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(selector))
+            return query(state, selector, ids, true).length > 0;
+        flush(state);
+        return Boolean(kernel.matches(state.owner, selector, ids.length === 1 ? ids[0] : ids));
+    }
     // Scan only the relative-selector path. Brackets, arguments, quotes and CSS
     // escapes keep embedded combinators from becoming traversal boundaries.
     function selectorBoundary(selector, separators) {
@@ -208,5 +216,5 @@ export function createOperations(kernel) {
         }
         return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
     }
-    return { flush, enqueue, read, query, edit, attributes, attributeValue };
+    return { flush, enqueue, read, query, matches, edit, attributes, attributeValue };
 }

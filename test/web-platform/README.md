@@ -38,10 +38,14 @@ and `.html()`; fixed expected text, node types and identities stay intact. These
 28 cases run in both buffered and direct execution. No browser scripts, external
 resources, layout, events or live DOM property state are emulated.
 
-The resulting suite has 848 cases: 814 pass, 32 explicitly skip and two are
+The resulting suite has 848 cases: 813 pass, 33 explicitly skip and two are
 executed TODOs. One selector exclusion preserves Cheerio's broad `:enabled`
-semantics; a separate compatibility regression records the difference. Successful
-foreign-context CDATA cases follow WPT even where current Cheerio/parse5 differs.
+semantics; a separate compatibility regression records the difference.
+Scoped `find` follows Cheerio's ancestry boundary. WPT record 160 retains its
+original expected IDs and runs in document scope; its element context skips
+explicitly because browser `querySelectorAll` permits ancestors outside the query
+root. The scoped-selector regressions check the Cheerio behavior separately.
+Successful foreign-context CDATA cases follow WPT even where current Cheerio/parse5 differs.
 This is selected coverage, not full WPT conformance or browser certification.
 
 Node uses `../web-platform.test.mjs`. The browser page and Node's browser sandbox

@@ -1,7 +1,7 @@
 import { alive, unsupported, empty, boolAttributes } from './common.js';
 // Methods keep private branding and selection snapshots. Helpers are bound once.
 export function createSelection(context) {
-    const { kernel, entry, wrap, selection, inputIds, query, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classTokens, classes, content, wrapping, camel, dataValue } = context;
+    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classTokens, classes, content, wrapping, camel, dataValue } = context;
     class Selection {
         #state;
         constructor(state) { this.#state = state; }
@@ -102,7 +102,7 @@ export function createSelection(context) {
         is(selector) {
             if (typeof selector === 'string') {
                 const { state, ids } = entry(this);
-                return selector.length > 0 && query(state, selector, ids, true).length > 0;
+                return selector.length > 0 && matches(state, selector, ids);
             }
             if (typeof selector !== 'function')
                 return this.filter(selector).length > 0;

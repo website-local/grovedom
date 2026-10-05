@@ -39,6 +39,9 @@ const selectors = Array.from(data.validSelectors, (row, index) => ({
   id: index, name: row.name, selector: row.selector, expected: Array.from(row.expect),
   contexts: ['document', 'element', 'detached', 'fragment'].filter(context => !row.exclude?.includes(context)),
   ...(exclusion(row) ? { skip: exclusion(row) } : {}),
+  ...(row.selector === 'body #descendant-div1' ? { contextSkips: {
+    element: 'Cheerio scoped find excludes ancestors outside its context; browser querySelectorAll permits them. Covered by scoped-selector regressions.',
+  } } : {}),
 }));
 const escapes = [];
 for (const match of files['dom/nodes/ParentNode-querySelector-escapes.html'].matchAll(/^test(Matched|NeverMatched)\((.+)\);$/gm)) {

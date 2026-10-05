@@ -11,6 +11,7 @@ typedef struct { lxb_dom_node_t *node; uint32_t mark, order; } gd_node;
 typedef struct gd_selector_guard gd_selector_guard;
 typedef struct gd_xml_name_entry gd_xml_name_entry;
 typedef struct gd_attribute_history gd_attribute_history;
+typedef struct { lxb_dom_node_t *node; const uint32_t *ids; size_t count; } gd_selector_context;
 typedef struct { char *key; size_t length; lxb_css_selector_list_t *list; unsigned flags; gd_selector_guard *guard; } gd_plan;
 struct gd_document {
     lxb_html_document_t *html;
@@ -34,6 +35,7 @@ struct gd_document {
     uint32_t *selector_summary;
     size_t selector_guard_active;
     gd_selector_guard *selector_guard;
+    gd_selector_context selector_context;
     gd_xml_name_entry *xml_names;
     gd_attribute_history *attribute_history;
     bool closed, templates, xml, selector_summary_valid, selector_custom;

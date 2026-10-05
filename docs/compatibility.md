@@ -75,6 +75,12 @@ and an empty selection's `.html()` returns `null`, unlike jQuery's `undefined`.
 Foreign-fragment CDATA follows the tested browser-standard behavior even where
 Cheerio/parse5 differs. These distinctions are tested, not hidden fallbacks.
 
+Scoped `.find()` follows Cheerio's ancestry boundary, including overlapping
+contexts and nested selector predicates. Ancestors outside the context cannot
+satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
+node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
+position and sibling predicates retain the original tree relationships.
+
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier
 API audit and exclusions; current support status is the table above.

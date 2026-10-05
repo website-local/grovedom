@@ -173,6 +173,21 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             const pointer = ids(state, roots);
             return result(state, state.runtime.gk_query(state.pointer, pointer, roots.length, Number(match)));
         },
+        matches(handle, selector, nodes) {
+            const state = owner(handle);
+            input(state, selector);
+            let pointer, count;
+            if (typeof nodes === 'number') {
+                if (!Number.isInteger(nodes) || nodes < 0 || nodes > 0xffffffff)
+                    fail('ERR_GROVEDOM_ARGUMENT', 'Expected a node ID');
+                pointer = transfer(state, 4);
+                views(state);
+                state.words[pointer >>> 2] = nodes;
+                count = 1;
+            }
+            else { pointer = ids(state, nodes); count = nodes.length; }
+            return result(state, state.runtime.gk_query(state.pointer, pointer, count, 2));
+        },
         read(handle, operation, nodes, name) {
             const state = owner(handle);
             if (!Number.isInteger(operation))
