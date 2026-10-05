@@ -79,8 +79,12 @@ node scripts/serve-demo.mjs /scratch/packages 8080
 ```
 
 Open the printed loopback URL. The demo compares three short parsing/query/edit/
-serialization pairs against browser DOMParser, checking output equality first.
-It does not compare Cheerio or establish an adoption multiplier.
+serialization rounds against browser DOMParser and Cheerio 1.2.0's default
+parser, checking exact output equality first and rotating execution order.
+Cheerio is loaded only by the demo from a versioned jsDelivr ESM URL; CDN loading
+is excluded from timing. If it fails or takes more than ten seconds, the local
+DOMParser comparison remains available. This does not add a package dependency
+or establish an adoption multiplier.
 
 ## Checks
 

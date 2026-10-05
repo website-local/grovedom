@@ -147,5 +147,7 @@ batches and iterations for the input size. Developer harnesses use
 are diagnostic, never release timing evidence. [Memory](memory.md) and
 [stack](stack.md) describe separate verification.
 
-The browser demo compares three short pairs against DOMParser with exact output
-checks. It is not a Cheerio baseline or an adoption gate.
+The browser demo compares three short rounds against DOMParser and optional
+CDN-loaded Cheerio 1.2.0 with its default parser. It checks exact outputs and
+rotates execution order; loading is excluded. It is a local browser comparison,
+not a controlled adoption gate. CDN failure leaves the DOMParser comparison usable.
