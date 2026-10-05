@@ -273,6 +273,62 @@ justify larger heaps, new pool defaults or an allocator rewrite. No such default
 changed in this pass. The final release Wasm still has no imports or diagnostic
 exports.
 
+### Warmup confirmation and normalization experiment
+
+A separate VM trace followed 24 saved consumer replays. Wasm tier-up and JS
+optimization continued beyond the earlier five warmups, including the final
+traced round. Trace timings are diagnostic only. A fixed confirmation therefore
+used 100 warmups, three independent groups of three balanced blocks and two
+batches per sample. The selector panel used eight replays per batch; the consumer
+used one. Aggregate ratios are medians of group medians, without control
+normalization. All eighteen blocks were quiet and probe-retained; raw and
+filtered results agree.
+
+| Warmed compatibility screen | Baseline/candidate | Control | Result |
+|---|---:|---:|---|
+| Class/attribute replay | 0.9613 | 1.0050 | Regression screen fails |
+| Saved MDN consumer page | 0.9819 | 0.9866 | Pass, narrow margin |
+
+Timed batches had medians of 5.1 and 25.5 ms, respectively. Independent groups
+still varied: selector candidate/control ranges were 0.928–1.066 / 0.990–1.119;
+consumer ranges were 0.974–1.023 / 0.978–1.012. The scoped selector slowdown
+remains unresolved; this is not a general consumer slowdown or a new adoption
+ratio.
+
+Two subsequent C experiments were not retained. Avoiding preliminary ASCII
+comparison scans measured 0.8924 with control 0.9996. Isolating multibyte
+whitespace decoding measured 0.9952 with control 1.0213, which is inconclusive
+under the fixed 2% control tolerance. Each used one predeclared nine-block
+selector panel; all blocks were quiet and retained. A consumer attempt for the
+first experiment stopped before timing because of a stale replay adapter.
+The second experiment's conditional consumer panel was not run.
+
+A separate prototype moved alias and `:contains()` expansion from JS into C on
+selector-plan cache misses. It read the retained original cache key and wrote
+directly into the existing document input buffer, without a separate temporary
+normalization allocation. Input capacity could still grow; CSS parsing and plan
+storage still allocate. Selectors use this input buffer separately from buffered
+mutation commands. Positional and relative selection behavior remained in JS.
+The prototype removed the JS alias map and expanded strings. It matched the JS
+normalizer in 864 additional checks per backend, and repeated cache churn stayed
+bounded. Native backing allocations on the authored alias replay remained
+263 per document before and after.
+
+| Normalization experiment versus preceding JS implementation | Baseline/candidate | Control | Result |
+|---|---:|---:|---|
+| Authored alias/contains replay | 1.0223 | 1.0238 | Inconclusive control |
+| Saved MDN consumer page | 1.0121 | 0.9946 | Pass |
+
+These fixed panels used the same warmed three-group protocol, with eight alias
+replays or one consumer replay per batch. All eighteen blocks were quiet and
+retained; raw and filtered ratios agree. Median/max batch times were 28.4/34.0 ms
+and 26.3/31.4 ms. The alias candidate/control group ranges were
+0.985–1.049 / 0.989–1.033; consumer ranges were 0.970–1.021 / 0.982–0.999.
+The experiment establishes no convincing performance benefit, so normalization
+stays in JS. None of these panels was extended to obtain a passing result.
+All experimental code and raw evidence remain preserved locally; the runtime
+still uses the validated compatibility checkpoint.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol

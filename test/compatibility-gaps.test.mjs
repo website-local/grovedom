@@ -126,3 +126,14 @@ test('html callbacks skip text/comments and preserve element callback order', ()
     assert.equal($('main').html(), '<i><u>A</u></i>text<b><u>B</u></b><!--c-->');
   } finally { $.dispose(); }
 });
+
+test('ASCII comparisons preserve Unicode boundaries and operator-specific folding', () => {
+  const pairs = [['abcÉ', 'abc'], ['Éabc', 'abc'], ['a', 'aÉ'], ['abc', 'Éabc'],
+    ['K', 'k'], ['ſ', 's'], ['İ', 'i'], ['i', 'İ'], ['aK', 'ak'], ['Ka', 'ka'],
+    ['aK-b', 'ak'], ['é K\u00a0x', 'k'], ['a\u2003b', ''], ['ΟΣx', 'οςx'],
+    ['Éabc', 'Xabc'], ['abcÉ', 'abcX'], ['É-abc', ''], ['-É', '']];
+  for (const xml of [false, true]) for (const [value, operand] of pairs) compare('<p/>', $ => {
+    $('p').attr('data-x', value);
+    return ['=', '^=', '$=', '*=', '~=', '|='].map(op => $(`[data-x${op}${quote(operand)} i]`).length);
+  }, { xml });
+});
