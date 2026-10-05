@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import assert from 'node:assert/strict';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).map(value => {
@@ -8,6 +9,22 @@ const args = Object.fromEntries(process.argv.slice(2).map(value => {
   return [key.replace(/^--/, ''), rest.join('=')];
 }));
 if (!args.out || !args.wasm || !args.native) throw new Error('Use --out=DIR --wasm=BUILD_DIR --native=BUILD_DIR');
+const publishable = Object.hasOwn(args, 'publishable');
+if (publishable) {
+  const version = JSON.parse(readFileSync(join(root, 'package.json'))).version;
+  assert.equal(JSON.parse(readFileSync(join(root, 'packages/native/package.json'))).version, version, 'Package versions must match');
+  for (const target of ['native', 'wasm']) {
+    const build = JSON.parse(readFileSync(join(args[target], 'build.json')));
+    assert.equal(build.packageVersion, version, 'Build the committed package version');
+    assert(!build.sanitize && !build.profile && !build.profileStack, 'Diagnostic artifacts cannot be published');
+  }
+  const module = new WebAssembly.Module(readFileSync(join(args.wasm, 'grovedom.wasm')));
+  assert.equal(WebAssembly.Module.imports(module).length, 0, 'Release Wasm must be import-free');
+  assert(!WebAssembly.Module.exports(module).some(({ name }) => /profile|__stack/.test(name)), 'Diagnostic Wasm exports');
+  const native = readFileSync(join(args.native, 'grovedom.node'));
+  assert.equal(native.subarray(0, 6).toString('hex'), '7f454c460201', 'Expected 64-bit little-endian ELF');
+  assert.equal(native.readUInt16LE(18), 62, 'Native package currently supports x64 only');
+}
 const out = resolve(args.out);
 if (existsSync(out)) throw new Error('Package output must be a new directory.');
 for (const target of ['wasm', 'native']) {
@@ -16,6 +33,7 @@ for (const target of ['wasm', 'native']) {
   const manifest = JSON.parse(readFileSync(join(root, target === 'wasm' ? 'package.json' : 'packages/native/package.json')));
   delete manifest.scripts;
   delete manifest.devDependencies;
+  if (publishable) delete manifest.private;
   writeFileSync(join(destination, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
   for (const file of ['LICENSE', 'THIRD_PARTY_NOTICES.md']) cpSync(join(root, file), join(destination, file));
   cpSync(join(root, 'licenses'), join(destination, 'licenses'), { recursive: true });

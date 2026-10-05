@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { SourceTextModule, createContext } from 'node:vm';
+import { resolve } from 'node:path';
 class EncodeFallback extends TextEncoder { encodeInto = undefined; }
 const context = createContext({ WebAssembly, TextEncoder: process.env.GROVEDOM_BROWSER_FALLBACK ? EncodeFallback : TextEncoder, TextDecoder, URL, console,
   ...(process.env.GROVEDOM_BROWSER_FALLBACK ? { FinalizationRegistry: undefined } : {}) });
@@ -20,7 +21,7 @@ async function moduleFor(url) {
 }
 const entry = await moduleFor(new URL('../src/browser.js', import.meta.url).href);
 await entry.evaluate();
-const binary = await readFile(new URL('file://' + process.env.GROVEDOM_WASM_BUILD_DIR + '/grovedom.wasm'));
+const binary = await readFile(resolve(process.env.GROVEDOM_WASM_BUILD_DIR, 'grovedom.wasm'));
 await entry.namespace.init({ wasm: binary });
 const $ = entry.namespace.load('<main><p>é 😀</p><template><a>x</a></template></main>');
 try {

@@ -1,0 +1,228 @@
+name: Build and verify
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: native
+            os: ubuntu-22.04
+            llvm: 15
+          - target: wasm
+            os: ubuntu-24.04
+            llvm: 19
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      CC: clang-${{ matrix.llvm }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Provision compiler on the hosted runner
+        env:
+          LLVM_VERSION: ${{ matrix.llvm }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "clang-$LLVM_VERSION" "lld-$LLVM_VERSION" "llvm-$LLVM_VERSION" cmake ninja-build
+          echo "/usr/lib/llvm-$LLVM_VERSION/bin" >> "$GITHUB_PATH"
+      - name: Fetch verified build inputs
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: node scripts/ci/prepare-build.mjs "$BUILD_TARGET"
+      - name: Build release binary
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: npm run "build:$BUILD_TARGET"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: build-${{ matrix.target }}
+          path: |
+            ${{ runner.temp }}/grovedom/${{ matrix.target }}/grovedom.*
+            ${{ runner.temp }}/grovedom/${{ matrix.target }}/build.json
+            ${{ runner.temp }}/grovedom/${{ matrix.target }}/build-config.js
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, node: '22.0.0', backend: wasm, heap: pool }
+          - { os: ubuntu-22.04, node: '22.0.0', backend: napi, heap: pool }
+          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: pool }
+          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: global }
+          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: document }
+          - { os: ubuntu-22.04, node: '22', backend: napi, heap: pool }
+          - { os: ubuntu-22.04, node: '24', backend: wasm, heap: pool }
+          - { os: ubuntu-22.04, node: '24', backend: napi, heap: pool }
+          - { os: macos-14, node: '24', backend: wasm, heap: pool }
+          - { os: windows-2022, node: '24', backend: wasm, heap: pool }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      GROVEDOM_BACKEND: ${{ matrix.backend }}
+      GROVEDOM_WASM_HEAP: ${{ matrix.heap }}
+      GROVEDOM_FUZZ_CASES: '200'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: build-wasm
+          path: ${{ env.GROVEDOM_WASM_BUILD_DIR }}
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        if: runner.os == 'Linux'
+        with:
+          name: build-native
+          path: ${{ env.GROVEDOM_BUILD_DIR }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - name: Types and bounded deterministic fuzz
+        if: matrix.node == '22' && matrix.heap == 'pool'
+        run: |
+          npm run test:types
+          npm run test:fuzz
+      - name: Portable browser module checks
+        if: matrix.backend == 'wasm' && matrix.heap == 'pool'
+        run: |
+          node --experimental-vm-modules test/browser-sandbox.mjs
+          GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.mjs
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: failure()
+        with:
+          name: fuzz-${{ matrix.os }}-${{ matrix.node }}-${{ matrix.backend }}-${{ matrix.heap }}
+          path: ${{ env.GROVEDOM_FUZZ_DIR }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sanitize:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      CC: clang-15
+      GROVEDOM_SANITIZE: '1'
+      GROVEDOM_BACKEND: napi
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-15 lld-15 llvm-15 cmake ninja-build
+          echo /usr/lib/llvm-15/bin >> "$GITHUB_PATH"
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/ci/prepare-build.mjs native
+      - run: npm run build:native
+      - name: ASan and UBSan with leak detection
+        run: LD_PRELOAD="$(clang-15 --print-file-name=libclang_rt.asan-x86_64.so)" node --test --test-concurrency=1 test/*.test.mjs
+      - name: Owned-buffer allocation failure checks
+        run: node scripts/check-faults.mjs
+
+  packages:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: build-wasm
+          path: ${{ env.GROVEDOM_WASM_BUILD_DIR }}
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: build-native
+          path: ${{ env.GROVEDOM_BUILD_DIR }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run ci:pack -- "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/release/tarballs/
+          if-no-files-found: error
+          retention-days: 7
+
+  install:
+    needs: packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, node: '22.0.0', target: both }
+          - { os: ubuntu-22.04, node: '24', target: both }
+          - { os: macos-14, node: '24', target: wasm }
+          - { os: windows-2022, node: '24', target: wasm }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/tarballs
+      - name: Install and exercise packed artifacts without Cheerio
+        env:
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: npm run ci:install -- "$RUNNER_TEMP/tarballs" "$PACKAGE_TARGET"
+
+  gate:
+    if: always()
+    needs: [build, test, sanitize, packages, install]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every validation job
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'for (const job of Object.values(JSON.parse(process.env.RESULTS))) if (job.result !== "success") process.exit(1)'

@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Committed package version (no v prefix)
+        required: true
+        default: '0.1.0'
+        type: string
+      npm_packages:
+        description: npm publication (none creates only the GitHub release)
+        type: choice
+        options: [none, wasm, both]
+        default: none
+      npm_tag:
+        description: npm dist-tag (prereleases require next)
+        type: choice
+        options: [latest, next]
+        default: latest
+      npm_auth:
+        description: OIDC trusted publisher, or token for the first publish
+        type: choice
+        options: [oidc, token]
+        default: oidc
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - id: check
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          NPM_PACKAGES: ${{ inputs.npm_packages }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+        run: node scripts/ci/release-preflight.mjs
+
+  verify:
+    needs: preflight
+    uses: ./.github/workflows/verify.yml
+
+  artifacts:
+    needs: [preflight, verify]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/tarballs
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: node scripts/ci/check-release.mjs "$RUNNER_TEMP/tarballs"
+
+  npm:
+    if: inputs.npm_packages != 'none'
+    needs: [preflight, verify, artifacts]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org/
+      - name: Use an npm CLI with trusted publishing support
+        run: npm install --global npm@11.6.2 --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/tarballs
+      - name: Publish verified tarballs
+        env:
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          NPM_PACKAGES: ${{ inputs.npm_packages }}
+          NPM_TAG: ${{ inputs.npm_tag }}
+          NPM_AUTH: ${{ inputs.npm_auth }}
+          NODE_AUTH_TOKEN: ${{ inputs.npm_auth == 'token' && secrets.NPM_TOKEN || '' }}
+        run: |
+          if [ "$NPM_AUTH" = token ] && [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo 'Set the npm environment secret NPM_TOKEN for the first publish.' >&2
+            exit 1
+          fi
+          node scripts/ci/publish.mjs "$RUNNER_TEMP/tarballs"
+
+  github:
+    if: always() && needs.artifacts.result == 'success' && (needs.npm.result == 'success' || needs.npm.result == 'skipped')
+    needs: [preflight, verify, artifacts, npm]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/tarballs
+      - name: Create GitHub release with the tested packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          NPM_PACKAGES: ${{ inputs.npm_packages }}
+        run: node scripts/ci/github-release.mjs "$RUNNER_TEMP/tarballs"

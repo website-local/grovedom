@@ -36,7 +36,9 @@ preserved; this does not establish production adoption. See
    exhaustion and unaudited raw-node/option behavior. Existing owned buffer
    failure tests do not establish universal OOM recovery.
 5. Finalize packaging/platform policy and deployment ownership.
-   Local package assembly does not authorize publication or consumer migration.
+   [Manual release workflows](releasing.md) now define the Wasm and Linux x64/glibc
+   artifacts. First hosted CI execution, npm bootstrap and trusted-publisher
+   settings remain to be completed; local assembly does not publish anything.
 
 Avoid another broad optimization campaign. Revisit performance for a concrete
 integration bottleneck or reproducible regression, using the bounded short

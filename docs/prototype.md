@@ -26,6 +26,11 @@ diagnostics, source/build JSON manifests or environment-based runtime loaders.
 Nothing is published by these commands. `npm pack --pack-destination=DIR` can
 produce a tarball from either generated package.
 
+Default assembly preserves `private: true`. The explicit `--publishable` mode
+validates release binaries and enables publishing only in the generated packages.
+The [CI/release workflow](releasing.md) packs and tests those tarballs before a
+manual GitHub release or optional npm publish.
+
 Both packages include GroveDOM's [MIT license](../LICENSE) and the
 [third-party notices](../THIRD_PARTY_NOTICES.md) for the reviewed linked libraries.
 Recheck those notices when changing the build's dependency revisions or libraries.

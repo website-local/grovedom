@@ -10,7 +10,7 @@ slower parser or omit required work.
 |---|---|---|
 | Node/Wasm pooled target | Primary, supported | Synchronous DOM calls; Node 22/24 tested; explicit disposal |
 | Shared/fresh Wasm heaps | Supported alternatives | Same API; different retention and initialization costs |
-| Native Node-API | Secondary | Linux tested; independent package, same facade contract |
+| Native Node-API | Secondary | Linux x64/glibc package; independent initialization, same facade contract |
 | Browser ESM entry | Best-effort | Async init, then synchronous DOM; same Wasm; no Node imports |
 | Caller-managed Node workers | Supported | Independent documents per environment; no shared handles |
 | HTML documents/fragments | Supported subset | Lexbor parsing with audited Cheerio defaults and context |
@@ -57,6 +57,8 @@ backend/heap also skip. The declared Node floor is 22.0.0, but that exact runtim
 has not been executed here; maintained Node 22/24 are the tested versions.
 Browser graph/portable-path checks run under Node, not Chromium/Firefox/WebKit.
 Native Windows/macOS and published-package installation are not validated.
+The [CI release policy](releasing.md) defines the native build baseline and
+additional platform checks; their first hosted execution is still pending.
 
 The [WPT-derived suite](testing.md) adds independent HTML/CSS/DOM expectations.
 Literal U+00A0 and U+2003 in CSS identifiers remain known failures in pinned

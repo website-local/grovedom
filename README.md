@@ -54,6 +54,9 @@ Cheerio/jQuery/WPT references and the browser test page. [Architecture](docs/des
 [performance evidence](docs/benchmarks.md), [memory](docs/memory.md) and
 [remaining work](docs/roadmap.md) describe practical limits.
 
+[CI and manual releases](docs/releasing.md) explains GitHub builds, tested
+tarballs, first-time npm publishing and token-free trusted publishing.
+
 The accepted performance target remains at least 3× current Cheerio for the
 complete required DOM workload, including bindings and disposal, plus a win over
 the fastest compatible Cheerio configuration. Historical scoped consumer medians

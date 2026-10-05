@@ -59,3 +59,7 @@ seeds and disk-backed reproducers. Sanitizer and owned-buffer failure checks are
 described in [setup](prototype.md). Keep raw reports and local paths outside Git.
 Use [short performance checks](benchmarks.md) only when a runtime change warrants
 them; adding correctness fixtures does not require another benchmark campaign.
+
+[GitHub CI](releasing.md) also runs release-policy and artifact-integrity tests,
+including simulated npm failures that must produce no publication. Those tests
+use a local fake npm executable and require no credentials or registry access.
