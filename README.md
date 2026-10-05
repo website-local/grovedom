@@ -11,6 +11,9 @@ synchronous DOM calls. No target creates threads or fetches document resources.
 Both packages are standalone, including their TypeScript declarations. Cheerio
 is a development comparison dependency only; applications do not need it installed.
 
+[MIT licensed](LICENSE), like Cheerio. Bundled libraries retain their
+[third-party licenses and notices](THIRD_PARTY_NOTICES.md).
+
 ```js
 import { init, load } from 'grovedom';
 

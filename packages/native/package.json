@@ -1,6 +1,7 @@
 {
   "name": "grovedom-native",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Experimental Linux Node-API target for GroveDOM",
   "type": "module",
@@ -19,6 +20,9 @@
   "files": [
     "src",
     "grovedom.node",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses"
   ]
 }

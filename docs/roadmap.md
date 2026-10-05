@@ -12,6 +12,7 @@ entry with the same binary. The package remains experimental and unpublished.
 - Explicit runtime initialization; baked build constants; no runtime environment
   or package-metadata checks.
 - Development-only JS diagnostics, independent package assembly and browser demo.
+- MIT project license and bundled third-party license/notice files in both packages.
 - Supported/best-effort/unsupported compatibility status, differential tests,
   worker/lifecycle coverage, owned buffer failure injection and scoped replay.
 
@@ -26,15 +27,15 @@ preserved; this does not establish production adoption. See
 1. Test the exact Node 22.0.0 floor and intended OS/architecture artifacts. Current
    execution covers maintained Node 22/24 and Linux; do not infer other platforms.
 2. Run the demo and compatibility cases in Chromium, Firefox and WebKit before
-   promoting browser support from best-effort. No browser engine is installed in
-   the current validation environment.
+   promoting browser support from best-effort. Actual browser-engine execution
+   remains untested.
 3. Validate production input weights and original, unprocessed pages with the
    application owner. The deterministic nineteen-case replay is representative
    diagnostic evidence, not a production traffic distribution or complete crawl.
 4. Broaden allocator-failure and fuzz coverage, particularly upstream parser
    exhaustion and unaudited raw-node/option behavior. Existing owned buffer
    failure tests do not establish universal OOM recovery.
-5. Decide release licensing, packaging/platform policy and deployment ownership.
+5. Finalize packaging/platform policy and deployment ownership.
    Local package assembly does not authorize publication or consumer migration.
 
 Avoid another broad optimization campaign. Revisit performance for a concrete

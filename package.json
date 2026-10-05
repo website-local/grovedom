@@ -1,6 +1,7 @@
 {
   "name": "grovedom",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Wasm-first Cheerio-shaped HTML/XML DOM with ordered operations",
   "type": "module",
@@ -42,6 +43,9 @@
   "files": [
     "src",
     "grovedom.wasm",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "licenses"
   ]
 }

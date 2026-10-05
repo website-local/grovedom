@@ -26,6 +26,10 @@ diagnostics, source/build JSON manifests or environment-based runtime loaders.
 Nothing is published by these commands. `npm pack --pack-destination=DIR` can
 produce a tarball from either generated package.
 
+Both packages include GroveDOM's [MIT license](../LICENSE) and the
+[third-party notices](../THIRD_PARTY_NOTICES.md) for the reviewed linked libraries.
+Recheck those notices when changing the build's dependency revisions or libraries.
+
 Neither package has runtime or peer dependencies. Declarations define GroveDOM's
 supported options, callbacks and helpers locally, so TypeScript consumers do not
 need Cheerio. The repository retains Cheerio only for development comparisons.
