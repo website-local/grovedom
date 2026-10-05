@@ -270,6 +270,31 @@ acceptance. The selector ratio has only 0.0002 headroom above the 0.98 threshold
 No panels were extended to obtain these results; all earlier outcomes remain
 preserved. Selector normalization remains in JS.
 
+### Insertion-context quality follow-up
+
+Expanded stateful fuzzing found that insertion strings used the destination's
+parser context, unlike Cheerio's default template context. The fix preserves
+destination-context parsing for `html(value)` and reuses one detached insertion
+context per document. Ordinary operations require no per-insertion context
+allocation; heap, pool and compiler defaults stay unchanged.
+
+Two predeclared pooled-Wasm panels compare this fix against `9731b66`, with
+100 warmups, three groups of three balanced blocks and two batches per sample.
+The ordinary insertion replay uses eight replays per batch; the saved consumer
+page uses one. All eighteen blocks passed the independent probe filter; seventeen
+had quiet prechecks. Raw and filtered aggregate ratios agree.
+
+| Quality follow-up | Baseline/candidate | Control | Screen |
+|---|---:|---:|---|
+| Ordinary append/prepend/sibling insertions | 1.0132 | 0.9574 | Inconclusive control |
+| Saved MDN consumer page | 1.0034 | 0.9817 | Pass |
+
+Median/max timed batches were 4.6/9.4 ms and 26.1/32.3 ms. Group candidate/control
+ranges were 0.949–1.020 / 0.947–0.971 and 0.978–1.005 / 0.962–0.992. The consumer
+screen supports the scoped 2% tolerance; insertion control drift prevents a
+precise non-regression conclusion for that panel. No speedup is established and
+neither panel was extended. Earlier selector results describe their own checkpoint.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol

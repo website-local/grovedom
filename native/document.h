@@ -15,6 +15,7 @@ typedef struct { lxb_dom_node_t *node; const uint32_t *ids; size_t count; } gd_s
 typedef struct { char *key; size_t length; lxb_css_selector_list_t *list; unsigned flags; gd_selector_guard *guard; } gd_plan;
 struct gd_document {
     lxb_html_document_t *html;
+    lxb_dom_element_t *insertion_context;
     lxb_css_parser_t *css;
     lxb_selectors_t *selectors;
     gd_plan plans[PLAN_COUNT];

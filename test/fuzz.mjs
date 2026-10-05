@@ -2,99 +2,75 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { load as reference } from 'cheerio';
 import { load } from '../diagnostics/index.js';
 import { kernel } from '../diagnostics/kernel.js';
+import { generator, uint32 } from './fuzz/generate.mjs';
+import { execute } from './fuzz/execute.mjs';
 
 const directory = process.env.GROVEDOM_FUZZ_DIR;
 assert(process.env.TMPDIR && directory, 'Set disk-backed TMPDIR and GROVEDOM_FUZZ_DIR.');
-mkdirSync(directory, { recursive: true });
-const seed = Number(process.env.GROVEDOM_FUZZ_SEED ?? 0x67a31b29) >>> 0;
-let random = seed || 1;
-function next(max) { random ^= random << 13; random ^= random >>> 17; random ^= random << 5; return (random >>> 0) % max; }
-const pick = values => values[next(values.length)];
-const words = ['plain', 'é漢字', 'a & b', '<quote>"', '\u00a0', '', 'one\ntwo'];
-const escape = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;');
+const seed = uint32(process.env.GROVEDOM_FUZZ_SEED ?? 0x67a31b29);
 const count = Number(process.env.GROVEDOM_FUZZ_CASES ?? 1000);
-assert(Number.isSafeInteger(count) && count > 0);
-function generate(index) {
-  const xml = Boolean(index % 2), tags = xml ? ['Item', 'Node', 'Path', 'svg', 'g'] : ['div', 'section', 'span', 'ul', 'li'];
-  let id = 0;
-  function tree(depth) {
-    const tag = pick(tags), n = id++;
-    const content = depth && next(3) ? Array.from({ length: 1 + next(3) }, () => tree(depth - 1)).join('') : escape(pick(words));
-    return `<${tag} id="n${n}" class="${pick(['a', 'b', 'a b', 'omit', ''])}" data-v="${escape(pick(words))}">${content}</${tag}>`;
-  }
-  let source = xml ? `<Root>${tree(3)}${tree(2)}</Root>` : `<main>${tree(3)}${tree(2)}</main>`;
-  const templates = !xml && process.env.GROVEDOM_FUZZ_TEMPLATES === '1';
-  if (templates) source = source.replace('</main>', '<template><section class="a"><span class="b" data-v="template">content</span></section></template></main>');
-  // This mode stresses queries crossing template fragments. Direct mutation of
-  // template containers has separately documented upstream serialization gaps.
-  const selectors = [templates ? '*:not(template)' : '*', '.a', '.b', templates ? ':not(.omit):not(template)' : ':not(.omit)', '[data-v]', ...tags, tags[0] + ' > ' + tags[1], tags[0] + ', ' + tags[2], templates ? ':nth-child(2n):not(template)' : ':nth-child(2n)', '#n' + next(id)];
-  if (templates) selectors.push('.a > .b', '.a, .b', 'main .a', 'main > :is(.a,.b)');
-  const operations = [];
-  for (let i = 0; i < 16; i++) {
-    const tag = pick(tags), value = pick(words);
-    operations.push({ selector: pick(selectors), action: pick(['observe', 'attr', 'text', 'append', 'prepend', 'remove', 'empty', 'before', 'after', 'class', 'clone']),
-      index: next(5) - 2, value, markup: `<${tag} data-v="${escape(value)}">${escape(value)}</${tag}>` });
-  }
-  const malformed = process.env.GROVEDOM_FUZZ_MALFORMED === '1';
-  if (malformed) for (let i = 0; i < 8; i++) {
-    const at = next(source.length + 1);
-    source = source.slice(0, at) + pick(['<', '&', '"', '\u0000', '<!--', '<![CDATA[', '</', '']) + source.slice(at + next(4));
-  }
-  return { seed, index, xml, templates, malformed, source, operations };
-}
-function execute(factory, item) {
-  let $;
-  try {
-    $ = factory(item.source, item.xml ? { xml: true } : {});
-    const observations = [];
-    for (const op of item.operations) {
-      const found = $(op.selector), selected = found.eq(op.index);
-      switch (op.action) {
-        case 'attr': selected.attr('data-v', op.value); break;
-        case 'text': selected.text(op.value); break;
-        case 'append': selected.append(op.markup); break;
-        case 'prepend': selected.prepend(op.markup); break;
-        case 'before': selected.before(op.markup); break;
-        case 'after': selected.after(op.markup); break;
-        case 'remove': selected.remove(); break;
-        case 'empty': selected.empty(); break;
-        case 'class': selected.toggleClass('a b'); break;
-        case 'clone': selected.append(selected.children().first().clone()); break;
-        case 'observe': break;
-        default: throw new Error('Unknown fuzz operation');
-      }
-      // Retained selection membership and removed-node observations matter too.
-      observations.push({ length: found.length, selected: selected.toString(), text: selected.text(),
-        nodes: selected.get().map(node => ({ name: node.name, attrs: { ...node.attribs } })),
-        output: item.xml ? $.xml() : $.html() });
-    }
-    return observations;
-  } finally { $?.dispose?.(); }
-}
+assert(Number.isSafeInteger(count) && count > 0, 'Expected a positive case count');
+const malformed = process.env.GROVEDOM_FUZZ_MALFORMED;
+assert(malformed === undefined || ['0', '1'].includes(malformed), 'Expected GROVEDOM_FUZZ_MALFORMED=0|1');
+const generate = generator(seed, { templates: process.env.GROVEDOM_FUZZ_TEMPLATES === '1',
+  malformed: malformed === undefined ? null : malformed === '1' });
 const supplied = process.env.GROVEDOM_FUZZ_CASE_FILE ? JSON.parse(readFileSync(process.env.GROVEDOM_FUZZ_CASE_FILE, 'utf8')) : null;
-let completed = 0, rejectedMalformed = 0;
+if (supplied) assert(supplied.version === undefined || supplied.version === 2, 'Unsupported fuzz case version');
+mkdirSync(directory, { recursive: true });
+let completed = 0, rejectedMalformed = 0, executions = 0, safetyCases = 0;
+const coverage = { profiles: {}, actions: {}, matchedActions: {} };
 for (let i = 0; i < (supplied ? 1 : count); i++) {
   const item = supplied ?? generate(i);
-  // Preserve the active input even if a sanitizer or runtime aborts the process.
+  let stage = {};
+  // Keep input plus the last entered stage even if a sanitizer aborts the process.
   writeFileSync(join(directory, 'active.json'), JSON.stringify(item));
+  const progress = update => { stage = { ...stage, ...update }; writeFileSync(join(directory, 'stage.json'), JSON.stringify(stage)); };
   try {
-    if (item.malformed) {
-      try { execute(load, item); } catch (error) {
-        if (!['ERR_GROVEDOM_PARSE', 'ERR_GROVEDOM_XML', 'ERR_GROVEDOM_SELECTOR', 'ERR_GROVEDOM_UNSUPPORTED'].includes(error.code)) throw error;
+    progress({ backend: 'cheerio', execution: 'reference' });
+    const expected = item.malformed ? null : execute(reference, item, { progress });
+    for (const execution of ['buffered', 'direct']) {
+      progress({ backend: process.env.GROVEDOM_BACKEND ?? 'wasm', execution });
+      try {
+        const actual = execute(load, item, { execution, links: true, progress });
+        if (!item.malformed && !isDeepStrictEqual(actual, expected)) {
+          const step = actual.observations.findIndex((value, i) => !isDeepStrictEqual(value, expected.observations[i]));
+          progress({ phase: 'compare', step });
+          const prefix = join(directory, `difference-${item.seed ?? seed}-${item.index}`);
+          writeFileSync(prefix + '-actual.json', JSON.stringify(actual));
+          writeFileSync(prefix + '-expected.json', JSON.stringify(expected));
+          throw new Error(`Differential mismatch at operation ${step}; full observations: ${prefix}-{actual,expected}.json`);
+        }
+      } catch (error) {
+        if (!item.malformed || !['ERR_GROVEDOM_PARSE', 'ERR_GROVEDOM_XML', 'ERR_GROVEDOM_SELECTOR', 'ERR_GROVEDOM_UNSUPPORTED'].includes(error.code)) throw error;
         rejectedMalformed++;
       }
-    } else assert.deepEqual(execute(load, item), execute(reference, item));
-    assert.equal(kernel.stats().liveDocuments, 0, 'Fuzz case left a live document');
-    assert.equal(kernel.stats().liveBytes, 0, 'Fuzz case left live kernel backing allocations');
+      assert.equal(kernel.stats().liveDocuments, 0, 'Fuzz case left a live document');
+      assert.equal(kernel.stats().liveBytes, 0, 'Fuzz case left live kernel backing allocations');
+      if (item.malformed) {
+        const probe = load('<p>usable</p>');
+        try { assert.equal(probe('p').attr('data-probe', 'ok').text(), 'usable'); }
+        finally { probe.dispose(); }
+        assert.equal(kernel.stats().liveDocuments, 0);
+        assert.equal(kernel.stats().liveBytes, 0);
+      }
+      executions++;
+    }
+    coverage.profiles[item.profile ?? (item.xml ? 'xml' : 'html')] = (coverage.profiles[item.profile ?? (item.xml ? 'xml' : 'html')] ?? 0) + 1;
+    for (const { action } of item.operations) coverage.actions[action] = (coverage.actions[action] ?? 0) + 1;
+    if (item.malformed) safetyCases++;
+    else for (const [step, op] of item.operations.entries()) if (expected.observations[step].selectedLength)
+      coverage.matchedActions[op.action] = (coverage.matchedActions[op.action] ?? 0) + 1;
     completed++;
   } catch (error) {
-    const file = join(directory, `failure-${seed}-${item.index}.json`);
-    writeFileSync(file, JSON.stringify({ ...item, error: { name: error.name, code: error.code, message: error.message } }, null, 2));
-    throw new Error(`Fuzz failure at seed ${seed}, case ${item.index}; reproducer: ${file}`, { cause: error });
+    const file = join(directory, `failure-${item.seed ?? seed}-${item.index}.json`);
+    writeFileSync(file, JSON.stringify({ ...item, stage, error: { name: error.name, code: error.code, message: error.message } }, null, 2));
+    throw new Error(`Fuzz failure at seed ${item.seed ?? seed}, case ${item.index}; reproducer: ${file}`, { cause: error });
   }
 }
-console.log(JSON.stringify({ scope: 'Seeded DOM transformation differential and malformed-input safety checks; no performance claim.',
-  seed, completed, rejectedMalformed, backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP, kernel: kernel.stats() }));
+console.log(JSON.stringify({ scope: 'Seeded DOM differential, callback, batching, retained-tree and malformed-input safety checks; no performance claim.',
+  seed: supplied?.seed ?? seed, completed, executions, safetyCases, rejectedMalformed, coverage,
+  backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP, kernel: kernel.stats() }));

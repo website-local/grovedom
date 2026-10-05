@@ -39,6 +39,7 @@ static void gd_release(gd_document *doc) {
     gd_free(doc->xml_name.data);
     gd_free(doc->selector_text.data);
     doc->html = NULL;
+    doc->insertion_context = NULL;
     doc->css = NULL;
     doc->selectors = NULL;
     doc->selector_summary = NULL;

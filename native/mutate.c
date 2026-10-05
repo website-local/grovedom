@@ -15,16 +15,24 @@ static void gd_mutation_error(gd_document *doc, size_t operation) {
     memcpy(next, suffix, sizeof(suffix));
     gd_set_error(doc, "ERR_GROVEDOM_MUTATION", doc->error_buffer);
 }
+static lxb_dom_element_t *gd_insertion_context(gd_document *doc) {
+    /* Cheerio's _makeDomArray parses insertion strings without a target,
+     * using parse5's template context. Reuse this detached, arena-owned element
+     * instead of allocating a temporary context for every insertion. */
+    if (!doc->insertion_context)
+        doc->insertion_context = lxb_dom_document_create_element(&doc->html->dom_document,
+            (const lxb_char_t *) "template", 8, NULL);
+    return doc->insertion_context;
+}
 static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_node) {
     if (doc->xml) return gd_xml_parse(doc, doc->input.data, doc->input.length);
     /* Lexbor inserts head/body wrappers for an HTML-element fragment context.
      * Cheerio/parse5 keeps these mutation fragments as direct children. */
     int temporary = !context_node || context_node->type != LXB_DOM_NODE_TYPE_ELEMENT ||
         (context_node->ns == LXB_NS_HTML && context_node->local_name == LXB_TAG_HTML);
-    lxb_dom_element_t *context = temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(context_node);
+    lxb_dom_element_t *context = temporary ? gd_insertion_context(doc) : lxb_dom_interface_element(context_node);
     if (!context) return NULL;
     lxb_dom_node_t *fragment = lxb_html_document_parse_fragment(doc->html, context, doc->input.data, doc->input.length);
-    if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));
     if (fragment && !gd_templates(doc, fragment)) {
         gd_destroy_subtree(fragment);
         gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Template allocation failed");
@@ -152,7 +160,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                     if (!keep) lxb_dom_node_remove(target);
                 }
             } else {
-                lxb_dom_node_t *fragment = gd_fragment(doc, position == 1 ? target : target->parent);
+                lxb_dom_node_t *fragment = gd_fragment(doc, NULL);
                 if (!fragment) goto failed;
                 while (fragment->first_child) {
                     lxb_dom_node_t *child = fragment->first_child;
@@ -261,9 +269,9 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
         lxb_dom_node_t *fragment;
         if (doc->xml) fragment = gd_xml_parse(doc, a, alen);
         else {
-            int temporary = node->type != LXB_DOM_NODE_TYPE_ELEMENT ||
-                (operation == APPEND_HTML && node->ns == LXB_NS_HTML && node->local_name == LXB_TAG_HTML);
-            lxb_dom_element_t *context = temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(node);
+            int temporary = operation != APPEND_HTML && node->type != LXB_DOM_NODE_TYPE_ELEMENT;
+            lxb_dom_element_t *context = operation == APPEND_HTML ? gd_insertion_context(doc) :
+                temporary ? lxb_dom_document_create_element(&doc->html->dom_document, (const lxb_char_t *) "body", 4, NULL) : lxb_dom_interface_element(node);
             if (!context) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
             fragment = lxb_html_document_parse_fragment(doc->html, context, a, alen);
             if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));

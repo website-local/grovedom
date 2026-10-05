@@ -18,12 +18,10 @@ adaptations and exclusions. Imported WPT expectations are fixed upstream data;
 they are not calculated by GroveDOM or Cheerio during the run. Parser assertions
 also check reciprocal parent/sibling links and stable handle identity.
 
-The hardening checkpoint has 1,611 cases. Pooled Wasm passes 1,564, skips 45 and
-executes two known selector failures as TODOs. Native passes 1,558 with 51 skips
-and the same two TODOs; extra skips concern backend/heap-specific cases. Skips
-and TODOs are never reported as passes. Exact malformed-XML recovery, jQuery's
-empty-set `html()` result and browser `:enabled` semantics remain explicitly
-different from the supported Cheerio contract.
+The quality checkpoint has 1,759 cases: native 1,700 pass / 59 skip; pooled Wasm
+1,708 / 51, with no TODOs or unexpected failures. Skips are never counted as
+passes. Exact malformed-XML recovery, jQuery's empty-set `html()` result and
+browser `:enabled` semantics remain explicitly different from the Cheerio contract.
 
 ## Browser entry
 
@@ -64,32 +62,63 @@ XML serializer tests cover entities and doctype identifiers. Dependency-patch
 tests reject modified inputs, patches and cached trees, and ensure preparation
 does not modify the supplied upstream source.
 
-The gap follow-up has 1,750 cases: native 1,691 pass / 59 skip; pooled Wasm
-1,699 / 51, with no TODOs or unexpected failures. Further differential
-regressions cover ASCII/Unicode boundaries across all six attribute operators,
-partial tokens, near-whitespace characters and word-sized scan boundaries in
-HTML and XML; the full native sanitizer suite passes too. The empty-token WPT
-record is an explicit Cheerio/browser policy exclusion; the two Unicode identifier TODOs
-are resolved. Native ASan/UBSan with leak detection and the new Unicode-buffer
-allocation-failure regression pass. Saved-input checks cover 174 inputs; all
-193 pipeline cases match each preserved installed/development consumer snapshot
-on native and Wasm. The source snapshots are historical, not a claim about
-every subsequent downloader revision.
-
 The [source-driven audit](source-audit.md) adds callback/coercion, lazy data,
 class spacing, form/link pseudo, traversal ordering, fragment-root, doctype and
-XML numeric-reference regressions. Its Node 22 suite has 1,735 cases: native
-1,675 pass / 58 skip / 2 TODO; pooled Wasm 1,683 / 50 / 2, with no unexpected
-failures. The additional jQuery class-whitespace and WPT fragment-root exclusions
-record Cheerio/browser differences; upstream expectations remain unchanged.
-Scoped-selector regressions check ancestry bounds, overlapping contexts, nested
-`:has()` predicates and the deliberate difference from browser query scoping.
-Tag-predicate tests cover snapshots, buffered mutations, renaming, disposal,
-HTML/XML case rules and positional-selector fallbacks. The follow-up local
-Node 22/24 suites contain 1,715 cases with no unexpected failures; native
-sanitizers, shared/fresh Wasm checks and 500 seeded fuzz cases also pass.
-Use [short performance checks](benchmarks.md) only when a runtime change warrants
-them; adding correctness fixtures does not require another benchmark campaign.
+XML numeric-reference regressions. Unicode/operator and token tests cover
+word-sized boundaries in HTML and XML. The former Unicode identifier TODOs are
+resolved; Cheerio/browser policy exclusions retain their upstream expectations.
+Insertion tests distinguish default-template parsing for append/prepend/siblings
+from destination-context parsing for `html(value)`, including selects, tables,
+SVG and MathML. Command-buffer tests check truncated headers, overflow-shaped
+lengths, typed-array view bounds, invalid IDs, partial effects and owner recovery.
+
+Native ASan/UBSan with leak detection passes the full suite. Owned-buffer failure
+checks recreate the document for every allocation countdown, exercising later
+node/result/serialization/Unicode growth failures after earlier allocations
+succeed. Four HTML/XML query/serialization sweeps cover 28 failed growth requests,
+then verify retry, a second live owner and disposal. This does not test every
+upstream allocation or establish universal out-of-memory recovery.
+
+Saved-input checks cover 174 inputs; all 193 pipeline cases match each preserved
+installed/development consumer snapshot on native and Wasm. The snapshots are
+historical, not a claim about every subsequent downloader revision. Use
+[short performance checks](benchmarks.md) when a runtime change warrants them;
+adding correctness fixtures alone does not require another benchmark campaign.
+
+## Seeded fuzzing
+
+`test/fuzz.mjs` separates deterministic generation and execution in `test/fuzz/`.
+Each valid case compares both buffered and direct execution with Cheerio, including
+multi-node callbacks, deliberate callback exceptions, queued writes, retained
+selection membership and observations after later edits. An independent traversal
+checks acyclic, reciprocal parent/sibling links and stable child identity.
+HTML/XML, foreign content, select and template cases are included by default.
+Every ninth generated input is corrupted for safety checks; successful parses
+must retain tree invariants, and rejected inputs must leave subsequent documents
+usable. Malformed recovery is not compared with Cheerio.
+
+Set `TMPDIR` and `GROVEDOM_FUZZ_DIR` to disk-backed output directories, then run
+`npm run test:fuzz`. Developer options are:
+
+| Option | Behavior |
+|---|---|
+| `GROVEDOM_FUZZ_SEED` | Unsigned 32-bit seed; invalid values fail explicitly |
+| `GROVEDOM_FUZZ_CASES` | Positive case count; default 1,000 |
+| `GROVEDOM_FUZZ_MALFORMED=0` / `1` | Force differential-only / malformed-safety cases |
+| `GROVEDOM_FUZZ_TEMPLATES=1` | Include templates in every HTML case |
+| `GROVEDOM_FUZZ_CASE_FILE` | Replay one saved input, independently of generator state |
+
+The runner saves `active.json` before each case and `stage.json` before each
+phase/operation, so crashes leave a reproducer. Ordinary failures also save a
+named case and, for differences, full actual/expected observations. Reports
+separate requested actions from those that matched nodes, as well as safety
+cases, accepted/rejected executions and live-document/allocation counts. Older
+unversioned case files remain replayable. These are bounded seeded checks, not
+coverage-guided fuzzing or proof that arbitrary inputs are safe.
+
+CI keeps the existing 200-case native/Wasm fuzz checks and adds 64 cases to the
+existing sanitizer job. Failing runs upload their reproducer directory; no new
+runner job or benchmark is added.
 
 [GitHub CI](releasing.md) also runs release-policy and artifact-integrity tests,
 including simulated npm failures that must produce no publication. Those tests

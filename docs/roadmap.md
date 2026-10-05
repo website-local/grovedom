@@ -18,6 +18,12 @@ entry with the same binary. Both packages are published at experimental 0.1.0.
 
 ## Remaining work
 
+The quality pass adds stateful differential fuzzing, later buffer-allocation
+failures and an insertion-context correctness fix. The short consumer performance
+screen passes; the insertion-only control remains inconclusive. See the
+[quality follow-up](benchmarks.md#insertion-context-quality-follow-up). This does
+not supersede the scope or limits of the earlier selector screen below.
+
 The compatibility-gap follow-up is implemented and replay-tested. Its final
 pooled-Wasm selector and consumer screens pass the fixed 2% tolerance after a
 bounded scalar ASCII-scan optimization. The selector ratio is 0.9802, only just

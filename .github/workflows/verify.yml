@@ -150,6 +150,18 @@ jobs:
       - name: Owned-buffer allocation failure checks
         if: ${{ !cancelled() && steps.sanitized-build.outcome == 'success' }}
         run: node scripts/check-faults.mjs
+      - name: Seeded sanitizer fuzz
+        if: ${{ !cancelled() && steps.sanitized-build.outcome == 'success' }}
+        env:
+          GROVEDOM_FUZZ_CASES: '64'
+        run: LD_PRELOAD="$(clang-15 --print-file-name=libclang_rt.asan-x86_64.so)" node test/fuzz.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: fuzz-sanitize
+          path: ${{ env.GROVEDOM_FUZZ_DIR }}
+          if-no-files-found: ignore
+          retention-days: 7
 
   packages:
     needs: build

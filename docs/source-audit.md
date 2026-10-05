@@ -40,6 +40,7 @@ including buffered/direct and HTML/XML callback paths.
 | Attribute selectors | HTML case defaults restricted to HTML namespace | Defaults also cover SVG/MathML in HTML mode; explicit flags and XML case respected |
 | Traversal | Sorting/deduplication before positional filters | Filter before postprocessing; `.filter()` preserves duplicate entries |
 | Root selector | Detached/fragment children missed | Cheerio's non-element-parent rule |
+| Markup insertion | Destination context used for append/prepend/siblings | Default template context for insertion strings; `html(value)` retains destination context |
 | Text/metadata | `innerText` crossed fragment roots; doctype data absent | domutils root/template rules and parse5-adapter doctype name/data |
 | XML references | Numeric C1 references decoded literally | htmlparser2/entities mapping, including `&#x80;` to `€`; literal controls unchanged |
 | Styles/wrapping | Continuation whitespace lost; null CSS callback stringified; wrapper callbacks skipped | Cheerio's observed values and mixed-node callback order |
