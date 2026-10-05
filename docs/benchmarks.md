@@ -63,6 +63,47 @@ under the independent probe rule (raw ratio 1.4097, control 1.1243). All prechec
 were busy. These screens were not extended, establish no speedup or precise
 non-regression bound, and leave the historical adoption evidence unchanged.
 
+### Allocation and pool follow-up
+
+Fixed diagnostics revisited the five-case profile panel and the earlier
+eight-case consumer panel. Each process ran one cold pass, two warmup passes and
+three measured passes. Outputs matched an uninstrumented replay and every load
+was explicitly disposed. These are instrumented bottleneck captures, without
+paired timing controls, not speed comparisons. The earlier roughly 2.3× result
+included consumer URI processing and cannot establish a DOM-only adoption ratio.
+
+| Three measured passes | Five cases | Eight cases |
+|---|---:|---:|
+| Loads | 45 | 54 |
+| Native backing allocation/reallocation requests | 11,538 | 14,319 |
+| Native allocation/free hook exclusive time | 7.17 ms | 8.36 ms |
+| Share of timed native DOM work | 1.48% | 1.43% |
+| Default Wasm new instances / byte-limit retirements | 0 / 0 | 6 / 6 |
+| Default Wasm linear-memory growth calls / time | 8 / 0.18 ms | 47 / 0.76 ms |
+
+Native hooks include allocator bookkeeping and calloc zeroing; exclusive times
+avoid counting nested malloc twice. Requests count arena backing allocations,
+not individual nodes. Queries and bindings dominate the instrumented native
+phases. Timed URI.js static/prototype methods take 44–49% of total pipeline time
+across the four default captures; timed DOM work takes 15–20%. Unwrapped consumer
+JS and asynchronous scheduling remain separate. Callback work is excluded from
+DOM time, and nested DOM calls are counted again. Timer overhead affects these
+shares; they are consistent with the earlier CPU profiles, not precise production
+percentages or a claim that native and Wasm timings are directly comparable.
+
+The default eight-case pool hits its byte limit, not its instance-count limit.
+Its six measured creations take 3.74 ms from create entry to the post-instantiation
+hook, before kernel initialization and parsing. Raising only the idle byte budget
+to 32 MiB removes observed retirements and new instances, retains 19.125 MiB
+instead of 15.125 MiB, and reaches zero growth in the last two passes. The default
+five-case pool also reaches zero growth in its last two passes. This supports an
+application-specific pool override when the extra retained memory is acceptable;
+it does not establish a speedup or justify larger defaults, a larger initial heap,
+or an allocator/dependency rewrite. All defaults remain unchanged.
+
+The reusable [diagnostic collectors](../diagnostics/README.md) are excluded from
+published packages; allocator scopes compile out of release C.
+
 ### Earlier acceptance panels
 
 The pre-refactor `b27dbe2` checkpoint measured:

@@ -1,5 +1,8 @@
 // Development-only instrumentation; never imported by package entries.
-export function wasmDiagnostics({ profile = false, growth = false } = {}) {
+import { wasmLifecycle } from './wasm-lifecycle.js';
+export function wasmDiagnostics({ profile = false, growth = false, lifecycle = false,
+    poolSize = 8, poolMaxBytes = 16 * 1024 * 1024 } = {}) {
+    const tracking = lifecycle ? wasmLifecycle({ poolSize, poolMaxBytes }) : null;
     const counters = { calls: 0, pages: 0, milliseconds: 0 };
     const imports = {};
     if (profile || growth)
@@ -38,6 +41,7 @@ export function wasmDiagnostics({ profile = false, growth = false } = {}) {
             return { liveDocuments, liveBytes, peakBytes: peakBytes, allocations, controlBytes, memoryBytes, idleInstances: pool.length, idleMemoryBytes: context.poolBytes };
         }
         kernel.stats = stats;
+        tracking?.attach(context);
         kernel.growthStats = () => ({ ...counters });
         kernel.profileParse = function (html) {
             const runtime = shared ?? acquire();
@@ -68,15 +72,16 @@ export function wasmDiagnostics({ profile = false, growth = false } = {}) {
         }
         return {
             create(handle, runtime) {
+                tracking?.create();
                 const ref = new WeakRef(runtime);
                 live.add(ref);
                 owners.set(handle, ref);
                 return ref;
             },
-            dispose(handle) { live.delete(owners.get(handle)); owners.delete(handle); },
-            collected(ref) { live.delete(ref); },
-            retire(runtime) { retiredAllocations += statsOf(runtime)[3]; },
+            dispose(handle) { tracking?.dispose(); live.delete(owners.get(handle)); owners.delete(handle); },
+            collected(ref) { tracking?.collected(); live.delete(ref); },
+            retire(runtime) { tracking?.retire(runtime); retiredAllocations += statsOf(runtime)[3]; },
         };
     }
-    return { imports, inspect };
+    return { imports, inspect, runtimeCreated: tracking?.runtimeCreated };
 }

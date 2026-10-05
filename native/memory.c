@@ -20,6 +20,7 @@ void *gk_scratch(void) { return gd_scratch; }
 #endif
 
 static void *gd_malloc(size_t size) {
+    GD_PROFILE_SCOPE(GP_MALLOC);
     GD_PROFILE_ADD(GP_ALLOC_CALLS, 1); GD_PROFILE_ADD(GP_ALLOC_BYTES, size);
     if (!gd_active || size > SIZE_MAX - sizeof(gd_allocation)) return NULL;
     gd_allocation *allocation = malloc(sizeof(*allocation) + size);
@@ -35,6 +36,7 @@ static void *gd_malloc(size_t size) {
 
 void gd_free(void *pointer) {
     if (!pointer) return;
+    GD_PROFILE_SCOPE(GP_FREE);
     gd_allocation *allocation = (gd_allocation *) pointer - 1;
     allocation->value.owner->bytes -= allocation->value.size;
     gd_live_bytes -= allocation->value.size;
@@ -42,6 +44,7 @@ void gd_free(void *pointer) {
 }
 
 static void *gd_calloc(size_t count, size_t size) {
+    GD_PROFILE_SCOPE(GP_CALLOC);
     if (size && count > SIZE_MAX / size) return NULL;
     void *pointer = gd_malloc(count * size);
     if (pointer) memset(pointer, 0, count * size);
@@ -50,6 +53,7 @@ static void *gd_calloc(size_t count, size_t size) {
 
 static void *gd_realloc(void *pointer, size_t size) {
     if (!pointer) return gd_malloc(size);
+    GD_PROFILE_SCOPE(GP_REALLOC);
     GD_PROFILE_ADD(GP_ALLOC_CALLS, 1); GD_PROFILE_ADD(GP_ALLOC_BYTES, size);
     if (!size) { gd_free(pointer); return NULL; }
     if (size > SIZE_MAX - sizeof(gd_allocation)) return NULL;
