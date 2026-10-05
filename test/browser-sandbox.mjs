@@ -30,3 +30,17 @@ try {
   assert.equal($('a').length, 1);
 } finally { $.dispose(); }
 console.log(`Portable browser module graph passed without Node globals (${modules.size} ESM modules).`);
+
+const conformance = await moduleFor(new URL('./web-platform/browser-runner.mjs', import.meta.url).href);
+await conformance.evaluate();
+const fixture = await readFile(new URL('./web-platform/selectors.html', import.meta.url), 'utf8');
+const readData = async name => JSON.parse(await readFile(new URL('./web-platform/' + name, import.meta.url), 'utf8'));
+const failures = [];
+const counts = conformance.namespace.runBrowserCases(entry.namespace.load, fixture,
+  await readData('selectors.json'), await readData('escapes.json'), result => {
+    if (result.status === 'fail') failures.push(result);
+  });
+assert.deepEqual(failures, []);
+assert(counts.pass > 800, 'The browser standards suite must actually execute.');
+assert.equal(counts.todo, 2);
+console.log('Portable browser correctness: ' + JSON.stringify(counts));

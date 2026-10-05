@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/web-platform-tests/wpt",
+  "revision": "564b9b1eb1387ef42456f1cba77d2d38599fad61",
+  "sha256": {
+    "LICENSE.md": "5fac07febb0e2a97fb0d7b0def149ec08b642e1ba4b9c345283ab1cbd2af6570",
+    "dom/nodes/selectors.js": "cffc3f46deb933d63d4cb2cfd811d3ec21ec7804faab4826c8aba1868459e8d1",
+    "dom/nodes/ParentNode-querySelector-All-content.html": "40eff9f6df0986178d2e138c256369fd22f09a8d15ba03fd1bef2ac2c104f9e2",
+    "dom/nodes/ParentNode-querySelector-escapes.html": "fa1e02eec0cc18cd335c07e25a8ee83dc14e091fcfd93e99bdfc8c774001d915"
+  },
+  "selection": "All 207 validSelectors records retained with original expected IDs and explicit scope exclusions; four HTML contexts. All top-level testMatched/testNeverMatched escape calls retained.",
+  "selectors": 207,
+  "escapes": 68
+}

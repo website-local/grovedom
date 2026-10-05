@@ -1,5 +1,6 @@
 {
   "exclusions": {
+    "load:(html) : should handle xml tag option": "Uses mismatched XML tags; exact malformed-input recovery is outside the supported contract. Well-formed XML script children have separate coverage.",
     "attributes:(key, value) : should update namespace": "Arbitrary namespace changes and null domhandler attribute maps are outside the supported handle API.",
     "attributes:(inherited properties) : prop should support inherited properties": "Child arrays are snapshots; writable live domhandler arrays are not supported.",
     "traversing:should throw a TypeError if given invalid input": "Exact invalid-input error compatibility is not a performance gate.",
@@ -22,20 +23,34 @@
       "static": [
         ".contains",
         ".merge"
-      ]
+      ],
+      "load": null
     }
   },
   "jquery": {
     "version": "3.7.1",
-    "file": "test/unit/attributes.js",
-    "tests": [
-      "attr(non-ASCII)",
-      "removeClass() removes duplicates",
-      "removeClass(undefined) is a no-op",
-      "contents().hasClass() returns correct values"
-    ],
+    "groups": {
+      "attributes": [
+        "attr(non-ASCII)",
+        "removeClass() removes duplicates",
+        "removeClass(undefined) is a no-op",
+        "contents().hasClass() returns correct values",
+        "removeAttr(Multi String, variable space width)",
+        "addClass, removeClass, hasClass on elements with classes with non-HTML whitespace (gh-3072, gh-3003)",
+        "hasClass correctly interprets non-space separators (trac-13835)",
+        "coords returns correct values in IE6/IE7, see trac-10828",
+        "should not throw at $(option).val() (trac-14686)"
+      ],
+      "manipulation": [
+        "append to multiple elements (trac-8070)",
+        "html() on empty set",
+        "manipulate mixed jQuery and text (trac-12384, trac-12346)",
+        "Index for function argument should be received (trac-13094)"
+      ]
+    },
     "exclusions": {
-      "attr(non-ASCII)": "jQuery folds ASCII attribute lookup case; Cheerio and GroveDOM use exact lookup case."
+      "attr(non-ASCII)": "jQuery folds ASCII attribute lookup case; Cheerio and GroveDOM use exact lookup case.",
+      "html() on empty set": "jQuery returns undefined; Cheerio and GroveDOM return null, covered by a compatibility regression."
     }
   }
 }

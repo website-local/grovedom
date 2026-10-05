@@ -92,6 +92,10 @@ or establish an adoption multiplier.
 
 ## Checks
 
+See [correctness testing](testing.md) for the current matrix, pinned reference
+suites and browser correctness page. The counts below describe the earlier
+refactor checkpoint.
+
 `npm test` uses developer-only diagnostic entries. Select backend/heap with
 `GROVEDOM_BACKEND=napi|wasm` and `GROVEDOM_WASM_HEAP=pool|global|document`.
 Build locations use the variables above. `GROVEDOM_TEST_BROWSER=1` exercises the

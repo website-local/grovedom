@@ -11,6 +11,18 @@ export const fixtureCheerio = Object.assign((input, context) => fixtureAPI()(inp
   load,
   contains, merge,
   parseHTML: (...args) => fixtureAPI().parseHTML(...args),
+  // Test-only adapters for jQuery's collection helpers; no runtime API added.
+  each(object, callback) {
+    for (const [key, value] of Object.entries(object))
+      if (callback.call(value, Array.isArray(object) ? Number(key) : key, value) === false) break;
+    return object;
+  },
+  map(object, callback) {
+    return Object.entries(object).flatMap(([key, value]) => {
+      const result = callback(value, Array.isArray(object) ? Number(key) : key);
+      return result == null ? [] : result;
+    });
+  },
 });
 const example = groveLoad('');
 export const Cheerio = example.root().constructor;

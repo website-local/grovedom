@@ -22,6 +22,7 @@ Recheck these notices when changing dependency revisions, runtime libraries or
 linked components.
 
 Development tests derived from Cheerio and jQuery retain their MIT notices in
-`test/upstream/` in the source repository. Those tests and libraries are not
+`test/upstream/` in the source repository; WPT fixtures retain their BSD-3-Clause
+notice in `test/web-platform/`. Those tests and libraries are not
 bundled in either package. The browser demo optionally imports Cheerio from a
 CDN; it is separate from the package runtime.

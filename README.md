@@ -49,7 +49,8 @@ await init({ wasm: new URL('./grovedom.wasm', import.meta.url) });
 
 [Compatibility](docs/compatibility.md) lists supported and unsupported behavior.
 [Setup and packaging](docs/prototype.md) explains local builds, target packages
-and the browser benchmark demo. [Architecture](docs/design.md),
+and the browser benchmark demo. [Correctness testing](docs/testing.md) covers
+Cheerio/jQuery/WPT references and the browser test page. [Architecture](docs/design.md),
 [performance evidence](docs/benchmarks.md), [memory](docs/memory.md) and
 [remaining work](docs/roadmap.md) describe practical limits.
 

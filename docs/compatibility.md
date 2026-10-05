@@ -51,12 +51,20 @@ pending commands, releases document ownership and invalidates handles. Returned
 strings/arrays remain valid. Do not transfer handles across workers or packages.
 GC cleanup is secondary and has no guaranteed deadline.
 
-Eleven selected upstream cases remain excluded; their reasons are in
+Thirteen selected Cheerio/jQuery cases remain excluded; their reasons are in
 [test/upstream/README.md](../test/upstream/README.md). Tests specific to another
 backend/heap also skip. The declared Node floor is 22.0.0, but that exact runtime
 has not been executed here; maintained Node 22/24 are the tested versions.
 Browser graph/portable-path checks run under Node, not Chromium/Firefox/WebKit.
 Native Windows/macOS and published-package installation are not validated.
+
+The [WPT-derived suite](testing.md) adds independent HTML/CSS/DOM expectations.
+Literal U+00A0 and U+2003 in CSS identifiers remain known failures in pinned
+Lexbor; use CSS escapes for these characters. Attribute names containing
+non-ASCII whitespace are supported. Cheerio's `:enabled` can match non-controls,
+and an empty selection's `.html()` returns `null`, unlike jQuery's `undefined`.
+Foreign-fragment CDATA follows the tested browser-standard behavior even where
+Cheerio/parse5 differs. These distinctions are tested, not hidden fallbacks.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

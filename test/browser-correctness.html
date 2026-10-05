@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GroveDOM browser correctness</title>
+<style>
+body { max-width: 70rem; margin: 2rem auto; padding: 0 1rem; font: 16px system-ui; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+</style>
+<h1>GroveDOM browser correctness</h1>
+<p>Runs the pinned Web Platform Tests subset through the browser ESM entry and
+the same Wasm binary used by Node. This checks DOM transformations, not layout,
+events or JavaScript execution. Skips and known failures are reported separately.</p>
+<p id="status" role="status">Initializing Wasm…</p>
+<pre id="results"></pre>
+<script type="module" src="./browser-correctness.js"></script>
+</html>

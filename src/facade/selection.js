@@ -122,7 +122,9 @@ export function createSelection(context) {
             }
             if (typeof name !== 'string')
                 unsupported('attr currently requires an attribute name.');
-            if (!name || /[\s\0"'<>/=]/.test(name))
+            // HTML whitespace is ASCII; NBSP and other Unicode spaces can be
+            // part of an attribute name and must survive reads and writes.
+            if (!name || /[\x20\t\r\n\f\0"'<>/=]/.test(name))
                 throw new TypeError('Invalid attribute name');
             if (arguments.length === 1)
                 return attributeValue(state, ids, name);
