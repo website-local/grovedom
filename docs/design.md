@@ -40,14 +40,16 @@ package/build JSON checks or environment-variable configuration remain.
 | `nodes.c` / `.h` | Node IDs, snapshots, traversal and subtree lifetime |
 | `query.c` / `.h` | Selector plans, matching and template traversal |
 | `selectors.c` / `.h` | Selector guards and compatibility matching |
-| `serialize.c` / `.h` | Text, attributes, HTML serialization and observations |
+| `serialize.c` / `.h` | Text, HTML serialization and observations |
+| `attributes.c` / `.h` | Attribute names, foreign-namespace compatibility and mutation metadata |
 | `mutate.c` / `.h` | Fragment edits and ordered mutation dispatch |
 | `xml.c` / `.h` | Iterative XML parsing, names and serialization |
 | `addon.c` | Thin Node-API binding |
 | `wasm-memory.c` | Small Wasm memory helpers |
 | `profile.c` / `.h`, `wasm-growth.c` | Macro-guarded native diagnostics |
 
-Lexbor remains pinned and unmodified. ThinLTO permits cross-file optimization.
+Lexbor remains pinned, with [reviewed patches](../native/patches/README.md) applied
+to verified build-local source copies. ThinLTO permits cross-file optimization.
 Helpers stay hidden; the binary operation protocol is private and ships with its
 matching JS. There is no protocol version negotiation or plugin framework.
 

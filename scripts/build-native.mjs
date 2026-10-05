@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sourceFingerprint } from './source-fingerprint.mjs';
+import { prepareDependency } from './prepare-dependency.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const source = process.env.GROVEDOM_LEXBOR_SOURCE;
+let source = process.env.GROVEDOM_LEXBOR_SOURCE;
 const build = resolve(process.env.GROVEDOM_BUILD_DIR ?? join(root, 'build', 'native'));
 const headers = process.env.NODE_INCLUDE_DIR ?? resolve(dirname(process.execPath), '..', 'include', 'node');
 const compiler = process.env.CC ?? 'clang';
@@ -23,7 +23,7 @@ if (!source || !existsSync(join(source, 'source', 'lexbor', 'html', 'html.h'))) 
 }
 if (!existsSync(join(headers, 'node_api.h'))) throw new Error('Set NODE_INCLUDE_DIR to existing Node-API headers.');
 if (!process.env.TMPDIR) throw new Error('Set TMPDIR to a disk-backed temporary directory before building.');
-if (sourceFingerprint(source) !== dependency.sourceTreeSha256) throw new Error('Lexbor source differs from the reviewed tree in native/dependency.json.');
+source = prepareDependency(source, build, join(root, 'native/dependency.json'));
 mkdirSync(build, { recursive: true });
 const lexborBuild = join(build, 'lexbor');
 const flags = ['-fPIC', '-fvisibility=hidden'];
@@ -52,8 +52,8 @@ run(compiler, ['-std=c11', `-O${optimize}`, '-Wall', '-Wextra', ...flags, '-shar
   ...(lto !== 'off' ? ['-fuse-ld=lld', `-Wl,--threads=${jobs}`] : []),
   ...(profile ? ['-DGROVEDOM_PROFILE', '-D_POSIX_C_SOURCE=200809L', join(root, 'native/profile.c')] : []),
   '-DBUILDING_NODE_EXTENSION', '-I', headers, '-I', join(source, 'source'),
-  join(root, 'native', 'addon.c'), ...['kernel', 'memory', 'nodes', 'query', 'serialize', 'mutate'].map(name => join(root, 'native', name + '.c')), join(root, 'native', 'xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
+  join(root, 'native', 'addon.c'), ...['kernel', 'memory', 'nodes', 'query', 'serialize', 'attributes', 'mutate'].map(name => join(root, 'native', name + '.c')), join(root, 'native', 'xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
   '-Wl,--exclude-libs,ALL', '-o', join(build, 'grovedom.node')]);
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-writeFileSync(join(build, 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, sanitize, profile, optimize, lto }) + '\n');
+writeFileSync(join(build, 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, kernelSourceSha256: dependency.patchedTreeSha256 ?? dependency.sourceTreeSha256, sanitize, profile, optimize, lto }) + '\n');
 console.log('Native prototype built. Use the same GROVEDOM_BUILD_DIR when running tests or benchmarks.');

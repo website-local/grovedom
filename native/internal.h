@@ -6,6 +6,7 @@
 #include "context.h"
 #include "nodes.h"
 #include "serialize.h"
+#include "attributes.h"
 #include "query.h"
 #include "mutate.h"
 #include "selectors.h"

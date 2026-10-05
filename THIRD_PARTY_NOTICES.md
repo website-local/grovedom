@@ -17,7 +17,9 @@ The reviewed Wasm libraries come from [wasi-sdk 25](https://github.com/WebAssemb
 Its [source pins](https://github.com/WebAssembly/wasi-sdk/tree/wasi-sdk-25/src)
 identify the wasi-libc and LLVM revisions above. Only linked portions are included
 in the binary; the wasi-libc overview also describes optional components such as
-emmalloc and musl-fts that this build does not use. Lexbor is built unmodified.
+emmalloc and musl-fts that this build does not use. Lexbor includes a reviewed namespace-aware text serialization modification.
+The [patch record](https://github.com/website-local/grovedom/blob/main/native/patches/README.md) identifies the change; modified
+Lexbor source remains under Apache-2.0.
 Recheck these notices when changing dependency revisions, runtime libraries or
 linked components.
 

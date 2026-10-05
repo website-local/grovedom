@@ -112,7 +112,11 @@ export function createFacade(kernel, decodeInput) {
             }
             else
                 roots = context === undefined ? rootIds : typeof context === 'string' ? entry($(context)).ids : inputIds(state, context);
-            return selection(state, query(state, input, roots));
+            // Query selections retain their context for end()/addBack(). Bare
+            // node contexts stay as IDs until that previous selection is used.
+            const previous = context === undefined || typeof context === 'string' ? rootIds
+                : selections.has(context) ? context : roots;
+            return selection(state, query(state, input, roots), previous);
         }
         state.api = $;
         $.prototype = Selection.prototype;

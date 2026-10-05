@@ -54,7 +54,7 @@ static lxb_status_t gd_find_tag(gd_document *doc, lxb_dom_node_t *root, lxb_tag_
         for (;;) {
             if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
                 GD_PROFILE_ADD(GP_GUARD_NODES, 1);
-                if (node->local_name == tag) {
+                if (node->local_name == tag && gd_selector_tag_case(doc, node)) {
                     GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
                     lxb_status_t status = gd_collect(node, 0, doc);
                     if (status != LXB_STATUS_OK) return status;
@@ -174,7 +174,7 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     if (!key) { gd_plans_clean(doc); goto memory_error; }
     memcpy(key, doc->input.data, doc->input.length + 1);
     gd_plan *plan = &doc->plans[doc->plan_count++];
-    doc->selector_flags = gd_selector_flags(list);
+    doc->selector_flags = gd_selector_flags(doc, list);
     doc->selector_guard = gd_selector_guard_create(doc, list);
     if (doc->error_code) { gd_plans_clean(doc); return NULL; }
     *plan = (gd_plan) { key, doc->input.length, list, doc->selector_flags, doc->selector_guard };
@@ -222,7 +222,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         if (simple_tag && match) {
             GD_PROFILE_ADD(GP_GUARD_NODES, 1);
             status = LXB_STATUS_OK;
-            if (node->local_name == simple_tag) {
+            if (node->local_name == simple_tag && gd_selector_tag_case(doc, node)) {
                 GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
                 status = gd_collect(node, 0, doc);
             }

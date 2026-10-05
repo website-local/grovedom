@@ -1,14 +1,16 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { prepareDependency } from './prepare-dependency.mjs';
 const output = process.env.GROVEDOM_FAULT_BUILD_DIR;
 const source = process.env.GROVEDOM_LEXBOR_SOURCE;
 const build = process.env.GROVEDOM_BUILD_DIR;
 if (!output || !source || !build) throw new Error('Set GROVEDOM_FAULT_BUILD_DIR, GROVEDOM_BUILD_DIR and GROVEDOM_LEXBOR_SOURCE.');
+const preparedSource = prepareDependency(source, build, resolve('native/dependency.json'));
 mkdirSync(output, { recursive: true });
 const executable = resolve(output, 'faults');
-const files = ['kernel', 'memory', 'nodes', 'query', 'serialize', 'mutate', 'xml', 'selectors'];
-const args = ['-std=c11', '-O1', '-g', '-DGROVEDOM_FAULT_INJECTION', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-flto=thin', '-fuse-ld=lld', '-Wl,--threads=2', '-I', 'native', '-I', join(source, 'source'), 'test/faults.c', ...files.map(name => `native/${name}.c`), join(build, 'lexbor/liblexbor_static.a'), '-o', executable];
+const files = ['kernel', 'memory', 'nodes', 'query', 'serialize', 'attributes', 'mutate', 'xml', 'selectors'];
+const args = ['-std=c11', '-O1', '-g', '-DGROVEDOM_FAULT_INJECTION', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-flto=thin', '-fuse-ld=lld', '-Wl,--threads=2', '-I', 'native', '-I', join(preparedSource, 'source'), 'test/faults.c', ...files.map(name => `native/${name}.c`), join(build, 'lexbor/liblexbor_static.a'), '-o', executable];
 const compiled = spawnSync(process.env.CC ?? 'clang', args, { stdio: 'inherit' });
 if (compiled.status !== 0) throw new Error('Fault diagnostic compilation failed');
 const result = spawnSync(executable, [], { stdio: 'inherit' });

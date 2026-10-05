@@ -93,6 +93,7 @@ int gd_template(lxb_dom_node_t *node) {
 int gd_templates(gd_document *doc, lxb_dom_node_t *root) {
     lxb_dom_node_t *node = root;
     while (node) {
+        gd_attributes_normalize(doc, node);
         if (gd_template(node)) {
             doc->templates = 1;
             lxb_dom_node_t *content = &lxb_html_interface_template(node)->content->node;

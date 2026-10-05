@@ -35,6 +35,13 @@ slower parser or omit required work.
 are rejected. HTML defaults preserve the audited Cheerio/parse5 contract;
 GroveDOM does not implement an htmlparser2 HTML mode.
 
+HTML-mode SVG/MathML follows **Cheerio's default behavior**, including its
+differences from browsers: adjusted `xlink:href` is exposed as `href`, and
+`[viewBox]` and `foreignObject` do not match camel-case SVG names. Raw names and
+HTML serialization retain their case and namespace metadata. Explicit XML mode
+keeps qualified, case-sensitive names. Foreign `style`/`script` text is escaped
+during HTML serialization, so reparsing does not turn text into markup.
+
 XML options include `decodeEntities`, `lowerCaseTags`,
 `lowerCaseAttributeNames`, `selfClosingTags`, `emptyAttrs`, `encodeEntities`,
 `xmlMode`, `recognizeSelfClosing` and `recognizeCDATA`, within the documented

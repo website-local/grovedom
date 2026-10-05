@@ -42,6 +42,7 @@ static void gd_release(gd_document *doc) {
     doc->selectors = NULL;
     doc->selector_summary = NULL;
     doc->xml_names = NULL;
+    doc->attribute_history = NULL;
     doc->nodes = NULL;
     doc->results = NULL;
     doc->input.data = doc->output.data = doc->transfer.data = doc->xml_name.data = NULL;

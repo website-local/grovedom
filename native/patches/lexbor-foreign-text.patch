@@ -1,0 +1,10 @@
+diff --git a/source/lexbor/html/serialize.c b/source/lexbor/html/serialize.c
+--- a/source/lexbor/html/serialize.c
++++ b/source/lexbor/html/serialize.c
+@@ -436,4 +436,5 @@ lxb_html_serialize_text_cb(lxb_dom_text_t *text,
+-    if (node->parent != NULL) {
++    /* Raw text serialization applies only to HTML namespace elements. */
++    if (node->parent != NULL && node->parent->ns == LXB_NS_HTML) {
+         switch (node->parent->local_name) {
+             case LXB_TAG_STYLE:
+             case LXB_TAG_SCRIPT:

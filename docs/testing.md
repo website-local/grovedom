@@ -57,6 +57,12 @@ best-effort until the page is executed in actual engines.
 including isolated consumers without Cheerio. `npm run test:fuzz` uses explicit
 seeds and disk-backed reproducers. Sanitizer and owned-buffer failure checks are
 described in [setup](prototype.md). Keep raw reports and local paths outside Git.
+Foreign-content regressions compare Cheerio's HTML and XML modes across namespace
+collisions, attribute removal/reinsertion, cloning, renaming and serialization.
+Ancestor-selector tests check backtracking through nested list pseudo-classes;
+XML serializer tests cover entities and doctype identifiers. Dependency-patch
+tests reject modified inputs, patches and cached trees, and ensure preparation
+does not modify the supplied upstream source.
 Use [short performance checks](benchmarks.md) only when a runtime change warrants
 them; adding correctness fixtures does not require another benchmark campaign.
 

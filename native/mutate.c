@@ -33,11 +33,13 @@ static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_nod
     return fragment;
 }
 
-static lxb_dom_node_t *gd_clone(lxb_dom_node_t *source) {
+static lxb_dom_node_t *gd_clone(gd_document *doc, lxb_dom_node_t *source) {
     lxb_dom_node_t *root = lxb_dom_node_clone(source, true), *node = root;
     // Lexbor copies user fields. Clones must receive their own GroveDOM IDs.
     while (node) {
+        uint32_t source_id = (uint32_t) (uintptr_t) node->user;
         node->user = NULL;
+        if (doc->attribute_history && !gd_attributes_clone(doc, source_id, node)) return NULL;
         if (node->first_child) { node = node->first_child; continue; }
         while (node != root && !node->next) node = node->parent;
         if (node == root) break;
@@ -106,7 +108,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
         lxb_dom_node_destroy(fragment);
     } else if (operation == 2 || operation == 13) {
         for (size_t i = 0; i < count; i++) {
-            lxb_dom_node_t *node = operation == 2 ? gd_clone(doc->nodes[ids[i]].node) : doc->nodes[ids[i]].node;
+            lxb_dom_node_t *node = operation == 2 ? gd_clone(doc, doc->nodes[ids[i]].node) : doc->nodes[ids[i]].node;
             if (!node || gd_collect(node, 0, doc) != LXB_STATUS_OK) goto failed;
         }
         if (operation == 13) {
@@ -135,7 +137,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
             if (operation <= 7 || operation >= 14) {
                 for (size_t j = 0; j < other_count; j++) {
                     lxb_dom_node_t *child = doc->nodes[other[j]].node;
-                    if (operation >= 14 || i + 1 < count) child = gd_clone(child);
+                    if (operation >= 14 || i + 1 < count) child = gd_clone(doc, child);
                     if (!child || !gd_insert(doc, target, child, position, &anchor, collect)) goto failed;
                 }
                 if (operation == 7) {
@@ -162,9 +164,13 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                     if (lxb_dom_character_data_replace(data, doc->input.data, doc->input.length, 0, data->data.length) != LXB_STATUS_OK) goto failed;
                 }
             } else if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
-                lxb_dom_element_t *element = doc->xml ? gd_xml_element(doc, doc->input.data, doc->input.length, 0) : lxb_dom_document_create_element(&doc->html->dom_document, doc->input.data, doc->input.length, NULL);
+                int exact_name = doc->xml;
+                if (node->ns != LXB_NS_HTML) for (size_t j = 0; j < doc->input.length; j++)
+                    if (doc->input.data[j] >= 'A' && doc->input.data[j] <= 'Z') { exact_name = 1; break; }
+                lxb_dom_element_t *element = exact_name ? gd_xml_element(doc, doc->input.data, doc->input.length, 0) : lxb_dom_document_create_element(&doc->html->dom_document, doc->input.data, doc->input.length, NULL);
                 if (!element) goto failed;
                 lxb_dom_node_t *replacement = lxb_dom_interface_node(element);
+                replacement->ns = node->ns; replacement->prefix = node->prefix;
                 if (gd_template(replacement)) doc->templates = 1;
                 lxb_dom_element_t *old = lxb_dom_interface_element(node);
                 while (old->first_attr) {
@@ -199,10 +205,9 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
     if (operation == SET_ATTR || operation == REMOVE_ATTR) {
         if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return LXB_STATUS_OK;
         if (!alen) return LXB_STATUS_ERROR_WRONG_ARGS;
-        lxb_dom_attr_t *attr = gd_attribute(node, a, alen);
+        lxb_dom_attr_t *attr = gd_attribute(doc, node, a, alen);
         if (operation == REMOVE_ATTR) {
-            if (attr) { lxb_dom_element_attr_remove(lxb_dom_interface_element(node), attr); lxb_dom_attr_interface_destroy(attr); }
-            return LXB_STATUS_OK;
+            return attr ? gd_attribute_remove(doc, node, attr) : LXB_STATUS_OK;
         }
         if (attr) {
             if (attr->value && attr->value->data && lexbor_str_size(attr->value) > blen) {
@@ -224,6 +229,7 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
         attr = lxb_dom_attr_interface_create(&doc->html->dom_document);
         if (!attr) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
         if ((doc->xml ? gd_xml_attr_name(doc, attr, a, alen, 0) : lxb_dom_attr_set_name(attr, a, alen, false)) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, b, blen) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
+        gd_attribute_restore(doc, node, attr);
         return lxb_dom_element_attr_append(lxb_dom_interface_element(node), attr);
     }
     if (operation == SET_TEXT) {

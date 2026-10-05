@@ -2,14 +2,16 @@
 
 The current kernel is pinned Lexbor/C with native Node-API and direct Wasm
 bindings. Wasm/Node is the primary target; Rust remains an unmeasured alternative,
-not another shipping backend. No dependency fork or library-managed threads are
-introduced by the architecture split.
+not another shipping backend. Library-managed threads are not introduced.
+Minimal dependency patches are tracked separately from the pinned upstream source.
 
 ## Dependency pin
 
 [native/dependency.json](../native/dependency.json) records the reviewed source
 revision and fingerprint. Builds verify that source, independently of runtime
-loading. The pinned revision includes upstream allocator and array fixes that
+loading. [Reviewed patches](../native/patches/README.md) also pin their bytes and
+the resulting source fingerprint; both targets build from verified build-local
+copies. The pinned revision includes upstream allocator and array fixes that
 were absent from unpatched Lexbor 3.0.0. See the
 [maintenance review](history/research.md#lexbor-maintenance-assessment) for source
 references and rationale.

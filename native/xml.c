@@ -376,6 +376,7 @@ static lxb_status_t gd_xml_escape(gd_document *doc, const lxb_char_t *s, size_t 
         else if (c == '>') { entity = "&gt;"; length = 4; }
         else if (c == '"') { entity = "&quot;"; length = 6; }
         else if (c == '\'') { entity = "&apos;"; length = 6; }
+        else if (c == '$') { entity = "&#x24;"; length = 6; }
         else if (c >= 128) {
             uint32_t cp = c; unsigned extra = c >= 0xf0 ? 3 : c >= 0xe0 ? 2 : 1;
             if (n - i <= extra) return LXB_STATUS_ERROR;
@@ -404,7 +405,7 @@ lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned f
             size_t length; const lxb_char_t *name = lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length);
             XML_WRITE("<", 1); XML_WRITE(name, length);
             for (lxb_dom_attr_t *attr = lxb_dom_interface_element(node)->first_attr; attr; attr = attr->next) {
-                name = lxb_dom_attr_qualified_name(attr, &length);
+                name = gd_attribute_name(doc, attr, &length);
                 XML_WRITE(" ", 1); XML_WRITE(name, length);
                 {
                     XML_WRITE("=\"", 2);
@@ -424,7 +425,20 @@ lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned f
             XML_WRITE(comment ? "<!--" : "<", comment ? 4 : 1); XML_WRITE(data->data, data->length); XML_WRITE(comment ? "-->" : ">", comment ? 3 : 1);
         } else if (node->type == LXB_DOM_NODE_TYPE_CDATA_SECTION) XML_WRITE("<![CDATA[", 9);
         else if (node->type == LXB_DOM_NODE_TYPE_DOCUMENT_TYPE) {
-            if (lxb_html_serialize_cb(node, gd_write, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR;
+            lxb_dom_document_type_t *type = lxb_dom_interface_document_type(node);
+            size_t length;
+            const lxb_char_t *name = lxb_dom_document_type_name(type, &length);
+            XML_WRITE("<!DOCTYPE ", 10); XML_WRITE(name, length);
+            if (type->public_id.length) XML_WRITE(" PUBLIC ", 8);
+            else if (type->system_id.length) XML_WRITE(" SYSTEM ", 8);
+            for (unsigned i = 0; i < 2; i++) {
+                lexbor_str_t *id = i ? &type->system_id : &type->public_id;
+                if (!id->length) continue;
+                if (i && type->public_id.length) XML_WRITE(" ", 1);
+                const char *quote = memchr(id->data, '"', id->length) ? "'" : "\"";
+                XML_WRITE(quote, 1); XML_WRITE(id->data, id->length); XML_WRITE(quote, 1);
+            }
+            XML_WRITE(">", 1);
         }
         if (node->first_child) { node = node->first_child; continue; }
         for (;;) {

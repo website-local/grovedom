@@ -18,6 +18,22 @@ Four larger pages differ from the former corpus; never combine old and refreshed
 corpus timings. Saved output is not a substitute for original unprocessed input.
 Private file locations and consumer checkout details do not belong in this repo.
 
+A later local compatibility pass expanded the installed engine 0.9.1 and an
+isolated development-engine snapshot to **193 scenarios each**, comparing exact
+serialized outputs, download submissions and logged events with Cheerio 1.2.0.
+Native and pooled Wasm match all scenarios on both snapshots. The pass includes
+88 additional saved files and 15 original MDN HTML responses; 16 direct requests
+were attempted, with one recorded 404 and no subresource crawl. Input hashes and
+the separate original/saved/generated provenance are retained with the local
+replay evidence. Saved documents already contain earlier transformations.
+
+Direct DOM checks cover 174 saved/live markup inputs: full HTML/XML output,
+21 selector counts, the first 20 matching name/attribute records per selector,
+and sampled foreign text. Both backends match Cheerio. These checks found foreign
+attribute/serialization and ancestor-selector defects now covered by small public
+regressions. Downloads remain mocked; this is not production-crawl validation or
+browser-engine conformance.
+
 `prepare-consumer.mjs` prepares an isolated replay checkout.
 `replay-consumer.mjs` checks exact outputs/events against the frozen reference;
 `check-consumer-types.mjs` checks the audited TypeScript surface. Recheck source,

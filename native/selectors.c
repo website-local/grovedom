@@ -1,5 +1,7 @@
 #include "internal.h"
 #include "selectors.h"
+#include <lexbor/html/tag.h>
+#include <lexbor/html/tree_res.h>
 
 typedef lxb_css_selector_t selector;
 typedef lxb_css_selector_list_t selector_list;
@@ -143,10 +145,10 @@ lxb_tag_id_t gd_selector_simple_tag(gd_document *doc) {
     return g->tag;
 }
 
-static int guard_candidate(gd_selector_guard *g, node *n, lxb_dom_element_t *element) {
+static int guard_candidate(gd_document *doc, gd_selector_guard *g, node *n, lxb_dom_element_t *element) {
     selector *s = g->atom;
     if (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) {
-        return g->tag && n->local_name == g->tag;
+        return g->tag && n->local_name == g->tag && gd_selector_tag_case(doc, n);
     }
     if (s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE) return g->tag && lxb_dom_element_attr_by_id(element, g->tag) != NULL;
     lxb_dom_attr_t *attr = s->type == LXB_CSS_SELECTOR_TYPE_ID ? element->attr_id : element->attr_class;
@@ -171,7 +173,7 @@ int gd_selector_guard_match(gd_document *doc, node *n) {
     lxb_dom_element_t *element = lxb_dom_interface_element(n);
     for (size_t i = 0; i < doc->selector_guard_active; i++) {
         gd_selector_guard *g = doc->selector_guard + i;
-        if (!guard_candidate(g, n, element)) continue;
+        if (!guard_candidate(doc, g, n, element)) continue;
         GD_PROFILE_ADD(GP_GUARD_CANDIDATES, 1);
         if (g->atom->list->first == g->atom->list->last &&
             (g->atom->type != LXB_CSS_SELECTOR_TYPE_ATTRIBUTE || !g->atom->u.attribute.value.data)) return 1;
@@ -203,12 +205,45 @@ static selector_list *nested_plan(selector *s) {
     }
 }
 
-unsigned gd_selector_flags(selector_list *list) {
+int gd_selector_tag_case(gd_document *doc, node *n) {
+    if (doc->xml || n->ns == LXB_NS_HTML) return 1;
+    size_t length;
+    const lxb_char_t *name = lxb_dom_element_qualified_name(lxb_dom_interface_element(n), &length);
+    for (size_t i = 0; i < length; i++) if (name[i] >= 'A' && name[i] <= 'Z') return 0;
+    return 1;
+}
+
+static int html_adjusted_name(gd_document *doc, selector *s) {
+    if (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) {
+        lxb_tag_id_t id = lxb_tag_id_by_name(doc->html->dom_document.tags, s->name.data, s->name.length);
+        const lxb_html_tag_fixname_t *name = lxb_html_tag_fixname_svg(id);
+        return name && name->name;
+    }
+    if (s->name.length == 13 && memcmp(s->name.data, "definitionurl", 13) == 0) return 1;
+    for (size_t i = 0; i < sizeof(lxb_html_tree_res_attr_adjust_svg_map) / sizeof(*lxb_html_tree_res_attr_adjust_svg_map); i++) {
+        const lxb_html_tree_res_attr_adjust_t *name = &lxb_html_tree_res_attr_adjust_svg_map[i];
+        if (s->name.length == name->len && memcmp(s->name.data, name->from, name->len) == 0) return 1;
+    }
+    return 0;
+}
+
+unsigned gd_selector_flags(gd_document *doc, selector_list *list) {
     unsigned flags = 0;
     selector *s = list->first;
     while (s) {
+        if (!doc->xml && (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT || s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE)) {
+            for (size_t i = 0; i < s->name.length; i++) if (s->name.data[i] >= 'A' && s->name.data[i] <= 'Z') s->name.data[i] += 'a' - 'A';
+            if (html_adjusted_name(doc, s)) flags |= GD_SELECTOR_CUSTOM;
+        }
         if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) flags |= GD_SELECTOR_CUSTOM;
         if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) {
+            /* Lexbor's list pseudo-classes on the left of a combinator stop
+             * after a failed nearest ancestor. Our chain matcher retries the
+             * remaining ancestors, as Cheerio and CSS require. */
+            if (s->next && (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_IS ||
+                s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_WHERE ||
+                s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NOT ||
+                s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS)) flags |= GD_SELECTOR_CUSTOM;
             if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_HAS) flags |= GD_SELECTOR_TEMPLATE;
             if (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_LEXBOR_CONTAINS) flags |= GD_SELECTOR_CUSTOM;
         }
@@ -289,6 +324,11 @@ static lxb_status_t found(node *n, lxb_css_selector_specificity_t specificity, v
     (void) n; (void) specificity; *(int *) context = 1; return LXB_STATUS_OK;
 }
 static int atom(gd_document *doc, node *n, selector *s, unsigned depth) {
+    if (!doc->xml && !s->ns.length && s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) {
+        size_t length;
+        const lxb_char_t *name = n->ns == LXB_NS_HTML ? lxb_dom_element_local_name(lxb_dom_interface_element(n), &length) : lxb_dom_element_qualified_name(lxb_dom_interface_element(n), &length);
+        return length == s->name.length && memcmp(name, s->name.data, length) == 0;
+    }
     if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) {
         for (node *child = n->first_child; child; child = child->next) {
             if (child->type == LXB_DOM_NODE_TYPE_ELEMENT || (child->type == LXB_DOM_NODE_TYPE_TEXT && lxb_dom_interface_character_data(child)->data.length)) return 0;
@@ -317,6 +357,19 @@ static int atom(gd_document *doc, node *n, selector *s, unsigned depth) {
     }
     // Reuse Lexbor's ordinary atom semantics and pooled evaluator. Stack copies
     // isolate the atom without modifying cached ASTs or the document tree.
+    lxb_dom_element_t element;
+    lxb_dom_attr_t attribute;
+    if (!doc->xml && !s->ns.length && s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE) {
+        lxb_dom_attr_t *found_attr = gd_attribute(doc, n, s->name.data, s->name.length);
+        if (!found_attr) return 0;
+        // Let Lexbor compare values/operators against exactly the attribute
+        // visible through Cheerio's case-sensitive property lookup. Stack copies
+        // avoid changing links or letting a same-ID camel-case attribute win.
+        element = *lxb_dom_interface_element(n); attribute = *found_attr;
+        element.first_attr = element.last_attr = &attribute;
+        attribute.prev = attribute.next = NULL; attribute.owner = &element;
+        n = &element.node;
+    }
     selector copy = *s;
     selector_list list = {0};
     list.first = list.last = &copy;

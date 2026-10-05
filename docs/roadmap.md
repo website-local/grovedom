@@ -42,7 +42,9 @@ Node 22/24 on Linux, and Node 24 pooled Wasm on Windows/macOS.
 
 Avoid another broad optimization campaign. Revisit performance for a concrete
 integration bottleneck or reproducible regression, using the bounded short
-protocol in [benchmarks](benchmarks.md). Do not add schedulers, JITs, dependency
-forks or an expanding backend framework to pursue small noisy gains.
+protocol in [benchmarks](benchmarks.md). Do not add schedulers, JITs or an expanding
+backend framework to pursue small noisy gains. Keep any
+[dependency patches](../native/patches/README.md) minimal,
+pinned, reproducible and covered by regressions.
 
 [Historical roadmap](history/roadmap.md) records earlier milestones.

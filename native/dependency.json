@@ -4,5 +4,12 @@
   "source": "https://github.com/lexbor/lexbor",
   "archive": "https://codeload.github.com/lexbor/lexbor/tar.gz/f4cbbcd91359a0ec9499e3ce7e263de629482d61",
   "license": "Apache-2.0",
-  "sourceTreeSha256": "78e61a5c64d20b12ff7c137217c2bc66020d3c996b8ae93bebd2aa7b0bad9594"
+  "sourceTreeSha256": "78e61a5c64d20b12ff7c137217c2bc66020d3c996b8ae93bebd2aa7b0bad9594",
+  "patches": [
+    {
+      "file": "patches/lexbor-foreign-text.patch",
+      "sha256": "0843b50fcb10acd8e3629e96cf96960219f04511b0021733ed1b64817479e9b7"
+    }
+  ],
+  "patchedTreeSha256": "6f2b53fd040e2e0b1ccaf6c2c5766dd430a9337846987fc4e6edff522bc81c74"
 }

@@ -100,6 +100,10 @@ export function createSelection(context) {
             return selection(state, result.subarray(0, length), this);
         }
         is(selector) {
+            if (typeof selector === 'string') {
+                const { state, ids } = entry(this);
+                return selector.length > 0 && query(state, selector, ids, true).length > 0;
+            }
             if (typeof selector !== 'function')
                 return this.filter(selector).length > 0;
             let matched = false;
@@ -175,7 +179,12 @@ export function createSelection(context) {
             enqueue(state, ids, 3, String(value));
             return this;
         }
-        end() { const { state, previous } = entry(this); return previous ?? selection(state, empty); }
+        end() {
+            const record = entry(this);
+            if (record.previous instanceof Uint32Array)
+                record.previous = selection(record.state, record.previous);
+            return record.previous ?? selection(record.state, empty);
+        }
         map(callback) { return mapped(this, callback); }
         toString() { const { state, ids } = entry(this); return read(state, ids, 10); }
         next(selector) { return this._traverse(4, selector); }

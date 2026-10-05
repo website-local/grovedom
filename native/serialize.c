@@ -28,16 +28,6 @@ static lxb_status_t gd_text(gd_document *doc, lxb_dom_node_t *root, int inner_te
     return LXB_STATUS_OK;
 }
 
-lxb_dom_attr_t *gd_attribute(lxb_dom_node_t *node, const lxb_char_t *name, size_t length) {
-    if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return NULL;
-    for (lxb_dom_attr_t *attr = lxb_dom_interface_element(node)->first_attr; attr; attr = attr->next) {
-        size_t nlen;
-        const lxb_char_t *key = lxb_dom_attr_qualified_name(attr, &nlen);
-        if (nlen == length && memcmp(key, name, length) == 0) return attr;
-    }
-    return NULL;
-}
-
 static lxb_status_t gd_json(gd_document *doc, const lxb_char_t *data, size_t length) {
     if (gd_write((const lxb_char_t *) "\"", 1, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
     for (size_t i = 0; i < length; i++) {
@@ -120,12 +110,12 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
     if (operation == READ_TYPE) return gd_result_set(doc, GD_NUMBER, NULL, 0, node ? node->type : 0);
     if (operation == READ_ATTR) {
         if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
-            lxb_dom_attr_t *attr = gd_attribute(node, doc->input.data, doc->input.length);
+            lxb_dom_attr_t *attr = gd_attribute(doc, node, doc->input.data, doc->input.length);
             if (attr) { data = attr->value ? attr->value->data : (const lxb_char_t *) ""; length = attr->value ? attr->value->length : 0; }
         }
         if (!data) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
     } else if (operation == READ_NAME) {
-        if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) data = doc->xml ? lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length) : lxb_dom_element_local_name(lxb_dom_interface_element(node), &length);
+        if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) data = doc->xml || node->ns != LXB_NS_HTML ? lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length) : lxb_dom_element_local_name(lxb_dom_interface_element(node), &length);
         else if (node && node->type == LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION) data = lxb_dom_processing_instruction_target(lxb_dom_interface_processing_instruction(node), &length);
         if (!data) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
     } else if (operation == READ_ATTRS) {
@@ -133,7 +123,7 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
         status = gd_write((const lxb_char_t *) "{", 1, &doc->output);
         for (lxb_dom_attr_t *attr = lxb_dom_interface_element(node)->first_attr; attr && status == LXB_STATUS_OK; attr = attr->next) {
             size_t nlen;
-            const lxb_char_t *name = lxb_dom_attr_qualified_name(attr, &nlen);
+            const lxb_char_t *name = gd_attribute_name(doc, attr, &nlen);
             if (attr != lxb_dom_interface_element(node)->first_attr) status = gd_write((const lxb_char_t *) ",", 1, &doc->output);
             if (status == LXB_STATUS_OK) status = gd_json(doc, name, nlen);
             if (status == LXB_STATUS_OK) status = gd_write((const lxb_char_t *) ":", 1, &doc->output);

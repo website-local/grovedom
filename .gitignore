@@ -10,7 +10,7 @@ codex.sh
 !.env.example
 
 # Dependencies, generated output, and scratch files
-node_modules/
+node_modules
 target/
 build/
 dist/

@@ -43,6 +43,28 @@ the process's inherited affinity or change host-wide scheduling settings.
 
 ## Established scoped evidence
 
+### Expanded MDN diagnostic
+
+Short profiles of four MDN inputs plus an authored sitemap use the actual
+consumer pipeline with mocked downloads and without replay tracing, compression
+or output files. Macro-guarded native phase timers, Node inspector CPU sampling
+and Node's V8 tick profiler identify URL parsing/rewriting as the largest consumer
+cost. Within GroveDOM, repeated queries, binding work and selection creation
+matter more than parsing in this sample. These are bottleneck observations, not
+DOM adoption ratios or hardware cycle measurements.
+
+String `.is()` now avoids a temporary filtered selection. A separately counted
+five-case replay creates 8,731 selections instead of 14,193 (38% fewer), with
+identical output. Query contexts for `.end()` are materialized only when used.
+Two fixed three-block pooled-Wasm screens on one saved MDN page were
+**inconclusive**: the combined change/released-package ratio was 1.0003 with a
+1.1028 identical-code control; the facade comparison retained no blocks
+under the independent probe rule (raw ratio 1.4097, control 1.1243). All prechecks
+were busy. These screens were not extended, establish no speedup or precise
+non-regression bound, and leave the historical adoption evidence unchanged.
+
+### Earlier acceptance panels
+
 The pre-refactor `b27dbe2` checkpoint measured:
 
 | Panel vs current Cheerio | Native median | Pooled Wasm median |

@@ -2,10 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sourceFingerprint } from './source-fingerprint.mjs';
+import { prepareDependency } from './prepare-dependency.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const source = process.env.GROVEDOM_LEXBOR_SOURCE;
+let source = process.env.GROVEDOM_LEXBOR_SOURCE;
 const sysroot = process.env.GROVEDOM_WASI_SYSROOT;
 const builtins = process.env.GROVEDOM_WASM_BUILTINS;
 const build = resolve(process.env.GROVEDOM_WASM_BUILD_DIR ?? join(root, 'build/wasm'));
@@ -28,7 +28,7 @@ if (!Number.isSafeInteger(stackBytes) || stackBytes < 16384 || stackBytes % 16 !
 if (!Number.isInteger(initialPages) || initialPages < 1 || initialPages > 32768 || stackBytes >= initialPages * 65536) throw new Error('Initial Wasm pages must fit the stack and be between 1 and 32768.');
 const dependency = JSON.parse(readFileSync(join(root, 'native/dependency.json'), 'utf8'));
 if (!process.env.TMPDIR) throw new Error('Set TMPDIR to a disk-backed temporary directory.');
-if (!source || sourceFingerprint(source) !== dependency.sourceTreeSha256) throw new Error('Set GROVEDOM_LEXBOR_SOURCE to the reviewed source tree.');
+source = prepareDependency(source, build, join(root, 'native/dependency.json'));
 if (!sysroot || !existsSync(sysroot) || !builtins || !existsSync(builtins)) throw new Error('Set GROVEDOM_WASI_SYSROOT and GROVEDOM_WASM_BUILTINS to existing Wasm runtime libraries. No toolchain is installed by this script.');
 mkdirSync(build, { recursive: true });
 function run(command, args) {
@@ -57,7 +57,7 @@ const exports = ['gk_init', 'gk_new', 'gk_dispose', 'gk_delete', 'gk_input', 'gk
   'gk_query', 'gk_read', 'gk_observe', 'gk_traverse', 'gk_edit', 'gk_execute', 'gk_stats', 'gk_error_code', 'gk_error_message'];
 const output = join(build, profileGrowth ? 'grovedom-growth.wasm' : 'grovedom.wasm');
 run(compiler, [...target, ...flags, '-std=c11', `-O${optimize}`, '-Wall', '-Wextra', '-fvisibility=hidden', '-nostartfiles', '-nodefaultlibs',
-  '-I', join(source, 'source'), join(root, 'native/wasm-memory.c'), ...['kernel', 'memory', 'nodes', 'query', 'serialize', 'mutate'].map(name => join(root, 'native', name + '.c')), join(root, 'native/xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
+  '-I', join(source, 'source'), join(root, 'native/wasm-memory.c'), ...['kernel', 'memory', 'nodes', 'query', 'serialize', 'attributes', 'mutate'].map(name => join(root, 'native', name + '.c')), join(root, 'native/xml.c'), join(root, 'native/selectors.c'), join(lexborBuild, 'liblexbor_static.a'),
   ...(profileGrowth ? ['-DGROVEDOM_PROFILE_GROWTH', join(root, 'native/wasm-growth.c'), '-Wl,--wrap=sbrk', '-Wl,--export=gk_parse_profile'] : []),
   ...(profile ? ['-DGROVEDOM_PROFILE', join(root, 'native/profile.c'), ...['snapshot', 'name', 'count', 'reset', 'probe'].map(name => `-Wl,--export=gk_profile_${name}`)] : []),
   `-Wl,--threads=${jobs}`, '-Wl,--gc-sections', '-Wl,--no-entry', '-Wl,--export-memory', '-Wl,--stack-first', `-Wl,-z,stack-size=${stackBytes}`,
@@ -93,6 +93,6 @@ for (const section of sections) {
     offset += length;
   }
 }
-writeFileSync(join(build, profileGrowth ? 'growth-build.json' : 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, initialPages, stackBytes, profileStack, profile, optimize, lto, features, targetFeatures }) + '\n');
+writeFileSync(join(build, profileGrowth ? 'growth-build.json' : 'build.json'), JSON.stringify({ packageVersion: pkg.version, kernelRevision: dependency.revision, kernelSourceSha256: dependency.patchedTreeSha256 ?? dependency.sourceTreeSha256, initialPages, stackBytes, profileStack, profile, optimize, lto, features, targetFeatures }) + '\n');
 writeFileSync(join(build, 'build-config.js'), `export const buildConfig = Object.freeze(${JSON.stringify({ initialPages, stackBytes, transferBytes: 16384 })});\n`);
 console.log('Wasm prototype built. Reuse GROVEDOM_WASM_BUILD_DIR with GROVEDOM_BACKEND=wasm.');
