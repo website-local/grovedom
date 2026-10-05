@@ -14,6 +14,11 @@ bookkeeping and zeroing, and count arena backing requests rather than node slots
 They exclude document control-block and Node/V8 allocations. Release builds omit
 these scopes. Reference ticks are not CPU instruction counts.
 
+Selector rows count case-insensitive comparisons by operator, Unicode fallbacks,
+and ASCII-probe calls, bytes and logical scalar loads. Byte counts include
+overlapping tail reads; load counts describe the C algorithm, not retired CPU
+instructions. These counters also compile out of release builds.
+
 For Wasm, build with `GROVEDOM_WASM_PROFILE_GROWTH=1`, then use that setting with
 `GROVEDOM_WASM_BUILD_DIR` when loading the diagnostic entry. `growthStats()` reports
 cumulative positive linear-memory growth calls, pages and milliseconds. Subtract

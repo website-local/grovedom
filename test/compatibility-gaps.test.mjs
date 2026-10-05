@@ -148,3 +148,17 @@ test('token searches reject partial words and preserve multibyte boundaries', ()
       ['', ' s'].map(flag => $(`[class~=${quote(operand)}${flag}]`).length));
   }, { xml });
 });
+
+test('case-insensitive attributes preserve Unicode around word-sized boundaries', () => {
+  for (const length of [0, 1, 2, 3, 4, 7, 8, 9, 15, 16, 17, 31, 32, 33]) {
+    for (const position of new Set([0, Math.floor(length / 2), length])) {
+      const value = 'A'.repeat(position) + 'É' + 'B'.repeat(length - position);
+      for (const xml of [false, true]) compare('<p/>', $ => {
+        $('p').attr('data-x', value);
+        return ['=', '^=', '$=', '*=', '~=', '|='].flatMap(op =>
+          [value.toLowerCase(), 'aa', 'bb', 'é'].map(operand =>
+            $(`[data-x${op}${quote(operand)} i]`).length));
+      }, { xml });
+    }
+  }
+});

@@ -45,7 +45,10 @@ static const char *names[GP_COUNT] = {
     "commands", "mutatedNodes", "selectorHits", "selectorMisses",
     "guardNodes", "guardCandidates", "guardValidations",
     "xmlName", "xmlDecode", "xmlSerialize", "xmlNameHits", "xmlNameMisses",
-    "malloc", "calloc", "realloc", "free"
+    "malloc", "calloc", "realloc", "free",
+    "selectorAsciiCalls", "selectorAsciiBytes", "selectorAsciiLoads", "selectorUnicode",
+    "selectorCaseEqual", "selectorCasePrefix", "selectorCaseSuffix",
+    "selectorCaseDash", "selectorCaseSubstring", "selectorCaseToken"
 };
 
 gp_scope gp_start(unsigned phase) {

@@ -64,12 +64,12 @@ XML serializer tests cover entities and doctype identifiers. Dependency-patch
 tests reject modified inputs, patches and cached trees, and ensure preparation
 does not modify the supplied upstream source.
 
-The gap follow-up has 1,749 cases: native 1,690 pass / 59 skip; pooled Wasm
-1,698 / 51, with no TODOs or unexpected failures. Further differential
+The gap follow-up has 1,750 cases: native 1,691 pass / 59 skip; pooled Wasm
+1,699 / 51, with no TODOs or unexpected failures. Further differential
 regressions cover ASCII/Unicode boundaries across all six attribute operators,
-partial tokens and near-whitespace characters in HTML and XML; their sanitizer
-run passes too. The empty-token WPT record is
-an explicit Cheerio/browser policy exclusion; the two Unicode identifier TODOs
+partial tokens, near-whitespace characters and word-sized scan boundaries in
+HTML and XML; the full native sanitizer suite passes too. The empty-token WPT
+record is an explicit Cheerio/browser policy exclusion; the two Unicode identifier TODOs
 are resolved. Native ASan/UBSan with leak detection and the new Unicode-buffer
 allocation-failure regression pass. Saved-input checks cover 174 inputs; all
 193 pipeline cases match each preserved installed/development consumer snapshot

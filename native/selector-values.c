@@ -71,6 +71,7 @@ static bool regex_equal(const uint16_t *a, const uint16_t *b, size_t n) {
     return true;
 }
 __attribute__((noinline)) static bool unicode_value(const lexbor_str_t *target, const lexbor_str_t *value, unsigned match) {
+    GD_PROFILE_ADD(GP_SELECTOR_UNICODE, 1);
     gd_document *doc = gd_active;
     // UTF-8 byte lengths bound UTF-16 units. Keep originals and two potentially
     // expanded lowercase slices in one reusable document-owned allocation.
@@ -103,7 +104,40 @@ __attribute__((noinline)) static bool unicode_value(const lexbor_str_t *target, 
     return aln == bln && memcmp(al, bl, aln * sizeof(*al)) == 0;
 }
 static bool nonascii(const lexbor_str_t *s) {
-    for (size_t i = 0; i < s->length; i++) if (s->data[i] >= 128) return true;
+    GD_PROFILE_ADD(GP_SELECTOR_ASCII_CALLS, 1);
+    const lxb_char_t *p = s->data;
+    size_t left = s->length;
+    // memcpy permits unaligned loads without aliasing violations. Every load
+    // stays within the string; the high-bit masks work in either byte order.
+    while (left >= 8) {
+        uint64_t word;
+        memcpy(&word, p, 8);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_BYTES, 8);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_LOADS, 1);
+        if (word & UINT64_C(0x8080808080808080)) return true;
+        p += 8; left -= 8;
+    }
+    if (left >= 4) {
+        uint32_t first, last;
+        memcpy(&first, p, 4);
+        memcpy(&last, p + left - 4, 4);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_BYTES, 8);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_LOADS, 2);
+        return ((first | last) & UINT32_C(0x80808080)) != 0;
+    }
+    if (left >= 2) {
+        uint16_t first, last;
+        memcpy(&first, p, 2);
+        memcpy(&last, p + left - 2, 2);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_BYTES, 4);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_LOADS, 2);
+        return ((first | last) & 0x8080) != 0;
+    }
+    if (left) {
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_BYTES, 1);
+        GD_PROFILE_ADD(GP_SELECTOR_ASCII_LOADS, 1);
+        return *p >= 128;
+    }
     return false;
 }
 static bool equal(const lxb_char_t *a, const lxb_char_t *b, size_t n, bool insensitive) {
@@ -138,6 +172,17 @@ static bool token_value(const lexbor_str_t *target, const lexbor_str_t *value, b
 /* Keep constant class/token operators in their callers; the Unicode helper
  * remains an out-of-line rare path. ThinLTO sees this across the Lexbor hook. */
 __attribute__((always_inline)) bool gd_selector_value(const lexbor_str_t *target, const lexbor_str_t *value, unsigned match, bool insensitive) {
+#ifdef GROVEDOM_PROFILE
+    if (insensitive) switch (match) {
+        case LXB_CSS_SELECTOR_MATCH_EQUAL: GD_PROFILE_ADD(GP_SELECTOR_EQUAL, 1); break;
+        case LXB_CSS_SELECTOR_MATCH_PREFIX: GD_PROFILE_ADD(GP_SELECTOR_PREFIX, 1); break;
+        case LXB_CSS_SELECTOR_MATCH_SUFFIX: GD_PROFILE_ADD(GP_SELECTOR_SUFFIX, 1); break;
+        case LXB_CSS_SELECTOR_MATCH_DASH: GD_PROFILE_ADD(GP_SELECTOR_DASH, 1); break;
+        case LXB_CSS_SELECTOR_MATCH_SUBSTRING: GD_PROFILE_ADD(GP_SELECTOR_SUBSTRING, 1); break;
+        case LXB_CSS_SELECTOR_MATCH_INCLUDE: GD_PROFILE_ADD(GP_SELECTOR_TOKEN, 1); break;
+        default: break;
+    }
+#endif
     if (insensitive && (nonascii(value) || nonascii(target))) return unicode_value(target, value, match);
     if (match == LXB_CSS_SELECTOR_MATCH_INCLUDE) return token_value(target, value, insensitive);
     size_t n = value->length, length = target->length;

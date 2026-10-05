@@ -10,7 +10,6 @@ fails the build. Build metadata records the effective source fingerprint.
 | Patch | Reason | Regression coverage |
 | --- | --- | --- |
 | [`lexbor-foreign-text.patch`](lexbor-foreign-text.patch) | Restrict raw-text serialization to HTML namespace parents. SVG and MathML text must escape markup characters even inside elements named `style` or `script`. | [`foreign-content.test.mjs`](../../test/foreign-content.test.mjs): namespace/tag combinations, serialize/reparse, ordinary HTML controls |
-
 | [`lexbor-cheerio-hooks.patch`](lexbor-cheerio-hooks.patch) | Route class/insensitive attribute comparisons and select insertion modes to GroveDOM-owned compatibility helpers; accept literal non-ASCII identifier scalars. | [`compatibility-gaps.test.mjs`](../../test/compatibility-gaps.test.mjs), WPT escapes and owned-buffer fault checks |
 
 The serialization change follows the namespace condition in the

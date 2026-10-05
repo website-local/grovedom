@@ -18,15 +18,13 @@ entry with the same binary. Both packages are published at experimental 0.1.0.
 
 ## Remaining work
 
-The compatibility-gap follow-up is implemented and replay-tested. Its bounded
-performance investigation found and corrected redundant token scans/dispatch.
-A warmed confirmation passes the scoped consumer screen narrowly but still
-finds about a 4% selector regression. Later ASCII, whitespace and native
-normalization experiments did not establish sufficient benefit and were not
-retained. The selector non-regression gate remains open; do not treat the
-historical refactor screen as validation of these later changes. Keep further
-checks short and tied to this concrete concern. See the
-[confirmation and experiments](benchmarks.md#warmup-confirmation-and-normalization-experiment).
+The compatibility-gap follow-up is implemented and replay-tested. Its final
+pooled-Wasm selector and consumer screens pass the fixed 2% tolerance after a
+bounded scalar ASCII-scan optimization. The selector ratio is 0.9802, only just
+above the 0.98 threshold; independent groups still vary substantially. This
+closes the scoped screen, not production adoption or a universal speedup claim.
+Earlier failed/inconclusive experiments remain documented. See the
+[final confirmation](benchmarks.md#scalar-ascii-scan-confirmation).
 
 The refactor's six-panel scoped performance screen is complete, including the
 short confirmations after correcting inherited-affinity detection. XML/Node 24
