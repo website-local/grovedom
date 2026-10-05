@@ -68,8 +68,8 @@ The [CI release policy](releasing.md) defines the native build baseline and
 platform matrix. Both 0.1.0 npm packages match the validated artifact hashes.
 
 The [WPT-derived suite](testing.md) adds independent HTML/CSS/DOM expectations.
-Literal U+00A0 and U+2003 in CSS identifiers remain known failures in pinned
-Lexbor; use CSS escapes for these characters. Attribute names containing
+Literal U+00A0 and U+2003 identifiers now pass the imported escape cases;
+NBSP acceptance is a best-effort extension beyond css-what. Attribute names containing
 non-ASCII whitespace are supported. Cheerio's `:enabled` can match non-controls,
 and an empty selection's `.html()` returns `null`, unlike jQuery's `undefined`.
 Foreign-fragment CDATA follows the tested browser-standard behavior even where
@@ -82,12 +82,15 @@ node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
 
 The [source audit](source-audit.md) records additional fixes and confirmed limits.
-Unicode case folding and token whitespace in selectors, clone-container sibling
-behavior and parser-version recovery remain best-effort. Class methods follow
-Cheerio's JavaScript whitespace rules. Fragment `:root` follows Cheerio rather
-than browser query semantics. Existing HTML callbacks, whole-class toggles and
-array-valued form setters are not exact Cheerio equivalents; see the audit before
-depending on them during migration.
+Unicode selector comparisons use baked Unicode 17.0 data and css-select's
+operator-specific rules. Class/token whitespace and empty token operands follow
+Cheerio, including differences from browser CSS. Select parsing uses targeted
+parse5-compatible insertion modes; other parser-version recovery is best-effort.
+Clones share a hidden container but keep consistent native prev/next links,
+unlike Cheerio's cloned-root links. First-child tests on multiple cloned roots
+can therefore differ. Fragment `:root` follows Cheerio. HTML callbacks and
+whole-class toggles remain GroveDOM conveniences; form array setters now follow
+the covered Cheerio behavior. See the audit for exact limits.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

@@ -9,7 +9,11 @@
     {
       "file": "patches/lexbor-foreign-text.patch",
       "sha256": "0843b50fcb10acd8e3629e96cf96960219f04511b0021733ed1b64817479e9b7"
+    },
+    {
+      "file": "patches/lexbor-cheerio-hooks.patch",
+      "sha256": "b9506012fe98d0c18d3794d59d8bc8fe7d18943bd282c9721eba63f5f9484435"
     }
   ],
-  "patchedTreeSha256": "6f2b53fd040e2e0b1ccaf6c2c5766dd430a9337846987fc4e6edff522bc81c74"
+  "patchedTreeSha256": "ec2e7137110e7f58fa87349c0d939ae5972e11c97689a589eaedefa7e5917365"
 }

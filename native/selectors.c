@@ -1,5 +1,6 @@
 #include "internal.h"
 #include "selectors.h"
+#include "selector-values.h"
 #include <lexbor/html/tag.h>
 #include <lexbor/html/tree_res.h>
 
@@ -71,9 +72,10 @@ static int summary_build(gd_document *doc) {
             if (attr && attr->value && attr->value->length) {
                 const lxb_char_t *p = attr->value->data, *end = p + attr->value->length;
                 while (p < end) {
-                    while (p < end && lexbor_utils_whitespace(*p, ==, ||)) p++;
+                    size_t width;
+                    while (p < end && (width = gd_selector_space(p, end))) p += width;
                     const lxb_char_t *start = p;
-                    while (p < end && !lexbor_utils_whitespace(*p, ==, ||)) p++;
+                    while (p < end && !gd_selector_space(p, end)) p++;
                     if (p != start) summary_add(doc, start, p - start, LXB_CSS_SELECTOR_TYPE_CLASS);
                 }
             }
@@ -156,15 +158,7 @@ static int guard_candidate(gd_document *doc, gd_selector_guard *g, node *n, lxb_
     lexbor_str_t *value = attr->value;
     if (s->type == LXB_CSS_SELECTOR_TYPE_ID) {
         if (value->length == s->name.length && memcmp(value->data, s->name.data, s->name.length) == 0) return 1;
-    } else {
-        const lxb_char_t *p = value->data, *end = p + value->length;
-        while (p < end) {
-            while (p < end && lexbor_utils_whitespace(*p, ==, ||)) p++;
-            const lxb_char_t *start = p;
-            while (p < end && !lexbor_utils_whitespace(*p, ==, ||)) p++;
-            if ((size_t) (p - start) == s->name.length && memcmp(start, s->name.data, s->name.length) == 0) return 1;
-        }
-    }
+    } else return gd_selector_value(value, &s->name, LXB_CSS_SELECTOR_MATCH_INCLUDE, false);
     return 0;
 }
 

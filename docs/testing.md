@@ -27,7 +27,7 @@ different from the supported Cheerio contract.
 
 ## Browser entry
 
-`test/browser-correctness.html` runs the same 848 WPT-derived cases through async
+`test/browser-correctness.html` runs the same 845 WPT-derived cases through async
 browser initialization. Serve the workspace over HTTP with the Wasm file also
 available, then open `/test/browser-correctness.html?wasm=/path/grovedom.wasm`.
 The URL must satisfy browser CORS rules. The local server accepts `.mjs` and JSON:
@@ -63,6 +63,15 @@ Ancestor-selector tests check backtracking through nested list pseudo-classes;
 XML serializer tests cover entities and doctype identifiers. Dependency-patch
 tests reject modified inputs, patches and cached trees, and ensure preparation
 does not modify the supplied upstream source.
+
+The gap follow-up has 1,747 cases: native 1,688 pass / 59 skip; pooled Wasm
+1,696 / 51, with no TODOs or unexpected failures. The empty-token WPT record is
+an explicit Cheerio/browser policy exclusion; the two Unicode identifier TODOs
+are resolved. Native ASan/UBSan with leak detection and the new Unicode-buffer
+allocation-failure regression pass. Saved-input checks cover 174 inputs; all
+193 pipeline cases match each preserved installed/development consumer snapshot
+on native and Wasm. The source snapshots are historical, not a claim about
+every subsequent downloader revision.
 
 The [source-driven audit](source-audit.md) adds callback/coercion, lazy data,
 class spacing, form/link pseudo, traversal ordering, fragment-root, doctype and

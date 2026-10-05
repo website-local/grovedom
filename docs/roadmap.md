@@ -18,6 +18,13 @@ entry with the same binary. Both packages are published at experimental 0.1.0.
 
 ## Remaining work
 
+The compatibility-gap follow-up is implemented and replay-tested. Its bounded
+performance investigation found and corrected redundant token scans/dispatch,
+but final identical-code controls remain outside tolerance. A precise current
+non-regression claim remains open; do not treat the historical refactor screen
+as validation of these later changes. Keep any further checks short and tied to
+a concrete regression concern.
+
 The refactor's six-panel scoped performance screen is complete, including the
 short confirmations after correcting inherited-affinity detection. XML/Node 24
 has a narrow margin inside the 2% tolerance. Earlier inconclusive controls remain

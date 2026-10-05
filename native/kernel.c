@@ -37,6 +37,7 @@ static void gd_release(gd_document *doc) {
     gd_free(doc->output.data);
     gd_free(doc->transfer.data);
     gd_free(doc->xml_name.data);
+    gd_free(doc->selector_text.data);
     doc->html = NULL;
     doc->css = NULL;
     doc->selectors = NULL;
@@ -45,7 +46,7 @@ static void gd_release(gd_document *doc) {
     doc->attribute_history = NULL;
     doc->nodes = NULL;
     doc->results = NULL;
-    doc->input.data = doc->output.data = doc->transfer.data = doc->xml_name.data = NULL;
+    doc->input.data = doc->output.data = doc->transfer.data = doc->xml_name.data = doc->selector_text.data = NULL;
     gd_live_documents--;
 }
 

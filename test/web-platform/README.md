@@ -18,9 +18,8 @@ shadow DOM and browser-specific CSS error recovery are outside this selection.
 
 All 68 top-level escape cases from `ParentNode-querySelector-escapes.html` are
 retained. Two cannot represent their lone UTF-16 surrogate IDs through a UTF-8
-DOM and skip explicitly. Two execute as known failures: pinned Lexbor rejects
-literal U+00A0 and U+2003 in identifiers. Escaped forms pass. Only the expected
-selector error counts as a TODO; a changed result or different error fails.
+DOM and skip explicitly. Literal U+00A0/U+2003 identifier cases now pass;
+NBSP acceptance is a useful extension beyond css-what. Escaped forms also pass.
 
 `dom-cases.mjs` adapts 28 additional cases from these files at the same revision:
 
@@ -38,8 +37,9 @@ and `.html()`; fixed expected text, node types and identities stay intact. These
 28 cases run in both buffered and direct execution. No browser scripts, external
 resources, layout, events or live DOM property state are emulated.
 
-The resulting suite has 848 cases: 812 pass, 34 explicitly skip and two are
-executed TODOs. One selector exclusion preserves Cheerio's broad `:enabled`
+The resulting suite has 845 cases: 810 pass, 35 explicitly skip and no TODOs.
+The empty-token selector record is excluded because Cheerio regex semantics
+differ from browser CSS; compatibility-gaps regressions cover it separately. One selector exclusion preserves Cheerio's broad `:enabled`
 semantics; a separate compatibility regression records the difference.
 Scoped `find` follows Cheerio's ancestry boundary. WPT record 160 retains its
 original expected IDs and runs in document scope; its element context skips

@@ -107,9 +107,15 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
         }
         lxb_dom_node_destroy(fragment);
     } else if (operation == 2 || operation == 13) {
+        /* A shared non-element parent makes cloned collections usable with
+         * sibling traversal and wrapping, without inconsistent native links. */
+        lxb_dom_node_t *container = operation == 2 && count ? lxb_dom_interface_node(lxb_dom_document_create_document_fragment(&doc->html->dom_document)) : NULL;
+        if (operation == 2 && count && !container) goto failed;
         for (size_t i = 0; i < count; i++) {
             lxb_dom_node_t *node = operation == 2 ? gd_clone(doc, doc->nodes[ids[i]].node) : doc->nodes[ids[i]].node;
-            if (!node || gd_collect(node, 0, doc) != LXB_STATUS_OK) goto failed;
+            if (!node) goto failed;
+            if (container) lxb_dom_node_insert_child(container, node);
+            if (gd_collect(node, 0, doc) != LXB_STATUS_OK) goto failed;
         }
         if (operation == 13) {
             /* Group disconnected roots by first occurrence. A consistent root

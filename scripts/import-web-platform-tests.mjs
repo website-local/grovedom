@@ -27,6 +27,7 @@ runInNewContext(files['dom/nodes/selectors.js'], data, { timeout: 1000 });
 assert.equal(data.validSelectors.length, 207);
 
 function exclusion(row) {
+  if (row.selector === '#attr-whitespace [class~=""]') return "Cheerio css-select matches empty ~= operands using regex boundaries; browser CSS never matches them. Covered by compatibility-gaps regressions.";
   if (!(row.testType & data.TEST_QSA)) return 'Upstream matches/find-only case; not a querySelectorAll case.';
   if (row.exclude?.includes('html')) return 'Upstream XHTML-only case; this fixture uses HTML.';
   if (/\|(?![=])/.test(row.selector)) return 'Requires namespace creation/matching outside the GroveDOM handle contract.';
@@ -52,7 +53,6 @@ for (const match of files['dom/nodes/ParentNode-querySelector-escapes.html'].mat
   assert.equal(typeof id, 'string'); assert.equal(typeof selector, 'string');
   escapes.push({ id, selector, matches: match[1] === 'Matched',
     ...(!id.isWellFormed() ? { skip: 'Lone UTF-16 surrogates cannot round-trip through the UTF-8 DOM representation.' } : {}),
-    ...(['#\u00a0', '#\u2003'].includes(selector) ? { todo: 'Pinned Lexbor rejects these unescaped Unicode identifier characters; escaped forms pass. This standards gap remains best-effort.' } : {}),
   });
 }
 assert(escapes.length > 40);

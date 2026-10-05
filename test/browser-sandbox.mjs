@@ -64,5 +64,5 @@ const counts = conformance.namespace.runBrowserCases(entry.namespace.load, fixtu
   });
 assert.deepEqual(failures, []);
 assert(counts.pass > 800, 'The browser standards suite must actually execute.');
-assert.equal(counts.todo, 2);
+assert.equal(counts.todo, 0);
 console.log('Portable browser correctness: ' + JSON.stringify(counts));

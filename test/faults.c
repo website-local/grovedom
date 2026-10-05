@@ -38,5 +38,22 @@ int main(void) {
         const size_t *stats = gk_stats();
         assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
     }
+    // A failed Unicode comparison must report OOM, not an empty selection.
+    gd_document *doc = gk_new();
+    assert(doc != NULL);
+    input(doc, "<p data-x=\xc3\x89></p>");
+    assert(gk_parse(doc, 1, 0));
+    input(doc, "p");
+    assert(gk_query(doc, &root, 1, 0));
+    input(doc, "[data-x='\xc3\xa9' i]");
+    gd_test_fail_after(0);
+    assert(gk_query(doc, &root, 1, 0) == NULL);
+    assert(strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY") == 0);
+    gd_test_fail_after(-1);
+    const gd_result *matched = gk_query(doc, &root, 1, 0);
+    assert(matched && matched->length == 1);
+    gk_delete(doc);
+    const size_t *stats = gk_stats();
+    assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
     return 0;
 }

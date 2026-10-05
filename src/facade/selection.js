@@ -285,7 +285,11 @@ export function createSelection(context) {
             if (value === undefined)
                 return read(state, ids, 3);
             if (typeof value === 'function')
-                return this.each(function (i, node) { const one = state.api(node); one.html(value.call(node, i, one.html())); });
+                return this.each(function (i, node) {
+                    if (!['tag', 'script', 'style', 'root'].includes(node.type)) return;
+                    const one = state.api(node);
+                    one.html(value.call(node, i, one.html()));
+                });
             if (typeof value === 'string' || value === null)
                 enqueue(state, ids, 4, value ?? '');
             else {
@@ -422,11 +426,10 @@ export function createSelection(context) {
                 if (node.name === 'textarea')
                     one.text(next == null ? '' : next);
                 else if (node.name === 'select') {
+                    if (Array.isArray(next) && one.attr('multiple') === undefined) return;
                     const values = (Array.isArray(next) ? next : [next]).map(String);
-                    one.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(option.val()) ? '' : null); });
+                    one.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
                 }
-                else if (Array.isArray(next) && ['checkbox', 'radio'].includes(one.attr('type')))
-                    one.attr('checked', next.map(String).includes(one.val()) ? '' : null);
                 else
                     one.attr('value', next == null ? '' : String(next));
             });

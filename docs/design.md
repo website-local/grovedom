@@ -41,6 +41,8 @@ package/build JSON checks or environment-variable configuration remain.
 | `nodes.c` / `.h` | Node IDs, snapshots, traversal and subtree lifetime |
 | `query.c` / `.h` | Selector plans, matching and template traversal |
 | `selectors.c` / `.h` | Selector guards and compatibility matching |
+| `selector-values.c` / `.h` | ASCII token matching and isolated Unicode selector comparisons |
+| `html-select.c` / `.h` | Cheerio/parse5 select insertion modes reached through pinned hooks |
 | `serialize.c` / `.h` | Text, HTML serialization and observations |
 | `attributes.c` / `.h` | Attribute names, foreign-namespace compatibility and mutation metadata |
 | `mutate.c` / `.h` | Fragment edits and ordered mutation dispatch |

@@ -24,7 +24,7 @@ struct gd_document {
     uint32_t *results;
     size_t result_count, result_capacity;
     uint32_t mark;
-    gd_buffer input, output, transfer, xml_name;
+    gd_buffer input, output, transfer, xml_name, selector_text;
     gd_result result;
     const char *error_code, *error_message;
     char error_buffer[96];

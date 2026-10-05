@@ -257,7 +257,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         else if (doc->templates) status = cross_fragments ? gd_find_templates(doc, node, plan) : gd_find_fragment(doc, node, plan, gd_collect);
         else status = lxb_selectors_find(doc->selectors, node, plan, gd_collect, doc);
         doc->html->dom_document.compat_mode = mode;
-        if (status != LXB_STATUS_OK) {
+        if (status != LXB_STATUS_OK || doc->error_code) {
             doc->selector_context = (gd_selector_context) {0};
             if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Selector execution failed"); return gd_failed();
         }

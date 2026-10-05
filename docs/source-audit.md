@@ -2,8 +2,9 @@
 
 This audit pairs upstream implementation branches with small differential
 reproducers beyond the saved MDN workload. It does not establish complete
-Cheerio compatibility. No dependency update or additional Lexbor patch was
-required for the fixes below.
+Cheerio compatibility. The initial fixes required no dependency update. A subsequent
+[compatibility patch](../native/patches/README.md) connects GroveDOM-owned helpers
+to the pinned matcher and select parser; it changes no public binding protocol.
 
 ## Sources examined
 
@@ -47,6 +48,34 @@ The imported jQuery class-whitespace case and WPT fragment `:root` case retain
 their original assertions as explicit exclusions because they differ from
 Cheerio. Exclusions do not count as passes.
 
+## Follow-up gap fixes
+
+[Gap regressions](../test/compatibility-gaps.test.mjs) cover:
+
+- Unicode insensitive comparisons with css-select's operator-specific rules:
+  lowercase plus UTF-16 lengths/slices for equality/prefix/suffix/hyphen, and
+  non-Unicode regular-expression canonicalization for substring/token matches.
+  Expanding lowercase, contextual Greek sigma, astral case pairs, Kelvin sign
+  and long s are tested. Unicode 17.0 data is baked into C; regeneration uses
+  [the checked generator](../scripts/generate-unicode.mjs), not runtime ICU.
+- JavaScript whitespace in class/token selectors, including guards and the
+  class summary. Empty token operands follow Cheerio's regex boundaries.
+- Shared hidden clone containers for siblings, wrapping and movement, while
+  preserving reciprocal native links and retained handles.
+- parse5-style select parsing in documents, table contexts and fragments.
+  The targeted insertion modes do not alter XML or add a second parser.
+- Array form setters: single selects remain unchanged; checkbox/radio values
+  are assigned without toggling checked state. HTML callback conveniences skip
+  text/comment entries and preserve original element callback indices.
+
+The previous 1,711-comparison source probes now leave six mismatching
+comparisons: whole-class toggle conveniences (three), HTML callbacks, clone
+first-child behavior and the prototype of the attribute snapshot returned by
+an array-value probe. That last probe has identical stored attributes and
+serialization. One reference-only selector error remains outside comparisons.
+A separate 588-case select recovery probe matches Cheerio on both backends.
+These are diagnostic comparisons, not distinct defect counts or full coverage.
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across
@@ -54,17 +83,16 @@ operators, flags and document modes; they are not independent defect counts.
 
 | Reproducer | Cheerio | GroveDOM / status |
 |---|---|---|
-| `<p data-x="É">`, `[data-x="é" i]` | JavaScript Unicode case rules match | ASCII case folding; broader Unicode matching is best-effort |
-| `<p class="a&#160;b">`, `.b` or `[class~="b"]` | JavaScript whitespace separates tokens | CSS ASCII whitespace; differs from class **methods** above; best-effort |
-| Empty attribute, `[data-x~=""]` | Can match through css-select's regular expression | Does not match, following CSS; best-effort Cheerio parity |
-| Two selected nodes cloned together | Hidden shared domhandler root affects sibling/structural selectors | Independent cloned roots; container/sibling parity is best-effort |
-| `$('select').html('<b>x</b>')` | parse5's `IN_SELECT` mode discards `b` | Pinned Lexbor retains it in its newer body-mode path; parser-version/recovery gap |
-| `.html(callback)`, `.toggleClass()` / boolean argument | Not equivalent callback/toggle operations in Cheerio 1.2.0 | Existing GroveDOM convenience behavior; avoid for exact parity |
-| `.val(array)` on single select or checkbox | Select unchanged; checkbox value assigned | Existing GroveDOM selection/checked-state behavior; avoid for exact parity |
+| Unicode data version | Uses the host JS engine's Unicode data | Baked Unicode 17.0; newly assigned characters can differ on engines with other Unicode revisions |
+| Two selected nodes cloned together | Root prev/next links are absent; both roots can match first-child | Shared container with reciprocal links; only its first element matches first-child. This deliberate best-effort difference protects consistent native tree operations |
+| Literal NBSP identifier | css-what rejects that spelling | Accepted as a WPT extension; escaped spellings work in both |
+| `.html(callback)`, `.toggleClass()` / boolean argument | Not equivalent callback/toggle operations in Cheerio 1.2.0 | Retained GroveDOM conveniences; avoid for exact parity |
+| Raw attribute snapshot prototype | domhandler null-prototype object | GroveDOM ordinary-object snapshot; stored values/serialization match |
 
-The earlier literal U+00A0/U+2003 CSS identifier failures also remain. Prioritize
-consumer cases and define Unicode/clone-container contracts before adding
-compatibility machinery to common selector paths.
+Parser recovery beyond the targeted select modes and the other documented
+unsupported APIs remain best-effort. These changes do not claim complete
+Cheerio equivalence.
 
-No elapsed-time benchmark was run for this audit. Prior scoped performance
-results remain historical evidence, not measurements of these fixes.
+The initial source audit had no elapsed-time benchmark. Follow-up timing and
+profiling are recorded separately in [benchmarks](benchmarks.md); historical
+adoption ratios are not measurements of these fixes.

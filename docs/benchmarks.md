@@ -225,6 +225,54 @@ every workload or broader platform performance. Library source/artifacts are
 unchanged across these confirmations. No further timing is required for this
 architectural checkpoint.
 
+### Compatibility-gap follow-up
+
+The Unicode/token, select-parser and clone-container changes keep the ordinary
+ASCII path in C. An initial three-block pooled-Wasm selector screen found a
+regression: baseline/candidate 0.846 with identical-code control 0.996, all blocks
+retained and quiet prechecks. The token matcher then removed redundant operand
+and boundary scans. A follow-up measured 0.956 with control 0.954 (inconclusive).
+Code inspection also found a call from the class guard into the general value
+matcher. The final code keeps constant-operator dispatch inline and the Unicode
+helper separate; native disassembly confirms the guard no longer calls the
+whole dispatcher.
+
+Final fixed screens use one group of three rotated/mirrored blocks, two batches
+per sample and the unchanged independent-probe filter of 1.5. The authored
+120-row class/attribute replay uses 50 warmups and four replays per batch; the
+saved consumer page uses five warmups and one replay. The tiny authored replay
+had continued warming during the earlier ten-warmup runs, so those protocols
+remain separate. All final blocks and controls are retained; all prechecks are
+quiet. Ratios below are baseline/candidate, raw = filtered.
+
+| Final short screen | Candidate | Identical-code control | Result |
+|---|---:|---:|---|
+| Authored class/attribute replay | 1.028 | 1.053 | Inconclusive control |
+| Saved MDN consumer page | 0.979 | 1.025 | Inconclusive control |
+
+The large initial selector gap is absent in the final observations, but neither
+screen establishes the 2% non-regression gate or a speedup. The consumer ratio
+also falls just below 0.98. An earlier consumer screen (1.207 raw / 1.296
+filtered, control 1.053 / 1.113, two of three blocks retained) remains preserved
+as inconclusive. Timing was stopped after the fixed panels, not extended to
+obtain a passing ratio. Historical adoption results remain unchanged.
+
+Before the final token optimization, a short native phase capture repeated four
+MDN inputs and a sitemap three measured times after warmup. All outputs matched
+and all 45 loads were disposed. The 11,538 backing allocation/reallocation
+requests are unchanged from the earlier panel. Queries, binding work and parsing
+lead the measured native phases; allocator hooks account for about 2.4% of their
+exclusive time. Wrapped URI processing takes about half the instrumented total,
+while synchronous DOM work takes about 15%. These timers perturb execution and
+are bottleneck evidence, not performance ratios. A separate Node inspector
+capture at a requested 100 microsecond interval collected 1,769 samples; the V8
+tick profile includes initialization too. Both retain raw output locally.
+
+This supports focusing future work on measured query/binding costs. It does not
+justify larger heaps, new pool defaults or an allocator rewrite. No such defaults
+changed in this pass. The final release Wasm still has no imports or diagnostic
+exports.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol

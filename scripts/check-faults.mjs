@@ -9,7 +9,7 @@ if (!output || !source || !build) throw new Error('Set GROVEDOM_FAULT_BUILD_DIR,
 const preparedSource = prepareDependency(source, build, resolve('native/dependency.json'));
 mkdirSync(output, { recursive: true });
 const executable = resolve(output, 'faults');
-const files = ['kernel', 'memory', 'nodes', 'query', 'serialize', 'attributes', 'mutate', 'xml', 'selectors'];
+const files = ['kernel', 'memory', 'nodes', 'query', 'serialize', 'attributes', 'mutate', 'xml', 'selectors', 'selector-values', 'html-select'];
 const args = ['-std=c11', '-O1', '-g', '-DGROVEDOM_FAULT_INJECTION', '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-flto=thin', '-fuse-ld=lld', '-Wl,--threads=2', '-I', 'native', '-I', join(preparedSource, 'source'), 'test/faults.c', ...files.map(name => `native/${name}.c`), join(build, 'lexbor/liblexbor_static.a'), '-o', executable];
 const compiled = spawnSync(process.env.CC ?? 'clang', args, { stdio: 'inherit' });
 if (compiled.status !== 0) throw new Error('Fault diagnostic compilation failed');
