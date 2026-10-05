@@ -60,8 +60,9 @@ assembly mode, checks release artifacts and standalone types, and creates:
 The native manifest restricts OS, CPU and libc. ARM64, musl/Alpine, Windows and
 macOS native builds are not shipped. Use the main Wasm package there. Building
 locally on a newer system does not produce the CI native compatibility baseline.
-Both package versions stay **0.1.0**. Future releases require committing matching
-versions in both manifests and updating the root lockfile first.
+Published **0.1.0** remains immutable. Both source manifests and the root lockfile
+now target **0.1.1** for the next release; that version is not yet published.
+Future releases require updating all three files together.
 
 ## First npm publish
 
@@ -83,7 +84,7 @@ Name availability is decided by npm at publication time.
    publication needs npm's bypass-2FA capability; use a short expiry and revoke
    the bootstrap token after trusted publishing works. Store it as **NPM_TOKEN**
    in the GitHub **npm environment**, never in the repository.
-4. Run **Release** on `main`, version `0.1.0`, `npm_packages: wasm` (or `both`),
+4. Run **Release** on `main` with the committed version, `npm_packages: wasm` (or `both`),
    `npm_tag: latest`, and `npm_auth: token`. Approve environment deployments if
    reviewers were configured. The workflow builds and tests before publication.
 
@@ -144,3 +145,37 @@ If npm succeeded but GitHub publication failed, the npm version stays published.
 For a manually completed GitHub release, attach both tested `.tgz` files,
 `SHA256SUMS` and `release.json` from that run's `npm-tarballs` artifact. Do not
 rebuild or republish the same npm version from a newer commit.
+
+## Browser demo on GitHub Pages
+
+In **Settings → Pages → Build and deployment**, select **GitHub Actions** as the
+source. The `github-pages` environment must allow deployments from `main` and
+release tags (`v*`), since the workflow supports both manual and release events.
+No additional token or npm credentials are needed: the official Pages actions
+use `GITHUB_TOKEN` and a deployment OIDC token. The repository's normal Pages
+URL is <https://website-local.github.io/grovedom/>.
+
+Run **Actions → Browser demo → Run workflow** on `main` with a published tag,
+initially `v0.1.0`. The release must contain its original two `.tgz` files,
+`SHA256SUMS` and `release.json`. A newer CI artifact with the same package version
+is not a replacement: commit and checksum verification must match the release.
+
+Publishing a release through the UI triggers the same workflow, including
+prereleases. The **Release** workflow calls it directly after successful GitHub
+publication, reusing that run's tested tarballs. This explicit call is necessary
+because releases created with `GITHUB_TOKEN` do not start release-event workflows.
+Pushes and pull requests never deploy Pages.
+
+Assembly checks the tagged source commit and tarball hashes, copies the demo from
+that tag, and serves the matching packaged JS and Wasm. Relative URLs support the
+repository's `/grovedom/` path and custom domains. Only the demo and Wasm package
+are uploaded, including their licenses. No compiler, npm install, native rebuild
+or benchmark runs in this workflow. Normal/fallback portable checks exercise the
+packaged browser graph before deployment; actual browser engines remain best-effort.
+
+Deployments are serialized without cancelling an active deployment. The selected
+release replaces the site, so manual selection of an older tag intentionally
+rolls it back. If Pages deployment fails, npm and the GitHub release remain
+published; rerun the failed job or dispatch **Browser demo** for that tag without
+releasing again. Account-side Pages setup and the first hosted deployment remain
+necessary to make the URL live.

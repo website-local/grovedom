@@ -1,0 +1,104 @@
+name: Browser demo
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to deploy
+        required: true
+        default: v0.1.0
+        type: string
+  release:
+    types: [published]
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      commit:
+        description: Tested release commit
+        required: true
+        type: string
+      artifact:
+        description: Tested tarballs from the calling workflow
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  assemble:
+    if: github.repository == 'website-local/grovedom' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+      RELEASE_COMMIT: ${{ inputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Validate release tag
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { releaseOptions } from './scripts/ci/release-options.mjs';
+          const tag = process.env.RELEASE_TAG;
+          assert.equal(tag[0], 'v', 'Use a version tag such as v0.1.0');
+          releaseOptions(tag.slice(1), 'next', 'none', 'oidc');
+          JS
+      - name: Check out the released demo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          path: released
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: inputs.artifact != ''
+        with:
+          name: ${{ inputs.artifact }}
+          path: ${{ runner.temp }}/tarballs
+      - name: Download published release assets
+        if: inputs.artifact == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ "$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft')" != false ]; then
+            echo 'Select a published release, not a draft.' >&2
+            exit 1
+          fi
+          gh release download "$RELEASE_TAG" --dir "$RUNNER_TEMP/tarballs" \
+            --pattern 'grovedom-*.tgz' --pattern SHA256SUMS --pattern release.json
+      - name: Verify and assemble the static site
+        run: |
+          node scripts/ci/pages.mjs "$RUNNER_TEMP/tarballs" released "$RUNNER_TEMP/site" "$RELEASE_TAG" "$RELEASE_COMMIT"
+          node --experimental-vm-modules test/browser-sandbox.mjs "$RUNNER_TEMP/site/grovedom"
+          GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.mjs "$RUNNER_TEMP/site/grovedom"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    needs: assemble
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy browser demo
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

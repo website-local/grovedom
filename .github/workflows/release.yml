@@ -6,7 +6,7 @@ on:
       version:
         description: Committed package version (no v prefix)
         required: true
-        default: '0.1.0'
+        default: '0.1.1'
         type: string
       npm_packages:
         description: npm publication (none creates only the GitHub release)
@@ -151,3 +151,17 @@ jobs:
           RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
           NPM_PACKAGES: ${{ inputs.npm_packages }}
         run: node scripts/ci/github-release.mjs "$RUNNER_TEMP/tarballs"
+
+  pages:
+    # Releases created with GITHUB_TOKEN do not emit another workflow run.
+    if: ${{ !cancelled() && needs.github.result == 'success' }}
+    needs: [preflight, github]
+    uses: ./.github/workflows/pages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    with:
+      tag: ${{ needs.preflight.outputs.tag }}
+      commit: ${{ github.sha }}
+      artifact: npm-tarballs

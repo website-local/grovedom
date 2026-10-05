@@ -175,6 +175,12 @@ jobs:
           path: ${{ env.GROVEDOM_BUILD_DIR }}
       - run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
       - run: npm run ci:pack -- "$RUNNER_TEMP/release"
+      - name: Assemble and check the Pages package
+        run: |
+          VERSION="$(node -p 'JSON.parse(require("fs").readFileSync("package.json")).version')"
+          node scripts/ci/pages.mjs "$RUNNER_TEMP/release/tarballs" . "$RUNNER_TEMP/site" "v$VERSION" "$GITHUB_SHA"
+          node --experimental-vm-modules test/browser-sandbox.mjs "$RUNNER_TEMP/site/grovedom"
+          GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.mjs "$RUNNER_TEMP/site/grovedom"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-tarballs
