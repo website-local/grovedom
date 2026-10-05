@@ -1,64 +1,37 @@
 # Readiness and next work
 
-The architectural direction is Wasm-first: the main `grovedom` package uses
-pooled Wasm on Node, `grovedom-native` is separate, and browsers use an async ESM
-entry with the same binary. Both packages are published at experimental 0.1.0.
+Experimental `0.1.0` is published; `0.1.1` is in development. The main package is
+Wasm-first, native is separate, and the browser entry uses the same Wasm binary
+with async initialization. [Compatibility](compatibility.md) defines supported,
+best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
 
-## Implemented architecture
+## Current status
 
-- Separate document, selection, node, operation and initialization ESM modules.
-- Separate native lifecycle, allocation, node, query, mutation and serialization
-  translation units with internal headers and hidden symbols.
-- Explicit runtime initialization; baked build constants; no runtime environment
-  or package-metadata checks.
-- Development-only JS diagnostics, independent package assembly and browser demo.
-- MIT project license and bundled third-party license/notice files in both packages.
-- Supported/best-effort/unsupported compatibility status, differential tests,
-  worker/lifecycle coverage, owned buffer failure injection and scoped replay.
+- The architecture refactor and compatibility follow-up passed scoped performance
+  screens. Margins are narrow for XML/Node 24 and the selector workload.
+- Stateful fuzzing found and fixed insertion-context differences. The quality
+  fix's consumer screen passed; its insertion control remains inconclusive.
+- Fragment reuse improves an authored bulk-insertion case. Consumer profiling
+  points instead to repeated tag checks and attribute access. See
+  [evidence and limits](benchmarks.md); none establishes production adoption.
+- Hosted build/package checks passed Node 22.0.0 and maintained Node 22/24 on
+  Linux, plus pooled Wasm on Node 24 Windows/macOS. Browser engines remain untested.
 
-## Remaining work
+## Priorities
 
-The quality pass adds stateful differential fuzzing, later buffer-allocation
-failures and an insertion-context correctness fix. The short consumer performance
-screen passes; the insertion-only control remains inconclusive. See the
-[quality follow-up](benchmarks.md#insertion-context-quality-follow-up). This does
-not supersede the scope or limits of the earlier selector screen below.
+1. Optimize concrete consumer bottlenecks with short, predeclared comparisons;
+   preserve callback order, retained handles and the primary pooled-Wasm path.
+2. Broaden stateful fuzzing and parser/allocation-failure coverage. Current owned
+   buffer fault tests do not establish universal upstream OOM recovery.
+3. Validate original production inputs and workload weights with the application
+   owner; saved-output replays are not a complete crawl distribution.
+4. Run compatibility/demo cases in Chromium, Firefox and WebKit before promoting
+   browser support from best-effort. Add native platforms when demand justifies
+   their build, package and maintenance costs.
+5. Configure npm trusted publishing after the token-based bootstrap; follow the
+   [manual release workflow](releasing.md) for tested artifacts and provenance.
 
-The compatibility-gap follow-up is implemented and replay-tested. Its final
-pooled-Wasm selector and consumer screens pass the fixed 2% tolerance after a
-bounded scalar ASCII-scan optimization. The selector ratio is 0.9802, only just
-above the 0.98 threshold; independent groups still vary substantially. This
-closes the scoped screen, not production adoption or a universal speedup claim.
-Earlier failed/inconclusive experiments remain documented. See the
-[final confirmation](benchmarks.md#scalar-ascii-scan-confirmation).
-
-The refactor's six-panel scoped performance screen is complete, including the
-short confirmations after correcting inherited-affinity detection. XML/Node 24
-has a narrow margin inside the 2% tolerance. Earlier inconclusive controls remain
-preserved; this does not establish production adoption. See
-[the screen](benchmarks.md#corrected-affinity-and-final-confirmation).
-
-Hosted CI and package checks passed for the exact Node 22.0.0 floor, maintained
-Node 22/24 on Linux, and Node 24 pooled Wasm on Windows/macOS.
-
-1. Run the demo and compatibility cases in Chromium, Firefox and WebKit before
-   promoting browser support from best-effort. Actual browser-engine execution
-   remains untested.
-2. Validate production input weights and original, unprocessed pages with the
-   application owner. The deterministic nineteen-case replay is representative
-   diagnostic evidence, not a production traffic distribution or complete crawl.
-3. Broaden allocator-failure and fuzz coverage, particularly upstream parser
-   exhaustion and unaudited raw-node/option behavior. Existing owned buffer
-   failure tests do not establish universal OOM recovery.
-4. Configure npm trusted publishing after the successful token-based bootstrap.
-   [Manual release workflows](releasing.md) define the Wasm and Linux x64/glibc
-   artifacts; future releases should use OIDC with the configured package owners.
-
-Avoid another broad optimization campaign. Revisit performance for a concrete
-integration bottleneck or reproducible regression, using the bounded short
-protocol in [benchmarks](benchmarks.md). Do not add schedulers, JITs or an expanding
-backend framework to pursue small noisy gains. Keep any
-[dependency patches](../native/patches/README.md) minimal,
-pinned, reproducible and covered by regressions.
-
-[Historical roadmap](history/roadmap.md) records earlier milestones.
+Avoid broad tuning campaigns, new schedulers/JITs and backend frameworks for noisy
+micro-gains. Keep [dependency patches](../native/patches/README.md) minimal, pinned
+and regression-tested. [Historical milestones](history/roadmap.md) remain separate
+from current readiness.

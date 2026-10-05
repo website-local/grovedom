@@ -99,8 +99,7 @@ or establish an adoption multiplier.
 ## Checks
 
 See [correctness testing](testing.md) for the current matrix, pinned reference
-suites and browser correctness page. The counts below describe the earlier
-refactor checkpoint.
+suites and browser correctness page.
 
 `npm test` uses developer-only diagnostic entries. Select backend/heap with
 `GROVEDOM_BACKEND=napi|wasm` and `GROVEDOM_WASM_HEAP=pool|global|document`.
@@ -119,13 +118,3 @@ directory and `GROVEDOM_SANITIZE=1`. `scripts/check-faults.mjs` tests owned buff
 allocation failures with sanitizers and a separate `GROVEDOM_FAULT_BUILD_DIR`.
 See [benchmarks](benchmarks.md) for short measurement rules and
 [compatibility](compatibility.md) for supported versus best-effort behavior.
-
-The refactor checkpoint passed the 729-case matrix: native 712 passes/17 skips,
-shared Wasm 714/15, fresh Wasm 715/14 and pooled Wasm 718/11. Native/pool also
-pass Node 24. Public entries match all nineteen consumer outputs/events; type
-checks, native ASan/UBSan with leak detection, owned buffer failure injection and
-1,200 additional deterministic fuzz cases pass. Separate target packages load on
-Node 22/24 without build metadata. Portable browser checks include missing
-FinalizationRegistry and TextEncoder.encodeInto fallbacks. Later hosted CI passed
-the exact Node 22.0.0 floor and the [release platform matrix](releasing.md);
-actual browser engines remain untested.
