@@ -20,8 +20,5 @@
     "src",
     "grovedom.node",
     "README.md"
-  ],
-  "peerDependencies": {
-    "cheerio": "1.2.0"
-  }
+  ]
 }

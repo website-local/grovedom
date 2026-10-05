@@ -8,6 +8,9 @@ It parses, queries, mutates and serializes documents through ordered operations.
 and uses the **same Wasm binary**, with asynchronous initialization followed by
 synchronous DOM calls. No target creates threads or fetches document resources.
 
+Both packages are standalone, including their TypeScript declarations. Cheerio
+is a development comparison dependency only; applications do not need it installed.
+
 ```js
 import { init, load } from 'grovedom';
 

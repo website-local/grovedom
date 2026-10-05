@@ -1,13 +1,27 @@
-import type { CheerioOptions, FilterFunction } from 'cheerio';
-export type { FilterFunction, SelectorType } from 'cheerio';
+/** CSS selector text, parsed and validated at runtime. */
+export type SelectorType = string;
+export type FilterFunction<T> = (this: T, index: number, node: T) => boolean;
 
-export type XMLOptions = Pick<Exclude<CheerioOptions['xml'], boolean | undefined>,
-  'decodeEntities' | 'lowerCaseTags' | 'lowerCaseAttributeNames' | 'selfClosingTags' | 'emptyAttrs' | 'encodeEntities' | 'recognizeSelfClosing' | 'recognizeCDATA'> & { xmlMode?: true };
-export interface LoadOptions extends Pick<CheerioOptions, 'scriptingEnabled' | 'baseURI' | 'xmlMode'> {
+export interface XMLOptions {
+  decodeEntities?: boolean;
+  lowerCaseTags?: boolean;
+  lowerCaseAttributeNames?: boolean;
+  selfClosingTags?: boolean;
+  emptyAttrs?: boolean;
+  encodeEntities?: boolean | 'utf8';
+  recognizeSelfClosing?: boolean;
+  recognizeCDATA?: boolean;
+  xmlMode?: true;
+}
+export interface LoadOptions {
+  scriptingEnabled?: boolean;
+  baseURI?: string | URL;
+  xmlMode?: boolean;
   xml?: boolean | XMLOptions;
   execution?: 'buffered' | 'direct';
 }
-export type SerializerOptions = Pick<CheerioOptions, 'xmlMode'> & Pick<XMLOptions, 'decodeEntities' | 'encodeEntities' | 'selfClosingTags' | 'emptyAttrs'> & {
+export type SerializerOptions = Pick<XMLOptions, 'decodeEntities' | 'encodeEntities' | 'selfClosingTags' | 'emptyAttrs'> & {
+  xmlMode?: boolean;
   xml?: boolean | Pick<XMLOptions, 'decodeEntities' | 'encodeEntities' | 'selfClosingTags' | 'emptyAttrs'>;
 };
 /** Document-owned identity. Handles are not domhandler AnyNode objects. */
@@ -165,7 +179,8 @@ export interface GroveDOMAPI {
 }
 export function load(content: string | Uint8Array, options?: LoadOptions | null, isDocument?: boolean): GroveDOMAPI;
 export function contains(container: NodeHandle, contained: NodeHandle): boolean;
-export const merge: typeof import('cheerio').merge;
+/** Append to the first array-like value; return undefined for invalid inputs. */
+export function merge<T>(first: { length: number; [index: number]: T }, second: ArrayLike<T>): ArrayLike<T> | undefined;
 
 /** Opaque compiled module; init validates WebAssembly.Module identity at runtime.
  * Structural object avoids requiring DOM globals in Node-only TypeScript projects. */

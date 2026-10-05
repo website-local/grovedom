@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { init } from 'grovedom';
 import { init as initBrowser } from '../src/browser.js';
 import { init as initNative } from '../src/native.js';

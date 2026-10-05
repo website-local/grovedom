@@ -34,9 +34,6 @@
     "bench": "node bench/run.mjs",
     "package:targets": "node scripts/package-targets.mjs"
   },
-  "peerDependencies": {
-    "cheerio": "1.2.0"
-  },
   "devDependencies": {
     "@types/node": "22.20.5",
     "cheerio": "1.2.0"

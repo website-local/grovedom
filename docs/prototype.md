@@ -26,6 +26,10 @@ diagnostics, source/build JSON manifests or environment-based runtime loaders.
 Nothing is published by these commands. `npm pack --pack-destination=DIR` can
 produce a tarball from either generated package.
 
+Neither package has runtime or peer dependencies. Declarations define GroveDOM's
+supported options, callbacks and helpers locally, so TypeScript consumers do not
+need Cheerio. The repository retains Cheerio only for development comparisons.
+
 Release defaults: O3/ThinLTO, optional source target features off, 1 MiB initial
 Wasm memory, 32 KiB linear stack, 16 KiB transfer scratch. Compiler flags remain
 build-time choices. A build emits an ESM constants file used during packaging;
@@ -88,6 +92,9 @@ test/browser-sandbox.mjs` checks the browser ESM graph without Node globals; it
 is not a browser-engine test.
 
 `npm run test:types` reuses an existing compiler (`GROVEDOM_TSC`).
+After package assembly, `node scripts/check-package-types.mjs /scratch/packages`
+checks isolated downstream Node and browser imports with no third-party types;
+set `TMPDIR` for its temporary project. Declaration checking stays enabled.
 `npm run test:fuzz` runs deterministic mutation replays; use disk-backed
 `GROVEDOM_FUZZ_DIR` for reproducers. Native sanitizer builds use a separate build
 directory and `GROVEDOM_SANITIZE=1`. `scripts/check-faults.mjs` tests owned buffer
