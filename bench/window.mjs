@@ -5,11 +5,16 @@ import assert from 'node:assert/strict';
 import { checkHost } from './host-load.mjs';
 const args = Object.fromEntries(process.argv.slice(2).map(value => { const [key, ...rest] = value.split('='); return [key.replace(/^--/, ''), rest.join('=')]; }));
 if (!args.manifest)
-    throw new Error('Use --manifest=FILE [--groups=1..3]');
+    throw new Error('Use --manifest=FILE [--groups=1..3] [--warmups=1..100] [--iterations=1..8]');
 const manifest = JSON.parse(fs.readFileSync(args.manifest));
 const groups = Number(args.groups ?? 1);
+const warmups = Number(args.warmups ?? 20);
+const iterations = Number(args.iterations ?? 1);
 if (!Number.isInteger(groups) || groups < 1 || groups > 3)
     throw new Error('Short screens allow one to three fixed groups.');
+if (!Number.isInteger(warmups) || warmups < 1 || warmups > 100 ||
+    !Number.isInteger(iterations) || iterations < 1 || iterations > 8)
+    throw new Error('Short screens allow up to 100 warmups and eight replays per batch.');
 const variants = manifest.variants, n = variants.length, reps = groups, blocks = n, results = [];
 let expected, inputs;
 const median = a => { if (!a.length)
@@ -24,7 +29,7 @@ for (let replication = 0; replication < reps; replication++) {
         if (replication % 2)
             imports.reverse();
         for (const index of imports) {
-            const v = variants[index], env = { ...process.env, ...v.env, GROVEDOM_PROCESS_ENTRY: pathToFileURL(v.entry).href, GROVEDOM_REPLAY_ENTRY: v.entry, GROVEDOM_PROCESS_FIXTURE: pathToFileURL(manifest.workload ?? process.cwd() + '/test/fixtures.mjs').href, GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows: 120, batches: 2, iterations: 1, warmups: 20, consumer: manifest.consumer, corpus: manifest.corpus, options: v.options }) };
+            const v = variants[index], env = { ...process.env, ...v.env, GROVEDOM_PROCESS_ENTRY: pathToFileURL(v.entry).href, GROVEDOM_REPLAY_ENTRY: v.entry, GROVEDOM_PROCESS_FIXTURE: pathToFileURL(manifest.workload ?? process.cwd() + '/test/fixtures.mjs').href, GROVEDOM_PROCESS_CONFIG: JSON.stringify({ rows: 120, batches: 2, iterations, warmups, consumer: manifest.consumer, corpus: manifest.corpus, options: v.options }) };
             const child = fork(new URL('./window-child.mjs', import.meta.url), [], { env, stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
             children[index] = child;
             child.stderr.on('data', b => process.stderr.write(b));
@@ -68,4 +73,4 @@ for (let replication = 0; replication < reps; replication++) {
             child.kill(); })));
     }
 }
-console.log(JSON.stringify({ scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and 20 warmups excluded. Each sample has two batches of one whole-corpus replays. One to three fixed fresh process groups; rotate and mirror all variants in each block; rotate/reverse imports.', node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: 'Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load, never discard based on candidate timings.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. Busy preflight blocks remain recorded.', results }, null, 2));
+console.log(JSON.stringify({ scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and warmups excluded. Two batches per sample; reported milliseconds per whole-corpus replay. Rotate and mirror all variants in each block; rotate/reverse imports.', settings: { groups, blocks, warmups, batches: 2, iterations }, node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load, never discard based on candidate timings.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. Busy preflight blocks remain recorded.', results }, null, 2));

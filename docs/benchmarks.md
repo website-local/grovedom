@@ -37,6 +37,9 @@ Do not infer backend superiority from parser-only or call-boundary measurements.
 The operational regression screen uses raw/filtered baseline/candidate medians
 at least 0.98 and controls within 0.98–1.02. This is a measurement tolerance, not
 proof of exactly zero slowdown. Inconclusive controls remain inconclusive.
+Read inherited CPU affinity through the scheduling API (`taskset`); some Linux
+compatibility layers report a stale mask in `/proc/self/status`. Do not expand
+the process's inherited affinity or change host-wide scheduling settings.
 
 ## Established scoped evidence
 
@@ -82,9 +85,8 @@ All panels retain three blocks in each of three groups. Busy prechecks remain in
 the results, not silently filtered. Three controls exceed the fixed 2% tolerance;
 quiet prechecks alone did not eliminate drift. These short results do **not**
 establish complete non-regression acceptance, a reproducible slowdown, or a new
-Cheerio speedup. No extension was run to chase a pass. Performance acceptance
-remains open for a later quiet-window check; the architectural checkpoint is not
-a production-performance approval.
+Cheerio speedup. The initial panels were not extended. Later confirmations below
+close the scoped screen; this is not a production-performance approval.
 
 A separate, fixed nine-block XML/Node 24 confirmation began after a quiet host
 precheck. Every timed-block precheck subsequently reported busy activity. All
@@ -94,11 +96,45 @@ control 1.0804. Group candidate medians ranged 0.8718–1.1275; controls ranged
 the earlier panel. It demonstrates that a quiet startup check did not provide a
 stable measurement window. No additional blocks were added.
 
+### Corrected affinity and final confirmation
+
+The scheduler's effective inherited affinity differed from the mask exposed by
+`/proc/self/status`. The old picker consequently considered only a subset of
+eligible CPUs. The corrected picker reads `taskset`, verified against explicitly
+pinned child processes, and retains the same sibling/load/probe rules. Earlier
+timings remain valid observations of their chosen CPU and are not discarded.
+
+Three fixed panels revisited the unresolved cases. All 27 blocks were quiet and
+probe-retained. Synthetic and consumer Node 22 passed; XML Node 24 still had an
+inconclusive control despite quiet prechecks. Its single-replay batches lasted
+about 2.9 ms, so a distinct, predeclared XML confirmation used 100 warmups and
+eight replays per batch, keeping three groups of three blocks. Actual batch DOM
+time was 20.0 ms median, 29.7 ms maximum. All nine blocks were quiet and retained.
+The protocols are reported separately, not combined or normalized by controls.
+
+| Corrected-affinity panel | Refactor raw = filtered | Control raw = filtered | Screen |
+|---|---:|---:|---|
+| XML / Node 24, one replay | 0.9681 | 0.9377 | Inconclusive |
+| Synthetic / Node 22, one replay | 1.0047 | 0.9937 | Pass |
+| Consumer / Node 22, one replay | 1.0242 | 1.0038 | Pass |
+| XML / Node 24, eight replays | 0.9844 | 1.0059 | Pass |
+
+Together with the initial XML/Node 22, synthetic/Node 24 and consumer/Node 24
+passes, these confirmations close the six-panel scoped non-regression screen.
+XML/Node 24 has only 0.0044 ratio headroom above the 0.98 threshold. This supports
+the refactor within the stated measurement tolerance, not exactly equal speed,
+every workload or broader platform performance. Library source/artifacts are
+unchanged across these confirmations. No further timing is required for this
+architectural checkpoint.
+
 ## Harnesses
 
 `bench/window.mjs --manifest=FILE --groups=1..3` implements this bounded protocol
 with sibling-aware load checks. A manifest supplies named variant entry paths,
 optional explicit initialization `options`, and a shared workload/corpus.
+Defaults are 20 warmups and one replay per batch; bounded `--warmups=1..100` and
+`--iterations=1..8` permit short multi-replay batches for very small inputs. Fix
+settings before timing, report actual batch duration and keep protocols separate.
 
 `bench/run.mjs` is an authored comparison; `bench/process.mjs` and
 `bench/short.mjs` support explicit isolated variants. Their historical defaults

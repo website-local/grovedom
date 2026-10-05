@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { readAffinity } from './host-load.mjs';
 
 const manifest = JSON.parse(readFileSync(process.env.GROVEDOM_AB_MANIFEST, 'utf8'));
 const reference = manifest.normalizeHTML ? await import('cheerio') : null;
@@ -23,11 +24,7 @@ const warmups = Number(process.env.GROVEDOM_BENCH_WARMUPS ?? 400);
 const quietAffinity = process.env.GROVEDOM_BENCH_AFFINITY === 'quiet';
 if (quietAffinity && process.platform !== 'linux') throw new Error('Quiet CPU selection requires Linux /proc and taskset.');
 async function quietCPU() {
-  const allowed = new Set();
-  for (const part of readFileSync('/proc/self/status', 'utf8').match(/^Cpus_allowed_list:\s*(.+)$/m)[1].split(',')) {
-    const [lo, hi = lo] = part.split('-').map(Number);
-    for (let i = lo; i <= hi; i++) allowed.add(i);
-  }
+  const allowed = new Set(readAffinity());
   function sample() {
     return readFileSync('/proc/stat', 'utf8').split('\n').filter(line => /^cpu\d+ /.test(line)).map(line => {
       const [label, ...values] = line.trim().split(/\s+/), v = values.map(Number);

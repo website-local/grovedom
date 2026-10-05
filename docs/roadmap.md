@@ -17,9 +17,11 @@ entry with the same binary. The package remains experimental and unpublished.
 
 ## Remaining release gates
 
-The refactor's full performance acceptance remains open: three of six short
-panels have inconclusive controls. Preserve the results and use a later brief
-quiet-window check, not another long campaign. See [the screen](benchmarks.md#architecture-refactor-screen).
+The refactor's six-panel scoped performance screen is complete, including the
+short confirmations after correcting inherited-affinity detection. XML/Node 24
+has a narrow margin inside the 2% tolerance. Earlier inconclusive controls remain
+preserved; this does not establish production adoption. See
+[the screen](benchmarks.md#corrected-affinity-and-final-confirmation).
 
 1. Test the exact Node 22.0.0 floor and intended OS/architecture artifacts. Current
    execution covers maintained Node 22/24 and Linux; do not infer other platforms.

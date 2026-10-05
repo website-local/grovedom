@@ -52,3 +52,7 @@ complete required DOM workload, including bindings and disposal, plus a win over
 the fastest compatible Cheerio configuration. Historical scoped consumer medians
 were 4.92× native and 4.62× pooled Wasm; these are not production or browser claims.
 No package or repository has been published.
+
+The architectural refactor passes its scoped Node/Wasm regression screen within
+the stated 2% tolerance; XML on Node 24 has a narrow margin. See the
+[short confirmations and retained controls](docs/benchmarks.md#corrected-affinity-and-final-confirmation).
