@@ -5,6 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { mockProcessEnv } from './mock-process.mjs';
 
 test('grouped CI continues independent checks after failure and still fails the job', t => {
   const root = mkdtempSync(join(tmpdir(), 'grovedom-ci-runner-'));
@@ -24,15 +25,14 @@ ${tail}\n`);
   script('scripts/check-types.mjs', "['types']");
   script('scripts/ci/install.mjs', "['install', process.argv[3]]");
   const full = process.platform === 'linux';
-  const env = { ...process.env, CI_CHECK_LOG: log,
-    GROVEDOM_FUZZ_DIR: join(root, 'fuzz'), GROVEDOM_BROWSER_FALLBACK: '1' };
-  // This is a new test runner, not a recursive invocation of the parent suite.
-  delete env.NODE_TEST_CONTEXT;
+  const env = mockProcessEnv({ CI_CHECK_LOG: log,
+    GROVEDOM_FUZZ_DIR: join(root, 'fuzz'), GROVEDOM_BROWSER_FALLBACK: '1' });
   const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/test.mjs', import.meta.url)),
     full ? 'all-heaps' : 'portable', 'wasm', 'tarballs'], {
     cwd: root, encoding: 'utf8', env,
   });
-  assert.equal(result.status, 1, result.stderr);
+  assert.ifError(result.error);
+  assert.equal(result.status, 1, `signal=${result.signal}\n${result.stdout}\n${result.stderr}`);
   assert.match(result.stderr, /Failed checks: suite \/ wasm \/ pool/);
   const checks = readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse);
   assert.deepEqual(checks.filter(row => row[0] === 'suite'), full

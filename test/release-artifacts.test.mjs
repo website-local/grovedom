@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readRelease } from '../scripts/ci/artifacts.mjs';
+import { mockProcessEnv } from './mock-process.mjs';
 
 const version = '0.1.0', commit = 'a'.repeat(40);
 function fixture(t) {
@@ -55,12 +56,14 @@ if (args[0] === 'view') {
 `, { mode: 0o755 });
     const log = join(root, 'calls.jsonl');
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/publish.mjs', import.meta.url)), root], {
-      encoding: 'utf8', env: { ...process.env, PATH: bin + delimiter + process.env.PATH,
+      encoding: 'utf8', env: mockProcessEnv({ PATH: bin + delimiter + process.env.PATH,
         RELEASE_VERSION: version, NPM_TAG: 'latest', NPM_PACKAGES: 'both', NPM_AUTH: 'oidc',
         GITHUB_SHA: commit, GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch',
         GITHUB_REPOSITORY: 'website-local/grovedom', MOCK_SCENARIO: scenario,
-        MOCK_LOG: log, MOCK_MANIFEST: join(root, 'release.json') },
+        MOCK_LOG: log, MOCK_MANIFEST: join(root, 'release.json') }),
     });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null, result.stderr);
     const calls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse) : [];
     const writes = calls.filter(row => row[0] !== 'view');
     if (['mismatch', 'network'].includes(scenario)) {
@@ -115,9 +118,11 @@ if (args[1] === 'edit') { if (state.release.assets.length !== 4) throw new Error
 fs.writeFileSync(file,JSON.stringify(state));
 `, { mode: 0o755 });
     const result = spawnSync(process.execPath, ['--import', preload, fileURLToPath(new URL('../scripts/ci/github-release.mjs', import.meta.url)), root], {
-      encoding: 'utf8', env: { ...process.env, PATH: bin + delimiter + process.env.PATH,
-        RELEASE_VERSION: version, GITHUB_SHA: commit, RUNNER_TEMP: root, NPM_PACKAGES: 'none', MOCK_STATE: stateFile },
+      encoding: 'utf8', env: mockProcessEnv({ PATH: bin + delimiter + process.env.PATH,
+        RELEASE_VERSION: version, GITHUB_SHA: commit, RUNNER_TEMP: root, NPM_PACKAGES: 'none', MOCK_STATE: stateFile }),
     });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null, result.stderr);
     const after = JSON.parse(readFileSync(stateFile));
     if (scenario === 'mismatch') {
       assert.notEqual(result.status, 0); assert.deepEqual(after.calls, []);

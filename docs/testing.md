@@ -63,3 +63,8 @@ them; adding correctness fixtures does not require another benchmark campaign.
 [GitHub CI](releasing.md) also runs release-policy and artifact-integrity tests,
 including simulated npm failures that must produce no publication. Those tests
 use a local fake npm executable and require no credentials or registry access.
+Mock CLI and synthetic CI subprocesses do not inherit `LD_PRELOAD`: they load no
+native addon, and sanitizer reports from their Node runtime can overflow captured
+output on deliberate failures. Native DOM, lifecycle and worker tests retain
+ASan/UBSan and leak detection. Owned-buffer fault checks run even if the preceding
+suite fails, provided the sanitizer build succeeded.

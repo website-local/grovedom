@@ -14,11 +14,13 @@ is shared by CI and releases, so publishing requires the same build and test job
 - Separate packages packed once, then installed offline into empty consumers
   on Linux, Windows and macOS. No Cheerio or install scripts are needed.
 
-Actions are pinned to commit IDs. Dependabot proposes action/dependency updates.
+Actions are pinned to commit IDs. Dependabot groups monthly action updates into
+one PR. Node declarations stay on major 22; TypeScript stays on major 6 until the
+type-check scripts support its replacement for the `typescript/bin/tsc` entry.
 Pull requests receive no release credentials; default token permissions are
-read-only. No benchmark runs on shared CI hosts. The workflows are prepared but
-have not yet run on GitHub; their first successful runs must establish these
-platform results. Actual Chromium/Firefox/WebKit checks remain future work.
+read-only. No benchmark runs on shared CI hosts. A successful hosted run is
+required to establish the complete platform matrix. Actual
+Chromium/Firefox/WebKit checks remain future work.
 
 Verification uses ten runner jobs: two builds, one sanitizer job, package
 assembly, five OS/Node test groups and the final gate. Linux groups cover Node

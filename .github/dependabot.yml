@@ -4,7 +4,17 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ['*']
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # Keep declarations aligned with the minimum supported Node major.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # TypeScript 7 removes the compiler subpath used by the type-check scripts.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
