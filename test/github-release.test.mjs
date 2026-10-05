@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, copyFileSync, chmodSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mockProcessEnv } from './mock-process.mjs';
 
 const commit = 'a'.repeat(40), wrongCommit = 'b'.repeat(40);
@@ -17,6 +17,9 @@ function fixture(t, scenario, version = '0.1.0') {
   writeFileSync(join(root, 'package.json'), '{"type":"module"}');
   copyFileSync(new URL('./github-cli-fixture.mjs', import.meta.url), join(bin, 'gh'));
   chmodSync(join(bin, 'gh'), 0o755);
+  // Exercise module specifiers with characters requiring URL encoding on every OS.
+  const preload = join(root, 'github fixture #%.mjs');
+  copyFileSync(new URL('./github-fixture.mjs', import.meta.url), preload);
   const packages = ['grovedom', 'grovedom-native'].map(name => {
     const bytes = Buffer.from(name), file = `${name}-${version}.tgz`;
     writeFileSync(join(root, file), bytes);
@@ -47,7 +50,7 @@ function fixture(t, scenario, version = '0.1.0') {
     state: () => JSON.parse(readFileSync(stateFile)),
     run(script = 'github-release') {
       const result = spawnSync(process.execPath, [
-        '--import', fileURLToPath(new URL('./github-fixture.mjs', import.meta.url)),
+        '--import', pathToFileURL(preload).href,
         fileURLToPath(new URL(`../scripts/ci/${script}.mjs`, import.meta.url)), root,
       ], { encoding: 'utf8', env: mockProcessEnv({
         RELEASE_VERSION: version, GITHUB_SHA: commit, NPM_PACKAGES: 'both', MOCK_STATE: stateFile,
