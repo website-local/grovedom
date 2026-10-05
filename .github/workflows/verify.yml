@@ -62,27 +62,19 @@ jobs:
           retention-days: 7
 
   test:
-    needs: build
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    needs: [build, packages]
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: ubuntu-22.04, node: '22.0.0', backend: wasm, heap: pool }
-          - { os: ubuntu-22.04, node: '22.0.0', backend: napi, heap: pool }
-          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: pool }
-          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: global }
-          - { os: ubuntu-22.04, node: '22', backend: wasm, heap: document }
-          - { os: ubuntu-22.04, node: '22', backend: napi, heap: pool }
-          - { os: ubuntu-22.04, node: '24', backend: wasm, heap: pool }
-          - { os: ubuntu-22.04, node: '24', backend: napi, heap: pool }
-          - { os: macos-14, node: '24', backend: wasm, heap: pool }
-          - { os: windows-2022, node: '24', backend: wasm, heap: pool }
+          - { os: ubuntu-22.04, node: '22.0.0', scope: linux, install: both }
+          - { os: ubuntu-22.04, node: '22', scope: all-heaps, install: none }
+          - { os: ubuntu-22.04, node: '24', scope: linux, install: both }
+          - { os: macos-14, node: '24', scope: portable, install: wasm }
+          - { os: windows-2022, node: '24', scope: portable, install: wasm }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
-    env:
-      GROVEDOM_BACKEND: ${{ matrix.backend }}
-      GROVEDOM_WASM_HEAP: ${{ matrix.heap }}
-      GROVEDOM_FUZZ_CASES: '200'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -92,7 +84,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
-          package-manager-cache: false
+          cache: npm
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: build-wasm
@@ -102,22 +94,26 @@ jobs:
         with:
           name: build-native
           path: ${{ env.GROVEDOM_BUILD_DIR }}
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - run: npm test
-      - name: Types and bounded deterministic fuzz
-        if: matrix.node == '22' && matrix.heap == 'pool'
-        run: |
-          npm run test:types
-          npm run test:fuzz
-      - name: Portable browser module checks
-        if: matrix.backend == 'wasm' && matrix.heap == 'pool'
-        run: |
-          node --experimental-vm-modules test/browser-sandbox.mjs
-          GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.mjs
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
+      - name: Run every configuration in a separate process
+        env:
+          TEST_SCOPE: ${{ matrix.scope }}
+        run: npm run ci:test -- "$TEST_SCOPE" none
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        id: tarballs
+        if: ${{ !cancelled() && needs.packages.result == 'success' && matrix.install != 'none' }}
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/tarballs
+      - name: Install and exercise packed artifacts without Cheerio
+        if: ${{ !cancelled() && steps.tarballs.outcome == 'success' }}
+        env:
+          PACKAGE_TARGET: ${{ matrix.install }}
+        run: npm run ci:install -- "$RUNNER_TEMP/tarballs" "$PACKAGE_TARGET"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
-          name: fuzz-${{ matrix.os }}-${{ matrix.node }}-${{ matrix.backend }}-${{ matrix.heap }}
+          name: fuzz-${{ matrix.os }}-${{ matrix.node }}
           path: ${{ env.GROVEDOM_FUZZ_DIR }}
           if-no-files-found: ignore
           retention-days: 7
@@ -140,12 +136,12 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
-          package-manager-cache: false
+          cache: npm
       - run: |
           sudo apt-get update
           sudo apt-get install -y clang-15 lld-15 llvm-15 cmake ninja-build
           echo /usr/lib/llvm-15/bin >> "$GITHUB_PATH"
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
       - run: node scripts/ci/prepare-build.mjs native
       - run: npm run build:native
       - name: ASan and UBSan with leak detection
@@ -166,7 +162,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22'
-          package-manager-cache: false
+          cache: npm
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: build-wasm
@@ -175,7 +171,7 @@ jobs:
         with:
           name: build-native
           path: ${{ env.GROVEDOM_BUILD_DIR }}
-      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
       - run: npm run ci:pack -- "$RUNNER_TEMP/release"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -184,40 +180,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  install:
-    needs: packages
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-22.04, node: '22.0.0', target: both }
-          - { os: ubuntu-22.04, node: '24', target: both }
-          - { os: macos-14, node: '24', target: wasm }
-          - { os: windows-2022, node: '24', target: wasm }
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - name: Set runner paths
-        run: node scripts/ci/runner-paths.mjs
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: ${{ matrix.node }}
-          package-manager-cache: false
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          name: npm-tarballs
-          path: ${{ runner.temp }}/tarballs
-      - name: Install and exercise packed artifacts without Cheerio
-        env:
-          PACKAGE_TARGET: ${{ matrix.target }}
-        run: npm run ci:install -- "$RUNNER_TEMP/tarballs" "$PACKAGE_TARGET"
-
   gate:
     if: always()
-    needs: [build, test, sanitize, packages, install]
+    needs: [build, test, sanitize, packages]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

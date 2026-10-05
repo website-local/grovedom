@@ -20,6 +20,30 @@ read-only. No benchmark runs on shared CI hosts. The workflows are prepared but
 have not yet run on GitHub; their first successful runs must establish these
 platform results. Actual Chromium/Firefox/WebKit checks remain future work.
 
+Verification uses ten runner jobs: two builds, one sanitizer job, package
+assembly, five OS/Node test groups and the final gate. Linux groups cover Node
+22.0.0, 22 and 24; Windows and macOS each use one Node 24 job. Grouping removes
+duplicate runner setup without dropping the ten runtime configurations or four
+packaged-install configurations. Each runtime configuration runs in a fresh
+process. All checks in a group are attempted, and any failure fails the job.
+Runtime checks still run if packaging fails; a runtime failure does not skip
+available package-install checks.
+The identical Node 22 declaration check runs once; both fuzz backends retain
+their 200 cases. npm caches only downloaded packages, keyed by the lockfile;
+dependency installation still uses `npm ci`, and binaries are rebuilt every run.
+
+For local validation, configure existing build directories, `TMPDIR` and
+`GROVEDOM_FUZZ_DIR` as described in [setup](prototype.md), then run:
+
+```sh
+npm run ci:pack -- /scratch/release
+npm run ci:test -- all-heaps both /scratch/release/tarballs
+```
+
+`all-heaps` requires Linux native artifacts. Use `portable wasm` instead for a
+pooled-Wasm-only check. The local command uses the current Node version; it does
+not substitute for the other OS/runtime jobs.
+
 ## Packages and platform scope
 
 Keep the source workspace private. Normal package assembly preserves
