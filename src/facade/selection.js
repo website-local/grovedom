@@ -1,7 +1,8 @@
 import { alive, unsupported, empty, boolAttributes } from './common.js';
+import { parseStyle } from './style.js';
 // Methods keep private branding and selection snapshots. Helpers are bound once.
 export function createSelection(context) {
-    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classTokens, classes, content, wrapping, camel, dataValue } = context;
+    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
     class Selection {
         #state;
         constructor(state) { this.#state = state; }
@@ -61,14 +62,17 @@ export function createSelection(context) {
         _traverse(axis, selector) {
             const { state, ids } = entry(this);
             flush(state);
-            let resultIds = kernel.traverse(state.owner, ids, axis);
+            let resultIds = kernel.traverse(state.owner, ids, axis | (selector && ids.length > 1 ? 256 : 0));
+            if (selector) {
+                resultIds = entry(selection(state, resultIds).filter(selector)).ids;
+                if (ids.length > 1) resultIds = Uint32Array.from(new Set(resultIds));
+            }
             if ((axis === 8 || axis === 9) && ids.length > 1) {
                 resultIds = edit(state, 13, resultIds);
                 if (axis === 9)
                     resultIds.reverse();
             }
-            const result = selection(state, resultIds, this);
-            return selector === undefined ? result : result.filter(selector);
+            return selection(state, resultIds, this);
         }
         each(callback) {
             if (typeof callback !== 'function')
@@ -120,9 +124,14 @@ export function createSelection(context) {
             if (!arguments.length)
                 return attributes(state, ids);
             if (name && typeof name === 'object') {
-                for (const [key, val] of Object.entries(name))
-                    this.attr(key, val);
-                return this;
+                return this.each(function () {
+                    if (this.nodeType !== 1) return;
+                    const one = state.api(this);
+                    for (const key of Object.keys(name)) {
+                        const val = name[key];
+                        one.attr(key, val === null ? null : String(val));
+                    }
+                });
             }
             if (typeof name !== 'string')
                 unsupported('attr currently requires an attribute name.');
@@ -139,15 +148,15 @@ export function createSelection(context) {
                     return xmlAttributeCallback(this, state, name, value);
                 return this.each(function (i, node) {
                     const one = nodes.get(node).ids;
-                    const next = value.call(node, i, attributeValue(state, one, name));
-                    if (next !== undefined)
-                        alive(state);
-                    if (typeof next === 'function')
-                        selection(state, one).attr(name, next);
-                    else if (next !== undefined)
-                        enqueue(state, one, next === null ? 2 : 1, name, next === null ? '' : String(next));
+                    const old = read(state, one, 1, name);
+                    if (old === undefined && node.nodeType !== 1)
+                        return;
+                    const next = value.call(node, i, old);
+                    enqueue(state, one, next === null ? 2 : 1, name, next === null ? '' : String(next));
                 });
             }
+            if (value !== null && typeof value === 'object')
+                return this.each(function () { if (this.nodeType === 1) state.api(this).attr(name, String(value)); });
             enqueue(state, ids, value === null ? 2 : 1, name, value === null ? '' : String(value));
             return this;
         }
@@ -234,7 +243,16 @@ export function createSelection(context) {
                 return state.api(value).toArray().indexOf(this[0]);
             return this.toArray().indexOf(nodes.has(value) ? value : state.api(value)[0]);
         }
-        hasClass(name) { return typeof name === 'string' && name.length > 0 && this.is(function () { return classTokens(this.attribs?.class ?? '').includes(name); }); }
+        hasClass(name) {
+            return typeof name === 'string' && name.length > 0 && this.is(function () {
+                const value = this.attribs?.class ?? '';
+                for (let index = value.indexOf(name); index >= 0; index = value.indexOf(name, index + 1)) {
+                    const end = index + name.length;
+                    if ((!index || /\s/.test(value[index - 1])) && (end === value.length || /\s/.test(value[end]))) return true;
+                }
+                return false;
+            });
+        }
         addClass(value) { return classes(this, 'add', value, undefined, arguments.length); }
         removeClass(value) { return classes(this, 'remove', value, undefined, arguments.length); }
         toggleClass(value, force) { return classes(this, 'toggle', value, force, arguments.length); }
@@ -321,7 +339,7 @@ export function createSelection(context) {
                     return this.html(value);
                 if (name === 'textContent' || name === 'innerText')
                     return this.text(value);
-                return this.attr(name, !state.xml && typeof value === 'boolean' && boolAttributes.has(name) ? value ? '' : null : value);
+                return this.attr(name, !state.xml && boolAttributes.has(name.toLowerCase()) ? value ? '' : null : value);
             }
             if (!ids.length || typeof name !== 'string')
                 return undefined;
@@ -340,7 +358,7 @@ export function createSelection(context) {
                 const keys = Object.keys(values);
                 return Object.assign(values, keys, { length: keys.length });
             }
-            if (!state.xml && boolAttributes.has(name))
+            if (!state.xml && boolAttributes.has(name.toLowerCase()))
                 return this.attr(name) !== undefined;
             if (['name', 'type', 'children', 'childNodes', 'parent', 'parentNode', 'next', 'prev', 'data', 'attribs', 'nodeType'].includes(name))
                 return this[0][name];
@@ -360,80 +378,29 @@ export function createSelection(context) {
             const { state } = entry(this);
             if (!this.length)
                 return value === undefined ? undefined : this;
-            const parse = text => {
-                const style = {};
-                let previous;
-                for (const rule of (text ?? '').split(';')) {
-                    const colon = rule.indexOf(':');
-                    if (colon < 0) {
-                        if (previous && rule.trim())
-                            style[previous] += `;${rule.trim()}`;
-                        continue;
-                    }
-                    const key = rule.slice(0, colon).trim(), value = rule.slice(colon + 1).trim();
-                    if (key && value) {
-                        Object.defineProperty(style, key, { configurable: true, enumerable: true, writable: true, value });
-                        previous = key;
-                    }
-                }
-                return style;
-            };
             if (name && typeof name === 'object' && !Array.isArray(name)) {
                 for (const [key, val] of Object.entries(name))
                     this.css(key, val);
                 return this;
             }
             if (value === undefined) {
-                const style = parse(this.attr('style'));
+                if (this[0].nodeType !== 1) return undefined;
+                const style = parseStyle(this.attr('style'));
                 return name === undefined ? style : Array.isArray(name) ? Object.fromEntries(name.filter(key => key in style).map(key => [key, style[key]])) : style[name];
             }
             return this.each(function (i, node) {
-                const one = state.api(node), style = parse(one.attr('style'));
+                if (node.nodeType !== 1) return;
+                const one = state.api(node), style = parseStyle(one.attr('style'));
                 const next = typeof value === 'function' ? value.call(node, i, style[name]) : value;
-                if (next === undefined)
-                    return;
                 if (next === '')
                     delete style[name];
-                else
+                else if (next != null)
                     style[name] = String(next);
                 one.attr('style', Object.entries(style).map(([key, val]) => `${key}: ${val};`).join(' '));
             });
         }
-        data(name, value) {
-            const { state } = entry(this);
-            const get = node => {
-                const id = nodes.get(node).ids[0];
-                let data = state.data.get(id);
-                if (!data) {
-                    data = {};
-                    state.data.set(id, data);
-                    for (const [key, val] of Object.entries(state.api(node).attr() ?? {}))
-                        if (key.startsWith('data-'))
-                            Object.defineProperty(data, camel(key.slice(5)), { configurable: true, enumerable: true, writable: true, value: dataValue(val) });
-                }
-                return data;
-            };
-            if (name && typeof name === 'object') {
-                for (const [key, val] of Object.entries(name))
-                    this.data(key, val);
-                return this;
-            }
-            if (value === undefined) {
-                if (!this.length)
-                    return undefined;
-                const data = get(this[0]);
-                return name === undefined ? data : data[camel(name)];
-            }
-            return this.each(function () { Object.defineProperty(get(this), camel(name), { configurable: true, enumerable: true, writable: true, value }); });
-        }
-        removeData(name) { const { state } = entry(this); return this.each(function () { const id = nodes.get(this).ids[0]; if (name === undefined)
-            state.data.delete(id);
-        else {
-            const data = state.data.get(id);
-            if (data)
-                for (const key of classTokens(name))
-                    delete data[camel(key)];
-        } }); }
+        data(name, value) { return data(this, name, value); }
+        removeData(name) { return removeData(this, name); }
         val(value) {
             const { state } = entry(this);
             if (value === undefined) {

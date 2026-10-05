@@ -8,4 +8,5 @@ lxb_status_t gd_attribute_remove(gd_document *doc, lxb_dom_node_t *node, lxb_dom
 void gd_attribute_restore(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr);
 void gd_attributes_normalize(gd_document *doc, lxb_dom_node_t *node);
 int gd_attributes_clone(gd_document *doc, uint32_t source_id, lxb_dom_node_t *clone);
+void gd_attribute_selector_case(lxb_css_selector_t *selector);
 #endif

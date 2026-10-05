@@ -119,6 +119,8 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
     GD_PROFILE_SCOPE(GP_TRAVERSE);
     if (!gd_begin(doc)) return NULL;
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
+    int duplicates = (axis & 256) != 0;
+    axis &= ~256u;
     if (axis < 1 || axis > 12) { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Invalid traversal axis"); return gd_failed(); }
     gd_results_reset(doc);
     for (size_t i = 0; i < count; i++) {
@@ -130,6 +132,8 @@ const gd_result *gk_traverse(gd_document *doc, const uint32_t *ids, size_t count
         else node = node->first_child;
         while (node) {
             int eligible = node != origin && (axis == 3 || axis >= 10 || node->type == LXB_DOM_NODE_TYPE_ELEMENT);
+            /* Filtered traversal applies predicates before deduplication. */
+            if (eligible && duplicates && node->user) doc->nodes[(uint32_t) (uintptr_t) node->user].mark = 0;
             if (eligible && gd_collect(node, 0, doc) != LXB_STATUS_OK) {
                 gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Traversal allocation failed"); return gd_failed();
             }

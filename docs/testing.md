@@ -63,6 +63,13 @@ Ancestor-selector tests check backtracking through nested list pseudo-classes;
 XML serializer tests cover entities and doctype identifiers. Dependency-patch
 tests reject modified inputs, patches and cached trees, and ensure preparation
 does not modify the supplied upstream source.
+
+The [source-driven audit](source-audit.md) adds callback/coercion, lazy data,
+class spacing, form/link pseudo, traversal ordering, fragment-root, doctype and
+XML numeric-reference regressions. Its Node 22 suite has 1,735 cases: native
+1,675 pass / 58 skip / 2 TODO; pooled Wasm 1,683 / 50 / 2, with no unexpected
+failures. The additional jQuery class-whitespace and WPT fragment-root exclusions
+record Cheerio/browser differences; upstream expectations remain unchanged.
 Scoped-selector regressions check ancestry bounds, overlapping contexts, nested
 `:has()` predicates and the deliberate difference from browser query scoping.
 Tag-predicate tests cover snapshots, buffered mutations, renaming, disposal,

@@ -129,6 +129,15 @@ lxb_status_t gd_xml_attr_name(gd_document *doc, lxb_dom_attr_t *attr, const lxb_
 
 static lxb_status_t gd_xml_codepoint(gd_buffer *out, uint32_t c) {
     unsigned char bytes[4]; size_t n;
+    /* htmlparser2's entities decoder applies the HTML C1 replacement table
+     * even in XML mode. Literal control characters remain unchanged. */
+    static const uint16_t c1[] = {
+        0x20ac, 0x81, 0x201a, 0x192, 0x201e, 0x2026, 0x2020, 0x2021,
+        0x2c6, 0x2030, 0x160, 0x2039, 0x152, 0x8d, 0x17d, 0x8f,
+        0x90, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
+        0x2dc, 0x2122, 0x161, 0x203a, 0x153, 0x9d, 0x17e, 0x178
+    };
+    if (c >= 0x80 && c <= 0x9f) c = c1[c - 0x80];
     if (!c || c > 0x10ffff || (c >= 0xd800 && c <= 0xdfff)) c = 0xfffd;
     if (c < 0x80) { bytes[0] = c; n = 1; }
     else if (c < 0x800) { bytes[0] = 0xc0 | (c >> 6); bytes[1] = 0x80 | (c & 63); n = 2; }

@@ -73,6 +73,7 @@ const jqGroups = {
 };
 const jqTests = [];
 const jqExclusions = {
+  'addClass, removeClass, hasClass on elements with classes with non-HTML whitespace (gh-3072, gh-3003)': 'jQuery uses ASCII class whitespace; Cheerio uses JavaScript whitespace and preserves existing spacing when adding classes.',
   'attr(non-ASCII)': 'jQuery folds ASCII attribute lookup case; Cheerio and GroveDOM use exact lookup case.',
   'html() on empty set': 'jQuery returns undefined; Cheerio and GroveDOM return null, covered by a compatibility regression.',
 };

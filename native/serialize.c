@@ -20,7 +20,9 @@ static lxb_status_t gd_text(gd_document *doc, lxb_dom_node_t *root, int inner_te
             lxb_status_t status = gd_write(data->data, data->length, &doc->output);
             if (status != LXB_STATUS_OK) return status;
         }
-        if (node->first_child && !(inner_text && !doc->xml && node->type == LXB_DOM_NODE_TYPE_ELEMENT && (node->local_name == LXB_TAG_SCRIPT || node->local_name == LXB_TAG_STYLE))) { node = node->first_child; continue; }
+        int descend = !inner_text || node->type == LXB_DOM_NODE_TYPE_CDATA_SECTION ||
+            (node->type == LXB_DOM_NODE_TYPE_ELEMENT && (doc->xml || (node->local_name != LXB_TAG_SCRIPT && node->local_name != LXB_TAG_STYLE)));
+        if (node->first_child && descend) { node = node->first_child; continue; }
         while (node != root && !node->next) node = node->parent;
         if (node == root) break;
         node = node->next;
@@ -42,6 +44,25 @@ static lxb_status_t gd_json(gd_document *doc, const lxb_char_t *data, size_t len
         } else if (gd_write(data + i, 1, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
     }
     return gd_write((const lxb_char_t *) "\"", 1, &doc->output);
+}
+
+static lxb_status_t gd_doctype_data(gd_document *doc, lxb_dom_document_type_t *type) {
+    size_t length;
+    const lxb_char_t *name = lxb_dom_document_type_name(type, &length);
+    if (gd_write((const lxb_char_t *) "!DOCTYPE ", 9, &doc->output) != LXB_STATUS_OK ||
+        gd_write(name, length, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    const lexbor_str_t *values[] = { &type->public_id, &type->system_id };
+    for (size_t i = 0; i < 2; i++) {
+        const lexbor_str_t *value = values[i];
+        if (!value->length) continue;
+        const char *prefix = !i ? " PUBLIC " : type->public_id.length ? " " : " SYSTEM ";
+        lxb_char_t quote = memchr(value->data, '"', value->length) ? '\'' : '"';
+        if (gd_write((const lxb_char_t *) prefix, strlen(prefix), &doc->output) != LXB_STATUS_OK ||
+            gd_write(&quote, 1, &doc->output) != LXB_STATUS_OK ||
+            gd_write(value->data, value->length, &doc->output) != LXB_STATUS_OK ||
+            gd_write(&quote, 1, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    }
+    return LXB_STATUS_OK;
 }
 
 static lxb_status_t gd_attribute_write(const lxb_char_t *data, size_t length, void *context) {
@@ -117,6 +138,7 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
     } else if (operation == READ_NAME) {
         if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) data = doc->xml || node->ns != LXB_NS_HTML ? lxb_dom_element_qualified_name(lxb_dom_interface_element(node), &length) : lxb_dom_element_local_name(lxb_dom_interface_element(node), &length);
         else if (node && node->type == LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION) data = lxb_dom_processing_instruction_target(lxb_dom_interface_processing_instruction(node), &length);
+        else if (node && node->type == LXB_DOM_NODE_TYPE_DOCUMENT_TYPE) { data = (const lxb_char_t *) "!doctype"; length = 8; }
         if (!data) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
     } else if (operation == READ_ATTRS) {
         if (!node || node->type != LXB_DOM_NODE_TYPE_ELEMENT) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
@@ -131,9 +153,12 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
         }
         if (status == LXB_STATUS_OK) status = gd_write((const lxb_char_t *) "}", 1, &doc->output);
     } else if (operation == READ_DATA) {
-        if (!node || (node->type != LXB_DOM_NODE_TYPE_TEXT && node->type != LXB_DOM_NODE_TYPE_COMMENT && node->type != LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION)) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
-        lexbor_str_t *str = &lxb_dom_interface_character_data(node)->data;
-        data = str->data; length = str->length;
+        if (node && node->type == LXB_DOM_NODE_TYPE_DOCUMENT_TYPE) status = gd_doctype_data(doc, lxb_dom_interface_document_type(node));
+        else {
+            if (!node || (node->type != LXB_DOM_NODE_TYPE_TEXT && node->type != LXB_DOM_NODE_TYPE_COMMENT && node->type != LXB_DOM_NODE_TYPE_PROCESSING_INSTRUCTION)) return gd_result_set(doc, GD_UNDEFINED, NULL, 0, 0);
+            lexbor_str_t *str = &lxb_dom_interface_character_data(node)->data;
+            data = str->data; length = str->length;
+        }
     } else if (operation == READ_TEXT || operation == READ_INNER_TEXT) {
         for (size_t i = 0; i < count && status == LXB_STATUS_OK; i++) status = gd_text(doc, doc->nodes[ids[i]].node, operation == READ_INNER_TEXT);
     } else if ((operation & 255) == READ_XML_OPTIONS && !(operation & ~(255u | ((XML_PAIRED | XML_RAW) << 8)))) {

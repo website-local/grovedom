@@ -49,7 +49,7 @@ export function createCollectionHelpers(context) {
         const value = selection(state, resultIds, source);
         return selector ? value.filter(selector) : value;
     }
-    const classTokens = value => typeof value === 'string' ? value.match(/[^\x20\t\r\n\f]+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
+    const classTokens = value => typeof value === 'string' ? value.match(/\S+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
     function classes(source, action, value, force, argc) {
         const { state } = entry(source);
         return source.each(function (i, node) {
@@ -68,30 +68,39 @@ export function createCollectionHelpers(context) {
                 one.attr('class', next === false || old ? '' : data.savedClass ?? '');
                 return;
             }
-            const requested = classTokens(next);
-            if (!requested.length)
+            const text = Array.isArray(next) ? classTokens(next).join(' ') : next;
+            if (typeof text !== 'string' || !text)
                 return;
-            let tokens = classTokens(old);
-            for (const token of requested) {
-                const present = tokens.includes(token);
-                const remove = action === 'remove' || (action === 'toggle' && (force === false || (force === undefined && present)));
-                if (remove)
-                    tokens = tokens.filter(item => item !== token);
-                else if (!present)
-                    tokens.push(token);
+            const requested = action === 'remove' ? classTokens(text) : text.split(/\s+/);
+            if (action === 'add') {
+                let updated = old ? ` ${old} ` : '';
+                for (const token of requested)
+                    if (!old || !updated.includes(` ${token} `)) updated += `${token} `;
+                one.attr('class', updated.trim());
+                return;
             }
-            const updated = tokens.join(' ');
-            if (old !== updated)
-                one.attr('class', updated);
+            const tokens = classTokens(old);
+            let changed = false;
+            for (const token of requested) {
+                const index = tokens.indexOf(token);
+                if (action === 'remove') {
+                    for (let i = tokens.length - 1; i >= 0; i--)
+                        if (tokens[i] === token) { tokens.splice(i, 1); changed = true; }
+                } else if (index < 0 && force !== false)
+                    tokens.push(token);
+                else if (index >= 0 && force !== true)
+                    tokens.splice(index, 1);
+            }
+            if (action === 'toggle' || changed) one.attr('class', tokens.join(' '));
         });
     }
     function wrapping(source, wrapper, inside) {
         const { state, ids } = entry(source);
         return source.each(function (i, node) {
+            const value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : wrapper;
             if (inside ? node.nodeType !== 1 && node.type !== 'root' : node.type === 'root')
                 return;
             const one = state.api(node);
-            const value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : wrapper;
             let root = state.api(value).first();
             if (!root.length || root[0].nodeType !== 1 || root[0] === node)
                 return;
@@ -139,23 +148,5 @@ export function createCollectionHelpers(context) {
         }
         return source;
     }
-    function dataValue(value) {
-        if (value === 'true')
-            return true;
-        if (value === 'false')
-            return false;
-        if (value === 'null')
-            return null;
-        if (String(Number(value)) === value)
-            return Number(value);
-        if (/^[\[{]/.test(value)) {
-            try {
-                return JSON.parse(value);
-            }
-            catch { }
-        }
-        return value;
-    }
-    function camel(value) { return value.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()); }
-    return { mapped, until, classTokens, classes, wrapping, content, dataValue, camel };
+    return { mapped, until, classTokens, classes, wrapping, content };
 }

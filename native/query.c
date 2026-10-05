@@ -235,6 +235,8 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         if (!match && count > 1 && gd_covered_root(doc, ids, count, i)) continue;
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+        // Filtering a snapshot preserves duplicate entries and their positions.
+        if (match) doc->nodes[ids[i]].mark = 0;
         /* Cheerio does not infer selector quirks mode from a missing doctype.
          * Preserve the parser's mode for later fragment construction. */
         lxb_dom_document_cmode_t mode = doc->html->dom_document.compat_mode;

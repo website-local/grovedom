@@ -235,8 +235,10 @@ unsigned gd_selector_flags(gd_document *doc, selector_list *list) {
         if (!doc->xml && (s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT || s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE)) {
             for (size_t i = 0; i < s->name.length; i++) if (s->name.data[i] >= 'A' && s->name.data[i] <= 'Z') s->name.data[i] += 'a' - 'A';
             if (html_adjusted_name(doc, s)) flags |= GD_SELECTOR_CUSTOM;
+            if (s->type == LXB_CSS_SELECTOR_TYPE_ATTRIBUTE) gd_attribute_selector_case(s);
         }
-        if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY) flags |= GD_SELECTOR_CUSTOM;
+        if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS &&
+            (s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_EMPTY || s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_ROOT)) flags |= GD_SELECTOR_CUSTOM;
         if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) {
             /* Lexbor's list pseudo-classes on the left of a combinator stop
              * after a failed nearest ancestor. Our chain matcher retries the
@@ -349,6 +351,8 @@ static lxb_status_t found(node *n, lxb_css_selector_specificity_t specificity, v
     (void) n; (void) specificity; *(int *) context = 1; return LXB_STATUS_OK;
 }
 static int atom(gd_document *doc, node *n, selector *s, unsigned depth) {
+    if (s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS && s->u.pseudo.type == LXB_CSS_SELECTOR_PSEUDO_CLASS_ROOT)
+        return !n->parent || n->parent->type != LXB_DOM_NODE_TYPE_ELEMENT;
     if (!doc->xml && !s->ns.length && s->type == LXB_CSS_SELECTOR_TYPE_ELEMENT) {
         size_t length;
         const lxb_char_t *name = n->ns == LXB_NS_HTML ? lxb_dom_element_local_name(lxb_dom_interface_element(n), &length) : lxb_dom_element_qualified_name(lxb_dom_interface_element(n), &length);

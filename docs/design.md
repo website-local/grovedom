@@ -18,6 +18,7 @@ primary target; native and browser entries instantiate independent facades.
 | `src/facade/nodes.js` | Stable wrappers, raw node properties, XML callbacks |
 | `src/facade/operations.js` | Buffered commands, flush/read boundaries and queries |
 | `src/facade/collection-helpers.js` | Mapping, classes, insertion and wrapping helpers |
+| `src/facade/data.js`, `style.js` | Per-key data caching and inline style parsing |
 | `src/facade/options.js` | Parser/serializer option translation |
 | `src/wasm/kernel.js` | Portable Wasm transport and instance lifecycle |
 | `src/wasm/node.js`, `browser.js` | Host-specific byte loading/decoding |

@@ -38,7 +38,7 @@ and `.html()`; fixed expected text, node types and identities stay intact. These
 28 cases run in both buffered and direct execution. No browser scripts, external
 resources, layout, events or live DOM property state are emulated.
 
-The resulting suite has 848 cases: 813 pass, 33 explicitly skip and two are
+The resulting suite has 848 cases: 812 pass, 34 explicitly skip and two are
 executed TODOs. One selector exclusion preserves Cheerio's broad `:enabled`
 semantics; a separate compatibility regression records the difference.
 Scoped `find` follows Cheerio's ancestry boundary. WPT record 160 retains its
@@ -50,3 +50,7 @@ This is selected coverage, not full WPT conformance or browser certification.
 
 Node uses `../web-platform.test.mjs`. The browser page and Node's browser sandbox
 share the same runners and expectations; see [running tests](../../docs/testing.md).
+
+Record 74 retains its empty expected IDs. Only its fragment context skips:
+Cheerio `:root` matches fragment children, unlike browser fragment queries.
+The other contexts and source-parity regressions remain active.

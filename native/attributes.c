@@ -1,5 +1,21 @@
 #include "internal.h"
 
+void gd_attribute_selector_case(lxb_css_selector_t *selector) {
+    if (selector->u.attribute.modifier != LXB_CSS_SELECTOR_MODIFIER_UNSET) return;
+    /* css-select uses the document's HTML mode, including foreign elements.
+     * Resolve once per cached plan; Lexbor otherwise checks each node's namespace. */
+    static const char names[] = "accept|accept-charset|align|alink|axis|bgcolor|charset|checked|clear|codetype|color|compact|declare|defer|dir|direction|disabled|enctype|face|frame|hreflang|http-equiv|lang|language|link|media|method|multiple|nohref|noresize|noshade|nowrap|readonly|rel|rev|rules|scope|scrolling|selected|shape|target|text|type|valign|valuetype|vlink";
+    for (const char *start = names; *start;) {
+        const char *end = strchr(start, '|');
+        size_t length = end ? (size_t) (end - start) : strlen(start);
+        if (length == selector->name.length && memcmp(start, selector->name.data, length) == 0) {
+            selector->u.attribute.modifier = LXB_CSS_SELECTOR_MODIFIER_I;
+            return;
+        }
+        start += length + (end != NULL);
+    }
+}
+
 /* parse5's Cheerio adapter exposes adjusted foreign attributes by local name,
  * while keeping namespace/prefix metadata for serialization. XML keeps qualified
  * names. Namespace metadata also survives delete/reinsert of an attribute. */

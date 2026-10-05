@@ -58,7 +58,7 @@ pending commands, releases document ownership and invalidates handles. Returned
 strings/arrays remain valid. Do not transfer handles across workers or packages.
 GC cleanup is secondary and has no guaranteed deadline.
 
-Thirteen selected Cheerio/jQuery cases remain excluded; their reasons are in
+Fourteen selected Cheerio/jQuery cases remain excluded; their reasons are in
 [test/upstream/README.md](../test/upstream/README.md). Tests specific to another
 backend/heap also skip. Hosted CI passed on Linux with Node 22.0.0 and maintained
 Node 22/24, plus pooled Wasm on Windows and macOS with Node 24. Packed installs
@@ -80,6 +80,14 @@ contexts and nested selector predicates. Ancestors outside the context cannot
 satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
 node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
+
+The [source audit](source-audit.md) records additional fixes and confirmed limits.
+Unicode case folding and token whitespace in selectors, clone-container sibling
+behavior and parser-version recovery remain best-effort. Class methods follow
+Cheerio's JavaScript whitespace rules. Fragment `:root` follows Cheerio rather
+than browser query semantics. Existing HTML callbacks, whole-class toggles and
+array-valued form setters are not exact Cheerio equivalents; see the audit before
+depending on them during migration.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

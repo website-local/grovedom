@@ -4,6 +4,7 @@ import { createOperations } from './operations.js';
 import { createNodes } from './nodes.js';
 import { createSelection } from './selection.js';
 import { createCollectionHelpers } from './collection-helpers.js';
+import { createDataMethods } from './data.js';
 // Each package owns an independent facade, kernel and handle brand.
 export function createFacade(kernel, decodeInput) {
     const selections = new WeakMap();
@@ -12,7 +13,7 @@ export function createFacade(kernel, decodeInput) {
     const nodeAPI = createNodes(kernel, operations, selections, selection);
     const { nodes, inputIds } = nodeAPI;
     const context = { kernel, selections, selection, entry, ...operations, ...nodeAPI };
-    const Selection = createSelection({ ...context, ...createCollectionHelpers(context) });
+    const Selection = createSelection({ ...context, ...createCollectionHelpers(context), ...createDataMethods(context) });
     const numericKey = /^(0|[1-9][0-9]*)$/;
     const selectionProxy = {
         get(target, key, receiver) {

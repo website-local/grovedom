@@ -53,15 +53,12 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     function xmlAttributeCallback(target, state, name, value) {
         return target.each(function (i, node) {
-            const next = value.call(node, i, attributeValue(state, callbackIds(state, node), name));
-            if (next !== undefined)
-                alive(state);
-            if (typeof next === 'function')
-                selection(state, nodes.get(node).ids).attr(name, next);
-            else if (next !== undefined) {
-                const text = next === null ? '' : String(next);
-                enqueue(state, callbackIds(state, node), next === null ? 2 : 1, name, text);
-            }
+            const old = read(state, callbackIds(state, node), 1, name);
+            if (old === undefined && node.nodeType !== 1)
+                return;
+            const next = value.call(node, i, old);
+            const text = next === null ? '' : String(next);
+            enqueue(state, callbackIds(state, node), next === null ? 2 : 1, name, text);
         });
     }
     function xmlTextCallback(target, state, value) {

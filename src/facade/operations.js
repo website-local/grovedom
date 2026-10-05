@@ -214,7 +214,7 @@ export function createOperations(kernel) {
             if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type')))
                 return 'on';
         }
-        return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name.toLowerCase() : result;
+        return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name : result;
     }
     return { flush, enqueue, read, query, matches, edit, attributes, attributeValue };
 }

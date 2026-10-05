@@ -1,10 +1,17 @@
 // Cheerio aliases are expanded once per cached selector. Ordinary CSS stays on
 // the kernel path; no JS DOM mirror or per-node callbacks are introduced.
+const selected = 'option:is([selected],select:not([multiple]):not(:has(>option[selected]))>:first-of-type)';
+const disabled = ':is(:is(button,input,select,textarea,optgroup,option)[disabled],optgroup[disabled]>option,fieldset[disabled]:not(fieldset[disabled] legend:first-of-type *))';
 const aliases = {
     input: ':is(input,textarea,select,button)', header: ':is(h1,h2,h3,h4,h5,h6)',
     button: ':is(button,input[type=button])', text: ':is(input:not([type]),input[type=""],input[type=text])',
     parent: ':not(:empty)',
-    selected: ':is(option:is([selected],select:not([multiple]):not(:has(>option[selected]))>:first-of-type))',
+    selected: `:is(${selected})`,
+    checked: `:is(:is(input[type=radio],input[type=checkbox])[checked],${selected})`,
+    disabled, enabled: `:not(${disabled})`,
+    'any-link': ':is(a,area,link)[href]', link: ':is(a,area,link)[href]',
+    // css-select has no dynamic state adapter in Cheerio.
+    active: ':not(*)', hover: ':not(*)', visited: ':not(*)',
     checkbox: '[type=checkbox]', radio: '[type=radio]', file: '[type=file]',
     password: '[type=password]', reset: '[type=reset]', image: '[type=image]', submit: '[type=submit]',
 };
