@@ -82,3 +82,37 @@ contrary to the tree invariant checked by lifecycle tests and stateful fuzzing.
 No reachable defect was reproduced. This is a reviewed invariant dependency,
 not a blanket analyzer-clean or memory-safety claim. No dependency patch or
 runtime guard was added solely to suppress a warning.
+
+## Regular-expression follow-up
+
+An AST inventory covered 59 regex literals: 22 in shipped ESM and 37 in developer
+tooling. No runtime `RegExp` constructor uses input as a pattern. The shipped
+patterns have bounded alternatives, anchored runs, delimiter-separated runs or
+fixed-width replacements; no individual superlinear matcher was identified.
+In particular, JSON-shape detection is anchored with disjoint opening characters,
+and positional numeric arguments cannot consume another pseudo's colon.
+
+Two quadratic paths were reproduced and hardened:
+
+- The release pagination pattern `<([^>]+)>; rel="next"` retried overlapping
+  suffixes after repeated opening delimiters. Excluding both `<` and `>` from
+  the URL removes that ambiguity. Tests mock every request; no live API is used.
+- Positional selector matching repeatedly applied a linear regex to shrinking
+  prefixes, causing quadratic aggregate work and recursive stack overflow.
+  Suffixes are now consumed backwards and applied iteratively in original order.
+  At 64/128/256/512 suffixes, total regex input characters fell from
+  12,544/49,664/197,632/788,480 to 763/1,531/3,067/6,139. A 10,000-suffix regression
+  completes without stack overflow. Counts are not elapsed speedups; applying
+  filters still costs work proportional to the selections being filtered.
+
+Both new regression tests fail against the preceding implementation. Native and
+pooled-Wasm full suites, seeded fuzzing, portable browser fallback and both
+193-case consumer replays pass after hardening. The fixed ordinary-positional
+timing screen stopped on host activity after six quiet, retained blocks; its
+third group and consumer panel did not complete. The two completed groups had
+candidate/control ratios 0.9489/1.0251 and 0.9885/0.9415; both controls miss the
+declared tolerance. No general non-regression multiplier is claimed.
+
+This review does not bound every selector or DOM algorithm. The separate
+negative-positional compatibility limit is recorded in the
+[compatibility guide](../compatibility.md).

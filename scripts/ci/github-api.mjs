@@ -23,7 +23,9 @@ export async function githubRelease(tag) {
     assert(page.ok, `GitHub draft lookup failed: HTTP ${page.status}`);
     const release = (await page.json()).find(row => row.tag_name === tag);
     if (release) return release;
-    url = page.headers.get('link')?.match(/<([^>]+)>; rel="next"/)?.[1];
+    // An opening delimiter cannot also belong to the URL. Otherwise malformed
+    // headers with repeated '<' retry overlapping suffixes quadratically.
+    url = page.headers.get('link')?.match(/<([^<>]+)>; rel="next"/)?.[1];
   }
   return null;
 }

@@ -94,20 +94,34 @@ export function createOperations(kernel) {
         // Keep ordinary CSS on the direct kernel path. These common Cheerio suffixes
         // apply to the matched selection, rather than to sibling position in the DOM.
         if (selector.includes(':')) {
-            const suffix = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/.exec(selector);
+            const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
+            const suffix = positional.exec(selector);
             if (suffix) {
-                const ids = query(state, selector.slice(0, suffix.index) || '*', roots, match);
-                const kind = suffix[1] ?? suffix[2];
-                let index = Number(suffix[3]);
-                if (index < 0)
-                    index += ids.length;
-                if (kind === 'first')
-                    return ids.slice(0, 1);
-                if (kind === 'last')
-                    return ids.slice(-1);
-                if (kind === 'eq' || kind === 'nth')
-                    return index >= 0 && index < ids.length ? ids.slice(index, index + 1) : empty;
-                return ids.filter((_, i) => kind === 'even' ? i % 2 === 0 : kind === 'odd' ? i % 2 === 1 : kind === 'lt' ? i < index : i > index);
+                const filters = [suffix];
+                let end = suffix.index;
+                // Consume each suffix once, backwards. Recursing over the full
+                // remaining selector rescans O(n²) characters and exhausts the
+                // JS stack on long, otherwise valid positional chains.
+                while (end) {
+                    const colon = selector.lastIndexOf(':', end - 1);
+                    if (colon < 0) break;
+                    const next = positional.exec(selector.slice(colon, end));
+                    if (!next) break;
+                    filters.push(next);
+                    end = colon;
+                }
+                let ids = query(state, selector.slice(0, end) || '*', roots, match);
+                for (let i = filters.length - 1; i >= 0; i--) {
+                    const filter = filters[i], kind = filter[1] ?? filter[2];
+                    let index = Number(filter[3]);
+                    if (index < 0) index += ids.length;
+                    if (kind === 'first') ids = ids.slice(0, 1);
+                    else if (kind === 'last') ids = ids.slice(-1);
+                    else if (kind === 'eq' || kind === 'nth')
+                        ids = index >= 0 && index < ids.length ? ids.slice(index, index + 1) : empty;
+                    else ids = ids.filter((_, i) => kind === 'even' ? i % 2 === 0 : kind === 'odd' ? i % 2 === 1 : kind === 'lt' ? i < index : i > index);
+                }
+                return ids;
             }
             let expanded = state.selectorAliases?.get(selector);
             if (expanded === undefined) {

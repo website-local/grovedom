@@ -81,6 +81,11 @@ satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
 node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
 
+Trailing positional chains are supported, with some negative-index behavior
+remaining best-effort. For example, GroveDOM's `filter(':lt(-1)')` excludes the
+last element, while the current Cheerio reference retains the whole selection.
+The regex hardening preserves this existing distinction.
+
 The [source audit](source-audit.md) records additional fixes and confirmed limits.
 Unicode selector comparisons use baked Unicode 17.0 data and css-select's
 operator-specific rules. Class/token whitespace and empty token operands follow
