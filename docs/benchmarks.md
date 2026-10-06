@@ -39,6 +39,7 @@ fragment parsing or allocator changes.
 | HTML fragment parses / default insertion contexts created | 219 / 3 |
 | `is('a')` / `is('iframe')` calls | 11,214 / 5,172 |
 | Attribute read/observe calls | 19,905 |
+| JS→Wasm `gk_input` calls, current / private prototype | 67,152 / 33,822 |
 | Query / binding-check exclusive native time | 37.7% / 19.1% |
 | Fragment parse / allocation-free hook exclusive native time | 0.33% / 2.47% |
 
@@ -46,6 +47,11 @@ These are instrumented native shares, not whole-pipeline or Wasm percentages.
 Operation counts agree across native/Wasm and outputs match the uninstrumented
 reference. Inspector captures include replay verification; V8 tick captures also
 include startup/warmup. Independent profiler elapsed times are not speedups.
+
+The input prototype removes the second Wasm call for short ASCII strings:
+33,330 of 33,576 inputs in three consumer passes. Outputs and boundary/growth
+checks match, but short Unicode inputs add a call. It remains private: a busy
+precheck stopped the timing sequence before any blocks, so performance is unproven.
 
 An earlier eight-case pool diagnostic observed six byte-limit retirements and
 new instances over three passes. Raising the idle byte budget from 16 to 32 MiB
@@ -166,8 +172,11 @@ weights, browser performance or whole-downloader speedups.
 
 ## Harnesses
 
-- `bench/window.mjs --manifest=FILE --groups=1..3`: bounded process comparisons,
-  optional explicit init settings, 1–100 warmups and 1–8 replays/batch.
+- `bench/window.mjs --manifest=FILE --groups=1..3 --out=FILE`: bounded process
+  comparisons, optional explicit init settings, 1–100 warmups and 1–8 replays/batch.
+  Defaults to one host check and stops on busy activity (exit 2). Completed blocks
+  are saved atomically after each block; stopped panels remain incomplete. The
+  explicit `--busy=run` retains the older retry-and-record behavior.
 - `bench/phase-profile.mjs`, `bench/consumer-profile.mjs`,
   `bench/fragment-profile.mjs`: instrumented attribution, not acceptance timings.
 - [Developer diagnostics](../diagnostics/README.md): allocation, lifecycle and

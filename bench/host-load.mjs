@@ -27,11 +27,13 @@ const optional = f => { try {
 catch {
     return null;
 } };
-export async function checkHost() {
+export async function checkHost({ maxAttempts = 3 } = {}) {
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3)
+        throw new RangeError('Host checks allow one to three attempts.');
     const allowed = readAffinity();
     const siblings = new Map(allowed.map(cpu => [cpu, siblingsOf(cpu)]));
     const attempts = [];
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const before = sample();
         await new Promise(r => setTimeout(r, 1000));
         const after = sample(), busy = new Map();
@@ -45,7 +47,7 @@ export async function checkHost() {
             throw Error('No permitted CPU with a valid load sample');
         const chosen = ranks[0], report = { timestamp: new Date().toISOString(), seconds: 1, affinitySource: 'sched_getaffinity via taskset', allowed, loadavg: optional('/proc/loadavg'), cpuPressure: optional('/proc/pressure/cpu'), memoryAvailableKiB: Number(optional('/proc/meminfo')?.match(/^MemAvailable:\s+(\d+)/m)?.[1]), chosen, quiet: chosen.siblingMax <= .15 };
         attempts.push(report);
-        if (report.quiet || attempt === 2)
+        if (report.quiet || attempt + 1 === maxAttempts)
             return { ...report, attempts };
         await new Promise(r => setTimeout(r, 2000));
     }

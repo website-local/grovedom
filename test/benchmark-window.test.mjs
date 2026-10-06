@@ -1,0 +1,70 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { mockProcessEnv } from './mock-process.mjs';
+import { readAffinity } from '../bench/host-load.mjs';
+
+// Exercise the real driver with deterministic host/child fixtures, not timings.
+for (const scenario of ['initial', 'partial', 'error', 'run']) {
+  test(`benchmark window ${scenario}: bounded work and preserved results`, { skip: process.platform !== 'linux' }, t => {
+    const root = mkdtempSync(join(tmpdir(), 'grovedom-window-'));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const out = join(root, 'result.json'), events = join(root, 'events.jsonl');
+    copyFileSync(new URL('../bench/window.mjs', import.meta.url), join(root, 'window.mjs'));
+    const cpu = readAffinity()[0];
+    writeFileSync(join(root, 'host-load.mjs'), `
+import { appendFileSync, readFileSync } from 'node:fs';
+let step = 0;
+export async function checkHost(options) {
+  const current = step++;
+  appendFileSync(${JSON.stringify(events)}, JSON.stringify({host:current,...options})+'\\n');
+  if (current === 2 && ['partial','error'].includes(${JSON.stringify(scenario)})) {
+    const saved = JSON.parse(readFileSync(${JSON.stringify(out)}));
+    if (saved.results[0].paired.length !== 1) throw Error('Missing earlier checkpoint');
+    if (${JSON.stringify(scenario)} === 'error') throw Error('intentional host failure');
+  }
+  const quiet = !['initial','run'].includes(${JSON.stringify(scenario)}) && current < 2;
+  return {quiet,chosen:{cpu:${cpu},siblingMax:quiet?0:.5}};
+}
+`);
+    writeFileSync(join(root, 'window-child.mjs'), `
+import { appendFileSync } from 'node:fs';
+const log = event => appendFileSync(${JSON.stringify(events)}, JSON.stringify({event,pid:process.pid})+'\\n');
+log('ready');
+process.send({kind:'ready',expected:['same output'],corpus:[{id:'fixture'}]});
+process.on('message', message => {
+  if (message === 'stop') { log('stop'); process.exit(0); }
+  if (message === 'sample') { log('sample'); process.send({kind:'sample',samples:[1,1],controls:[[1,1],[1,1]]}); }
+});
+process.on('disconnect', () => process.exit(0));
+`);
+    writeFileSync(join(root, 'manifest.json'), JSON.stringify({ variants: [
+      { name: 'baseline', entry: join(root, 'entry.mjs') },
+      { name: 'control', entry: join(root, 'entry.mjs') },
+    ] }));
+    const run = spawnSync(process.execPath, [join(root, 'window.mjs'),
+      `--manifest=${join(root, 'manifest.json')}`, `--out=${out}`, '--warmups=1',
+      ...(scenario === 'run' ? ['--busy=run'] : []),
+    ], { encoding: 'utf8', env: mockProcessEnv(), timeout: 10000 });
+    assert.ifError(run.error);
+    assert.equal(run.signal, null);
+    assert.equal(run.status, scenario === 'error' ? 1 : scenario === 'run' ? 0 : 2, run.stderr);
+    const report = JSON.parse(readFileSync(out, 'utf8'));
+    const rows = readFileSync(events, 'utf8').trim().split('\n').map(JSON.parse);
+    assert(rows.filter(row => row.host !== undefined).every(row => row.maxAttempts === (scenario === 'run' ? 3 : 1)));
+    assert.equal(rows.filter(row => row.event === 'ready').length, scenario === 'initial' ? 0 : 2);
+    assert.equal(rows.filter(row => row.event === 'stop').length, scenario === 'initial' ? 0 : 2);
+    assert.equal(report.results[0].paired.length, scenario === 'initial' ? 0 : scenario === 'run' ? 2 : 1);
+    assert.equal(report.results[0].complete, scenario === 'run');
+    assert.equal(rows.filter(row => row.event === 'sample').length, report.results[0].paired.length * 4);
+    assert.equal(existsSync(out + '.pending'), false);
+    if (scenario === 'error') assert.match(run.stderr, /intentional host failure/);
+    else {
+      assert.deepEqual(JSON.parse(run.stdout), report);
+      assert.equal(report.stopped?.stage ?? null, scenario === 'initial' ? 'initial' : scenario === 'partial' ? 'block' : null);
+    }
+  });
+}
