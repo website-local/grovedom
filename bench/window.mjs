@@ -5,20 +5,24 @@ import assert from 'node:assert/strict';
 import { checkHost } from './host-load.mjs';
 const args = Object.fromEntries(process.argv.slice(2).map(value => { const [key, ...rest] = value.split('='); return [key.replace(/^--/, ''), rest.join('=')]; }));
 if (!args.manifest)
-    throw new Error('Use --manifest=FILE [--groups=1..3] [--warmups=1..100] [--iterations=1..8] [--out=FILE] [--busy=stop|run]');
+    throw new Error('Use --manifest=FILE [--groups=1..3] [--warmups=1..100] [--iterations=1..8] [--out=FILE] [--busy=stop|pause|run] [--max-pauses=0..10]');
 const manifest = JSON.parse(fs.readFileSync(args.manifest));
 const groups = Number(args.groups ?? 1);
 const warmups = Number(args.warmups ?? 20);
 const iterations = Number(args.iterations ?? 1);
 const busy = args.busy ?? 'stop';
-if (!['stop', 'run'].includes(busy))
-    throw new Error('Expected --busy=stop or --busy=run.');
+if (!['stop', 'pause', 'run'].includes(busy))
+    throw new Error('Expected --busy=stop, --busy=pause or --busy=run.');
+const maxPauses = Number(args['max-pauses'] ?? (busy === 'pause' ? 3 : 0));
+if (!Number.isInteger(maxPauses) || maxPauses < 0 || maxPauses > 10 || (busy !== 'pause' && maxPauses !== 0))
+    throw new Error('Only --busy=pause accepts --max-pauses=0..10.');
 if (!Number.isInteger(groups) || groups < 1 || groups > 3)
     throw new Error('Short screens allow one to three fixed groups.');
 if (!Number.isInteger(warmups) || warmups < 1 || warmups > 100 ||
     !Number.isInteger(iterations) || iterations < 1 || iterations > 8)
     throw new Error('Short screens allow up to 100 warmups and eight replays per batch.');
 const variants = manifest.variants, n = variants.length, reps = groups, blocks = n, results = [];
+const pauses = [];
 let expected, inputs, stopped = null;
 const median = a => { if (!a.length)
     return null; const b = a.toSorted((x, y) => x - y); return (b[(b.length - 1) >> 1] + b[b.length >> 1]) / 2; };
@@ -26,9 +30,11 @@ function message(child) { return new Promise((resolve, reject) => { function end
 function pin(child, cpu) { const r = spawnSync('taskset', ['-pc', String(cpu), String(child.pid)], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); }
 const comparisons = paired => variants.slice(1).map((v, i) => { const ratio = b => median(b.milliseconds[0]) / median(b.milliseconds[i + 1]), kept = paired.filter(b => b.accepted); return { candidate: v.name, raw: median(paired.map(ratio)), filtered: median(kept.map(ratio)) }; });
 function report() {
-    return { scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and warmups excluded. Two batches per sample; reported milliseconds per whole-corpus replay. Rotate and mirror all variants in each block; rotate/reverse imports.', settings: { groups, blocks, warmups, batches: 2, iterations, busy }, node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: busy === 'stop'
+    return { scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and warmups excluded. Two batches per sample; reported milliseconds per whole-corpus replay. Rotate and mirror all variants in each block; rotate/reverse imports.', settings: { groups, blocks, warmups, batches: 2, iterations, busy, maxPauses }, node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: busy === 'pause'
+        ? 'Before initialization and each block, check CPU/sibling activity once. On busy activity, park children and wait one second before rechecking, within a fixed whole-panel pause budget. Never execute a busy block or repeat a measured block. Stop incomplete when the budget is exhausted.'
+        : busy === 'stop'
         ? 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; stop immediately above15%. No retries or replacement groups.'
-        : 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. A stopped panel is incomplete, not a passing screen.', results, stopped };
+        : 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. A stopped panel is incomplete, not a passing screen.', results, pauses, stopped };
 }
 function save() {
     if (!args.out) return;
@@ -36,12 +42,24 @@ function save() {
     fs.writeFileSync(args.out + '.pending', JSON.stringify(report(), null, 2));
     fs.renameSync(args.out + '.pending', args.out);
 }
-const hostCheck = () => checkHost({ maxAttempts: busy === 'stop' ? 1 : 3 });
+async function hostCheck(location) {
+    let host = await checkHost({ maxAttempts: busy === 'run' ? 3 : 1 });
+    while (busy === 'pause' && !host.quiet && pauses.length < maxPauses) {
+        // The decision uses only independent host activity. Completed samples
+        // never affect the budget, ordering or whether this block is attempted.
+        pauses.push({ ...location, host });
+        save();
+        console.error(JSON.stringify({ ...location, pause: pauses.length, maxPauses }));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        host = await checkHost({ maxAttempts: 1 });
+    }
+    return host;
+}
 for (let replication = 0; replication < reps; replication++) {
-    const children = [], samples = [], paired = [], initialHost = await hostCheck();
+    const children = [], samples = [], paired = [], initialHost = await hostCheck({ replication, stage: 'initial' });
     const group = { replication, initialHost, paired, samples, comparisons: [], complete: false };
     results.push(group);
-    if (busy === 'stop' && !initialHost.quiet) {
+    if (busy !== 'run' && !initialHost.quiet) {
         stopped = { replication, stage: 'initial', host: initialHost };
         break;
     }
@@ -71,8 +89,8 @@ for (let replication = 0; replication < reps; replication++) {
         for (let block = 0; block < blocks; block++) {
             // All benchmark children are parked before checking load. Choose by independent
             // CPU/sibling activity, never by a candidate time. Pin every child to one CPU.
-            const host = await hostCheck();
-            if (busy === 'stop' && !host.quiet) {
+            const host = await hostCheck({ replication, block, stage: 'block' });
+            if (busy !== 'run' && !host.quiet) {
                 stopped = { replication, block, stage: 'block', host };
                 break;
             }

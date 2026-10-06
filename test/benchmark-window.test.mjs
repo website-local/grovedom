@@ -57,11 +57,18 @@ child.on('exit', code => { process.exitCode = code ?? 1; });
 });
 
 // Exercise the real driver with deterministic host/child fixtures, not timings.
-for (const scenario of ['initial', 'partial', 'error', 'run']) {
+for (const scenario of ['initial', 'partial', 'error', 'run', 'pause', 'pause-initial', 'pause-exhausted', 'pause-groups']) {
   test(`benchmark window ${scenario}: bounded work and preserved results`, { skip: process.platform !== 'linux' }, t => {
     const root = mkdtempSync(join(tmpdir(), 'grovedom-window-'));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const out = join(root, 'result.json'), events = join(root, 'events.jsonl');
+    const pausing = scenario.startsWith('pause');
+    const hostPattern = {
+      pause: [true, false, true, true],
+      'pause-initial': [false, true, true, true],
+      'pause-exhausted': [true, true, false, false, false],
+      'pause-groups': [true, false, true, true, false, true, false],
+    }[scenario];
     copyFileSync(new URL('../bench/window.mjs', import.meta.url), join(root, 'window.mjs'));
     const cpu = readAffinity()[0];
     writeFileSync(join(root, 'host-load.mjs'), `
@@ -69,13 +76,14 @@ import { appendFileSync, readFileSync } from 'node:fs';
 let step = 0;
 export async function checkHost(options) {
   const current = step++;
-  appendFileSync(${JSON.stringify(events)}, JSON.stringify({host:current,...options})+'\\n');
+  const pattern = ${JSON.stringify(hostPattern) ?? 'null'};
+  const quiet = pattern ? (pattern[current] ?? false) : !['initial','run'].includes(${JSON.stringify(scenario)}) && current < 2;
+  appendFileSync(${JSON.stringify(events)}, JSON.stringify({host:current,quiet,...options})+'\\n');
   if (current === 2 && ['partial','error'].includes(${JSON.stringify(scenario)})) {
     const saved = JSON.parse(readFileSync(${JSON.stringify(out)}));
     if (saved.results[0].paired.length !== 1) throw Error('Missing earlier checkpoint');
     if (${JSON.stringify(scenario)} === 'error') throw Error('intentional host failure');
   }
-  const quiet = !['initial','run'].includes(${JSON.stringify(scenario)}) && current < 2;
   return {quiet,chosen:{cpu:${cpu},siblingMax:quiet?0:.5}};
 }
 `);
@@ -97,23 +105,41 @@ process.on('disconnect', () => process.exit(0));
     const run = spawnSync(process.execPath, [join(root, 'window.mjs'),
       `--manifest=${join(root, 'manifest.json')}`, `--out=${out}`, '--warmups=1',
       ...(scenario === 'run' ? ['--busy=run'] : []),
+      ...(pausing ? ['--busy=pause', '--max-pauses=2', `--groups=${scenario === 'pause-groups' ? 2 : 1}`] : []),
     ], { encoding: 'utf8', env: mockProcessEnv(), timeout: 10000 });
     assert.ifError(run.error);
     assert.equal(run.signal, null);
-    assert.equal(run.status, scenario === 'error' ? 1 : scenario === 'run' ? 0 : 2, run.stderr);
+    const complete = ['run', 'pause', 'pause-initial'].includes(scenario);
+    assert.equal(run.status, scenario === 'error' ? 1 : complete ? 0 : 2, run.stderr);
     const report = JSON.parse(readFileSync(out, 'utf8'));
     const rows = readFileSync(events, 'utf8').trim().split('\n').map(JSON.parse);
     assert(rows.filter(row => row.host !== undefined).every(row => row.maxAttempts === (scenario === 'run' ? 3 : 1)));
-    assert.equal(rows.filter(row => row.event === 'ready').length, scenario === 'initial' ? 0 : 2);
-    assert.equal(rows.filter(row => row.event === 'stop').length, scenario === 'initial' ? 0 : 2);
-    assert.equal(report.results[0].paired.length, scenario === 'initial' ? 0 : scenario === 'run' ? 2 : 1);
-    assert.equal(report.results[0].complete, scenario === 'run');
-    assert.equal(rows.filter(row => row.event === 'sample').length, report.results[0].paired.length * 4);
+    const children = scenario === 'initial' ? 0 : scenario === 'pause-groups' ? 4 : 2;
+    assert.equal(rows.filter(row => row.event === 'ready').length, children);
+    assert.equal(rows.filter(row => row.event === 'stop').length, children);
+    assert.equal(report.results[0].paired.length, scenario === 'initial' ? 0 : complete || scenario === 'pause-groups' ? 2 : 1);
+    assert.equal(report.results[0].complete, complete || scenario === 'pause-groups');
+    assert.equal(rows.filter(row => row.event === 'sample').length, report.results.reduce((n, group) => n + group.paired.length, 0) * 4);
+    assert.equal(report.pauses.length, pausing ? (['pause', 'pause-initial'].includes(scenario) ? 1 : 2) : 0);
+    if (pausing) {
+      assert.equal(rows.filter(row => row.host !== undefined).length, hostPattern.length);
+      let quiet = false;
+      for (const row of rows) {
+        if (row.host !== undefined) quiet = row.quiet;
+        if (row.event === 'sample') assert(quiet, 'A busy check must never authorize a sample');
+      }
+    }
+    if (scenario === 'pause-groups') {
+      assert.equal(report.results.length, 2);
+      assert.equal(report.results[1].paired.length, 0);
+      assert.equal(report.results[1].complete, false);
+      assert.equal(report.stopped.replication, 1);
+    }
     assert.equal(existsSync(out + '.pending'), false);
     if (scenario === 'error') assert.match(run.stderr, /intentional host failure/);
     else {
       assert.deepEqual(JSON.parse(run.stdout), report);
-      assert.equal(report.stopped?.stage ?? null, scenario === 'initial' ? 'initial' : scenario === 'partial' ? 'block' : null);
+      assert.equal(report.stopped?.stage ?? null, scenario === 'initial' ? 'initial' : ['partial', 'pause-exhausted', 'pause-groups'].includes(scenario) ? 'block' : null);
     }
   });
 }
