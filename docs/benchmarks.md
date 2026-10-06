@@ -22,8 +22,12 @@ browser speedup claim. Production input weights remain unvalidated.
 
 The scoped regression screen requires baseline/candidate medians ≥0.98 and
 controls within 0.98–1.02. This tolerance does not prove exactly equal performance.
-Recent panels use the median of three group medians, with at least two retained
-blocks per group. Inconclusive controls remain inconclusive.
+The current 0.1.0 regression investigation uses the median of three group
+medians from three complete groups of four blocks, with at least three retained
+blocks per group and ten in total. Both raw and filtered release/candidate and
+before/candidate ratios must reach 0.98, with both controls within 0.98–1.02.
+Historical panels retain their separately declared settings. Incomplete panels
+and inconclusive controls do not pass.
 
 ## Consumer bottlenecks
 

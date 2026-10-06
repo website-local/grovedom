@@ -6,6 +6,80 @@ source inspection with existing consumer profiles, new operation traces, V8 heap
 sampling and authored scaling checks. It does not establish exhaustive coverage
 or a new release speedup.
 
+## HTML allocation follow-up
+
+Six separate Node/V8 heap captures cover pooled Wasm at 120/600 articles for
+published 0.1.0, the working JSON-span candidate and the private input-descriptor
+candidate. Each uses 20 warmups, GC before sampling, 40 replays and a 4 KiB
+sampling interval, including objects collected by minor and major GC. Output
+hashes match across all three variants at each size. These captures ran under
+host load and provide statistical JS allocation attribution, not elapsed gains,
+retained memory or Wasm allocation measurements.
+
+Single-ID typed-array creation beneath `each` accounts for approximately 24–25%
+of estimated allocation in all six captures; `attr` self allocation contributes
+15–16%. Independent exact call tracing finds 240/1,200 `Uint32Array.of` calls in
+node construction, plus one root array per replay. Every callback node is passed
+to `$(this)`, which consumes its stable IDs: lazy creation alone would avoid none
+of these arrays. Sharing a mutable callback array would break retained selection
+snapshots. Alternative storage needs separate lifetime and retention analysis.
+
+These costs also exist in 0.1.0 and do not establish a regression cause. Attribute
+samples cannot distinguish regex objects from other allocations in that method;
+the earlier validator experiment remains allocation evidence, not an accepted
+performance fix. No runtime change follows from these captures alone.
+
+An isolated callback-handle prototype replaces one-ID backing buffers with
+one-element views of the selection's existing ID array. Source review confirms
+that selection index assignment, splice and merge replace storage; focused
+checks preserve callback snapshots through those edits and nested callbacks.
+Separate allocation captures estimate 6.91/34.51 MB at 120/600 articles, compared
+with 7.62/40.65 MB for the working candidate under the same sampling settings.
+These are noisy statistical allocation estimates, not speedups or acceptance.
+
+Unbounded sharing was rejected for promotion: after disposal and GC, retaining
+one callback node from a 20,000-node query retains the entire 80,000-byte ID
+buffer. The current one-ID record does not retain that query buffer. A WeakRef
+probe verifies the additional retention; it does not measure total heap usage.
+Any future sharing design must bound this cost for both handles and selections,
+without moving equivalent allocations into disposal. The private prototype and
+its unfavorable retention result remain preserved; no full correctness or
+performance qualification is claimed for it.
+
+A second private prototype stores HTML handle IDs in document-owned blocks of
+32 slots. Each handle receives an immutable one-element view; slots are never
+reused, and disposal clears the document's reference to the latest block.
+Retaining one disposed handle and its selection after wrapping 20,000 nodes
+keeps one 128-byte block, with the other 624 blocks collected. Sparse documents
+pay for unused slots: one wrapped node reserves 128 rather than four backing
+bytes, and every document has two additional bookkeeping fields. No ID block
+is allocated until an HTML handle is created; XML record behavior is unchanged.
+
+Under the same allocation-capture settings, estimated JS allocation is
+6.75/35.11 MB for 120/600 articles, versus 7.62/40.65 MB before. Output hashes
+match. This does not establish elapsed improvement or sparse-workload parity.
+The prototype passes the 1,795-case suites on pooled Wasm (1,744 passes,
+51 skips) and native (1,736 passes, 59 skips), focused shared/fresh heap and
+Node 24 checks, portable browser fallback, and both 193-case output/event and
+lifecycle replays on each backend. It remains isolated and unqualified by timing;
+the native kernel is unchanged.
+
+Exact block tracing confirms eight blocks / 240 views at 120 articles and
+38 blocks / 1,200 views at 600; no-handle HTML and the XML sitemap create no
+blocks. Separate sparse captures use 2,000 no-handle or one-handle documents,
+and 40 XML600 replays. Their sampled totals vary by about −2.5% to +0.3%; these
+single captures do not establish sparse allocation or elapsed parity. Heap
+sampling also does not fully account for external ArrayBuffer backing storage.
+
+A separate GC lifecycle probe retains 5,000 disposed one-node documents through
+their handles. ArrayBuffer growth is 20,000 bytes before and 660,000 bytes with
+blocks; after releasing the handles it returns to the pre-probe level in both
+processes. Heap-used deltas are approximately 9.05/9.01 MB. These independent
+snapshots include runtime bookkeeping, but expose a sparse backing-storage cost
+that the heap samples alone miss. `external` includes `arrayBuffers` and must
+not be added to it. The block prototype therefore remains a workload-dependent
+tradeoff, with no accepted performance result.
+
 ## Consumer decisions
 
 Three passes through the five-case offline consumer panel produced the same
