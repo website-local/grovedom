@@ -112,8 +112,8 @@ test('repeated unobserved subtree replacement returns nodes to document pools', 
 test('owner finalizer frees unreachable documents and retained selections keep them alive', () => {
   const script = `
     import assert from 'node:assert/strict';
-    import { load } from './diagnostics/index.js';
-    import { kernel } from './diagnostics/kernel.js';
+    import { load } from ${JSON.stringify(new URL('../diagnostics/index.js', import.meta.url).href)};
+    import { kernel } from ${JSON.stringify(new URL('../diagnostics/kernel.js', import.meta.url).href)};
     let retained = load('<p>retained</p>')('p');
     for (let i = 0; i < 12; i++) load('<p>garbage</p>')('p')[0];
     for (let i = 0; i < 30 && kernel.stats().liveDocuments > 1; i++) { global.gc(); await new Promise(setImmediate); }
@@ -124,6 +124,11 @@ test('owner finalizer frees unreachable documents and retained selections keep t
     assert.equal(kernel.stats().liveDocuments, 0);
     assert.equal(kernel.stats().liveBytes, 0);
   `;
-  const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', script], { encoding: 'utf8', env: process.env });
+  // Run outside the repository root so eval imports cannot silently select
+  // another checkout's JS while inheriting this checkout's build settings.
+  const result = spawnSync(process.execPath, ['--expose-gc', '--input-type=module', '-e', script], {
+    cwd: new URL('.', import.meta.url), encoding: 'utf8', env: process.env,
+  });
+  assert.ifError(result.error);
   assert.equal(result.status, 0, result.stderr);
 });
