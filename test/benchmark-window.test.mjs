@@ -7,6 +7,55 @@ import { tmpdir } from 'node:os';
 import { mockProcessEnv } from './mock-process.mjs';
 import { readAffinity } from '../bench/host-load.mjs';
 
+test('benchmark child warms through sample scheduling and keeps batches intact', t => {
+  const root = mkdtempSync(join(tmpdir(), 'grovedom-window-child-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const events = join(root, 'events.jsonl');
+  writeFileSync(join(root, 'entry.mjs'), 'export function load() {}');
+  writeFileSync(join(root, 'workload.mjs'), `
+import { appendFileSync } from 'node:fs';
+let turn = 0;
+function tick() { turn++; setImmediate(tick); }
+setImmediate(tick);
+export function page() { return 'input'; }
+export async function replay() {
+  appendFileSync(${JSON.stringify(events)}, JSON.stringify({turn})+'\\n');
+  return 'ok';
+}
+`);
+  const child = new URL('../bench/window-child.mjs', import.meta.url).href;
+  writeFileSync(join(root, 'driver.mjs'), `
+import { fork } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
+const child = fork(new URL(${JSON.stringify(child)}), [], {stdio:['ignore','ignore','inherit','ipc'],env:{...process.env,
+  GROVEDOM_PROCESS_ENTRY:pathToFileURL(${JSON.stringify(join(root, 'entry.mjs'))}).href,
+  GROVEDOM_PROCESS_FIXTURE:pathToFileURL(${JSON.stringify(join(root, 'workload.mjs'))}).href,
+  GROVEDOM_PROCESS_CONFIG:JSON.stringify({consumer:true,corpus:[{id:'fixture'}],warmups:2,batches:2,iterations:2})}});
+child.on('message', report => {
+  if (report.kind === 'loaded') child.send('warmup');
+  else if (report.kind === 'ready') child.send('sample');
+  else { console.log(JSON.stringify(report)); child.send('stop'); }
+});
+child.on('exit', code => { process.exitCode = code ?? 1; });
+`);
+  const run = spawnSync(process.execPath, [join(root, 'driver.mjs')],
+    { encoding: 'utf8', env: mockProcessEnv(), timeout: 10000 });
+  assert.ifError(run.error);
+  assert.equal(run.status, 0, run.stderr);
+  const rows = readFileSync(events, 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(rows.length, 7); // One verification, two warmups, two two-replay batches.
+  assert(rows[1].turn > rows[0].turn);
+  assert(rows[2].turn > rows[1].turn);
+  assert(rows[3].turn > rows[2].turn);
+  assert.equal(rows[3].turn, rows[4].turn);
+  assert(rows[5].turn > rows[4].turn);
+  assert.equal(rows[5].turn, rows[6].turn);
+  const report = JSON.parse(run.stdout);
+  assert.equal(report.consumed, 12);
+  assert.equal(report.samples.length, 2);
+  assert.equal(report.controls.length, 2);
+});
+
 // Exercise the real driver with deterministic host/child fixtures, not timings.
 for (const scenario of ['initial', 'partial', 'error', 'run']) {
   test(`benchmark window ${scenario}: bounded work and preserved results`, { skip: process.platform !== 'linux' }, t => {

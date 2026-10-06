@@ -29,17 +29,29 @@ const invoke = config.consumer ? async () => {
     return length;
 };
 let consumed = 0;
-for (let i = 0; i < config.warmups; i++)
-    consumed += config.consumer ? await invoke() : invoke();
 let probeSink = 0;
-function probe() {
-    const start = performance.now();
+function probeWork() {
+    let value = probeSink;
     for (let i = 0; i < 3000000; i++)
-        probeSink = (Math.imul(probeSink ^ i, 1664525) + 1013904223) | 0;
+        value = (Math.imul(value ^ i, 1664525) + 1013904223) | 0;
+    probeSink = value;
+}
+function probe() {
+    // Keep clock/property accesses outside the loop's OSR compilation. Their
+    // cold exit feedback otherwise causes repeated deoptimization of the probe.
+    const start = performance.now();
+    probeWork();
     return performance.now() - start;
 }
-for (let i = 0; i < 30; i++)
-    probe();
+async function warmup() {
+    // Warm from the IPC handler and through the same event-loop boundaries as
+    // sampling. Otherwise the first sample changes async-hook resource shapes.
+    for (let i = 0; i < config.warmups; i++) {
+        await new Promise(setImmediate);
+        consumed += config.consumer ? await invoke() : invoke();
+    }
+    for (let i = 0; i < 30; i++) probe();
+}
 async function measure() {
     const samples = [], controls = [];
     for (let batch = 0; batch < config.batches; batch++) {
@@ -53,8 +65,11 @@ async function measure() {
     }
     return { samples, controls, consumed, probeSink };
 }
-process.send({ kind: 'ready', expected, corpus });
+process.send({ kind: 'loaded' });
 process.on('message', async (m) => { if (m === 'stop') {
     process.exit(0);
+} if (m === 'warmup') {
+    await warmup();
+    process.send({ kind: 'ready', expected, corpus });
 } if (m === 'sample')
     process.send({ kind: 'sample', ...await measure() }); });

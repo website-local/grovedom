@@ -56,7 +56,12 @@ for (let replication = 0; replication < reps; replication++) {
             child.stderr.on('data', b => process.stderr.write(b));
             const ready = message(child);
             pin(child, initialHost.chosen.cpu);
-            const report = await ready;
+            let report = await ready;
+            if (report.kind === 'loaded') {
+                const warmed = message(child);
+                child.send('warmup');
+                report = await warmed;
+            }
             assert.equal(report.kind, 'ready');
             expected ??= report.expected;
             inputs ??= report.corpus;
