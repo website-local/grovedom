@@ -20,7 +20,9 @@ best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
 ## Priorities
 
 1. Optimize concrete consumer bottlenecks with short, predeclared comparisons;
-   preserve callback order, retained handles and the primary pooled-Wasm path.
+   resolve the private input/validator experiments before broader tuning. The
+   [static review](history/performance-review.md) separates consumer priorities
+   from wide/deep-tree costs. Preserve callbacks, handles and pooled-Wasm speed.
 2. Broaden stateful fuzzing and parser/allocation-failure coverage. Current owned
    buffer fault tests do not establish universal upstream OOM recovery.
 3. Validate original production inputs and workload weights with the application

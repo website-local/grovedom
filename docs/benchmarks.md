@@ -48,10 +48,16 @@ Operation counts agree across native/Wasm and outputs match the uninstrumented
 reference. Inspector captures include replay verification; V8 tick captures also
 include startup/warmup. Independent profiler elapsed times are not speedups.
 
-The input prototype removes the second Wasm call for short ASCII strings:
-33,330 of 33,576 inputs in three consumer passes. Outputs and boundary/growth
-checks match, but short Unicode inputs add a call. It remains private: a busy
-precheck stopped the timing sequence before any blocks, so performance is unproven.
+Two private input prototypes remove the second Wasm call for short ASCII strings:
+33,330 of 33,576 inputs in three consumer passes. An ASCII precheck avoids the
+direct-write prototype's extra Unicode call. Both remain unproven by timing.
+
+The [static and allocation review](history/performance-review.md) qualifies these
+and the predicate/validator prototypes, rejects larger selector caches, and
+records costs missed by the consumer profile. The reproducible
+[`structure-profile`](../bench/structure-profile.mjs) diagnostic covers child
+access, ancestry, overlapping roots, sibling traversal and attribute enumeration.
+Runtime changes remain private where timing controls are incomplete.
 
 An earlier eight-case pool diagnostic observed six byte-limit retirements and
 new instances over three passes. Raising the idle byte budget from 16 to 32 MiB
