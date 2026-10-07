@@ -506,6 +506,16 @@ No production change or general speedup is claimed. Authored 24-cycle memory
 budgets and fixed pinned-owner/replacement checks pass on native and all three
 Wasm heaps; final tracked live bytes and document counts are zero.
 
+A separate counter-only review finds 728/3,608 selection-state lookups in the
+authored HTML120/600 replays, all WeakMap hits, with no `length` reads. Across the
+193-case installed consumer replay, 486,269 of 528,080 lookups hit the WeakMap;
+41,811 fall back to private state, matching the earlier numeric-get count.
+There are 101,867 `length` reads and 194,214 selection constructions, including
+170,136 single-node selections. All outputs/events/lifecycle counts still match.
+These are logical counts, not allocation sizes or timing gains. Trying private
+state first would add a failed brand check to ordinary proxy lookups; these
+counts do not justify changing the map-first path or bypassing getter semantics.
+
 ### XML fault attribution
 
 A separate native sitemap diagnostic finds page-fault variation strongly
