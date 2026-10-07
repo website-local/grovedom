@@ -17,7 +17,7 @@ identical-code controls. No private candidate below is promoted.
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
-| Proxy numeric-key guard | Six scoped passes, ten inconclusive/incomplete cases; all 16 original combinations attempted | Full-scope acceptance open |
+| Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -516,6 +516,16 @@ Passes from other candidates do not transfer.
 No production change or general speedup is claimed. Authored 24-cycle memory
 budgets and fixed pinned-owner/replacement checks pass on native and all three
 Wasm heaps; final tracked live bytes and document counts are zero.
+
+A predeclared, separate confirmation sequence covers the ten unresolved cases,
+with pooled cases first and unchanged candidate, artifacts and panel settings.
+Its first HTML120 panel retains all 12 blocks: raw and filtered release/candidate
+0.976823, before/candidate 1.023650, control 1.019855. The control satisfies the
+fixed 2% rule, but the release comparison fails it (about 2.4% slower than 0.1.0).
+The sequence stops on this valid failure; nine planned confirmations remain
+unstarted. Earlier panels stay closed and unmerged. The guard improves its
+immediate baseline in this panel but does not close the published-release gap,
+so the combined candidate is not accepted.
 
 A separate counter-only review finds 728/3,608 selection-state lookups in the
 authored HTML120/600 replays, all WeakMap hits, with no `length` reads. Across the
