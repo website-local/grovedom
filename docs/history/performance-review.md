@@ -50,6 +50,9 @@ reparenting and detached roots in HTML/XML. Its query sample share is
 2.40–2.45%; all profiled replay outputs match. Native/pool suites pass
 1,727/1,735 cases with 59/51 skips, and the native sanitizer suite passes with
 leak detection and no reports.
+Both 193-case consumer snapshots match outputs, events and lifecycle counts on
+native and pooled Wasm. Seeded fuzzing passes 200 cases on each backend, as do
+focused shared/fresh heaps, workers, Node 24, portable browser and type checks.
 
 A fixed 60-second paired diagnostic shows a 1.1294 before/candidate ratio at
 600 articles, but its identical-code control is 0.8821. That invalid control
