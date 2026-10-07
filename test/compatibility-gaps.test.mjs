@@ -17,12 +17,24 @@ for (const xml of [false, true]) {
   test(`Unicode attribute comparisons preserve operator-specific JS rules (xml=${xml})`, () => {
     const pairs = [['É', 'é'], ['İ', 'i\u0307'], ['i\u0307', 'İ'], ['ΟΣ', 'ος'], ['ΟΣΑ', 'οσα'],
       ['Σ', 'ς'], ['ſ', 's'], ['K', 'k'], ['\u{10400}', '\u{10428}'], ['AΣ\u0301', 'aς\u0301'],
-      ['\u{1c89}', '\u{1c8a}'], ['Éx', 'é'], ['xÉ', 'é'], ['É-x', 'é'], ['a É b', 'é']];
+      ['Éx', 'é'], ['xÉ', 'é'], ['É-x', 'é'], ['a É b', 'é']];
     for (const [value, operand] of pairs) compare('<p id="p"/>', $ => {
       $('p').attr('data-x', value);
       return ['=', '^=', '$=', '*=', '~=', '|='].flatMap(op => ['i', 's'].map(flag =>
         ids($(`p[data-x${op}${quote(operand)} ${flag}]`))));
     }, { xml });
+  });
+  test(`new Unicode case mappings use the pinned table independently of host ICU (xml=${xml})`, () => {
+    // U+1C89/U+1C8A were added in Unicode 16. Older Node/Cheerio runtimes
+    // cannot serve as the oracle for GroveDOM's documented Unicode 17 table.
+    const $ = load('<p id="p"/>', { xml });
+    try {
+      $('p').attr('data-x', '\u{1c89}');
+      for (const op of ['=', '^=', '$=', '*=', '~=', '|=']) {
+        assert.deepEqual(ids($(`p[data-x${op}"\u{1c8a}" i]`)), ['p'], op);
+        assert.deepEqual(ids($(`p[data-x${op}"\u{1c8a}" s]`)), [], op);
+      }
+    } finally { $.dispose(); }
   });
   test(`class and token selectors share JS whitespace with guards and nested plans (xml=${xml})`, () => {
     for (const space of ['\t', '\v', '\f', '\r', '\n', ' ', '\u00a0', '\u1680', '\u2003', '\u2028', '\u2029', '\u202f', '\u205f', '\u3000', '\ufeff']) {

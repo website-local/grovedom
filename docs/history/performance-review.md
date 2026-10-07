@@ -19,11 +19,43 @@ identical-code controls. No private candidate below is promoted.
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
 | Hoisted attribute validator | Full scope: four passes, eleven inconclusive/incomplete, one valid native sitemap-pipeline failure | Not accepted |
+| Distinct sibling query roots | Exact CI source has quadratic root-coverage scans; isolated fast path removes the query CPU hotspot and passes native/pool/sanitizer suites | Qualification and full-scope timing open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
 them. Historical failed, incomplete and blocked checkpoints below remain
 evidence and describe their state at that time, not an unfixable regression.
+
+## CI large-HTML regression follow-up
+
+The supplied CI summary reports released/current ratios of 0.938 at 120 articles
+and 0.845 at 600: approximately 6.6% and 18.3% more elapsed time. Both retain
+61/61 blocks, raw equals filtered, and identical-code controls are 1.003/0.986.
+These shared-browser-entry diagnostics are distinct from prior private-candidate
+Node-entry acceptance panels. The summary is preserved; its raw artifact has
+not been independently audited.
+
+Rebuilding the exact tested commit and profiling the browser entry at 600
+articles identifies `gk_query` at 13.59–13.64% of samples, versus 2.82–2.99%
+for published 0.1.0. The committed `gd_covered_root` scans the context list for
+duplicates and each ancestor of every root, making the authored
+`$('article').find('h2')` step quadratic. This code differs from the uncommitted
+combined root/scope candidate previously measured locally.
+
+A new isolated candidate certifies strictly monotonic, distinct sibling roots
+in one pass and bypasses coverage scans for those roots. All other contexts
+retain the existing fallback; no node layout, allocation, marks, or template
+semantics change. New tests cover ordering, duplicates, arbitrary permutations,
+reparenting and detached roots in HTML/XML. Its query sample share is
+2.40–2.45%; all profiled replay outputs match. Native/pool suites pass
+1,727/1,735 cases with 59/51 skips, and the native sanitizer suite passes with
+leak detection and no reports.
+
+A fixed 60-second paired diagnostic shows a 1.1294 before/candidate ratio at
+600 articles, but its identical-code control is 0.8821. That invalid control
+prevents an elapsed improvement or acceptance claim. A separate JS/binary
+crossover also has an invalid large-case control. Both remain preserved;
+the mechanism and CPU attribution justify further qualification, not promotion.
 
 ## HTML allocation follow-up
 
