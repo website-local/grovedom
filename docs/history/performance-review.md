@@ -18,7 +18,7 @@ identical-code controls. No private candidate below is promoted.
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
-| Hoisted attribute validator | Three scoped passes; six cases inconclusive or incomplete; seven native cases unstarted; heap captures confirm lower allocation | Full-scope acceptance open |
+| Hoisted attribute validator | Full scope: four passes, eleven inconclusive/incomplete, one valid native sitemap-pipeline failure | Not accepted |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -592,10 +592,32 @@ in its first group when the bounded host-load pause budget expires. Both raw
 summaries were independently recomputed; neither provides an aggregate result.
 Pooled sitemap-pipeline then stops two blocks short, retaining 4/4/2 blocks.
 Its raw summary also recomputes, but the incomplete group prevents acceptance.
-Native HTML120 subsequently stops after one retained block when load rises
-again following a qualified precheck. Seven original native cases remain
-unmeasured for this candidate; no earlier candidate's passes transfer, and no
-runtime change is promoted.
+Native HTML120 subsequently stops after two measured blocks, one retained,
+when load rises again following a qualified precheck. The seven untouched
+native cases then complete. Ratios below are release/candidate,
+before/candidate and candidate/identical-control; raw equals filtered unless
+both are shown.
+
+| Native case | Raw ratios | Filtered ratios | Retained per group | Result |
+|---|---|---|---|---|
+| HTML600 | 1.012099 / 1.036587 / 0.955420 | 1.012099 / 1.037163 / 0.986329 | 3/4/4 | Inconclusive control |
+| Sitemap600 | 0.948493 / 0.798823 / 0.917251 | Same | 4/4/4 | Inconclusive control |
+| SVG300 | 1.035961 / 1.018179 / 0.959621 | Same | 4/4/4 | Inconclusive control |
+| getPose | 1.025601 / 0.991813 / 1.001989 | Same | 4/4/4 | Pass |
+| Relative-colors | 1.083260 / 0.988174 / 1.023212 | Same | 4/4/4 | Inconclusive control |
+| Template | 1.125042 / 0.987427 / 0.976052 | Same | 4/4/4 | Inconclusive control |
+| Sitemap-pipeline | 0.958078 / 0.969583 / 1.012761 | Same | 4/4/4 | Fail |
+
+All 16 raw panels were audited together: four passes, eleven inconclusive or
+incomplete, and one valid failure. The sitemap-pipeline case fails both the
+release and immediate-baseline tolerance with a valid control. The candidate
+is not accepted; no runtime change is promoted and no earlier passes transfer.
+
+Three instrumented sitemap-pipeline replays preserve exact outputs and lifecycle
+results. Each calls `each()` once and `text()` 600 times, but never `attr()`.
+The validator allocation reduction is therefore not exercised by this failing
+workload. This does not invalidate the timing failure or identify its cause;
+text extraction and surrounding replay work remain the next attribution targets.
 
 The last sitemap-pipeline host precheck reports `0.30000000000000004` against
 the inclusive 30% activity limit. Computing activity as `1 - idle/total` can
