@@ -1,4 +1,4 @@
-import { cases, page, transform } from './workload.js';
+import { cases, caseSource, caseReplay } from './workload.js';
 
 export function median(values) {
   if (!values.length) return null;
@@ -33,12 +33,12 @@ export async function compare(variants, { durationMs, now = () => performance.no
     throw new Error('At least two uniquely named variants required');
   if (![warmups, iterations].every(n => Number.isSafeInteger(n) && n > 0)) throw new Error('Positive counts required');
   const start = now(), deadline = start + durationMs;
-  const inputs = selectedCases.map(c => ({ ...c, source: page(c.rows) }));
+  const inputs = selectedCases.map(c => ({ ...c, source: caseSource(c) }));
   for (const input of inputs) {
-    input.expected = transform(variants[0].load, input.source);
+    input.expected = caseReplay(variants[0].load, input.source, input);
     for (let i = 0; i < warmups; i++) for (const variant of variants) {
       if (now() >= deadline) throw new Error('Budget exhausted during warmup');
-      if (transform(variant.load, input.source) !== input.expected)
+      if (caseReplay(variant.load, input.source, input) !== input.expected)
         throw new Error(`${variant.name}: ${input.id} output mismatch; timing cancelled`);
       await yieldControl();
     }
@@ -63,7 +63,7 @@ export async function compare(variants, { durationMs, now = () => performance.no
           if (now() >= deadline) { stopped = true; break; }
           const outputs = [];
           const begin = now();
-          for (let i = 0; i < iterations; i++) outputs.push(transform(pair[index].load, panel.input.source));
+          for (let i = 0; i < iterations; i++) outputs.push(caseReplay(pair[index].load, panel.input.source, panel.input));
           milliseconds[index].push((now() - begin) / iterations);
           if (outputs.some(output => output !== panel.input.expected))
             throw new Error(`${pair[index].name}: ${panel.input.id} output changed during timing`);

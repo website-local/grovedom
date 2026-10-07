@@ -28,7 +28,7 @@ async function loadCheerio() {
 }
 try {
   [, , references] = await Promise.all([init({ heap: 'pool' }), initControl({ heap: 'pool' }), loadCheerio()]);
-  status.textContent = 'Ready. Both article sizes use exactly the CI workload.';
+  status.textContent = 'Ready. HTML, XML sitemap and SVG cases match CI.';
   run.disabled = false;
 } catch (error) {
   status.textContent = `Comparison unavailable: ${error.message}. Reload to retry.`;
@@ -39,7 +39,7 @@ run.addEventListener('click', async () => {
   results.textContent = '';
   download.hidden = true;
   if (reportURL) URL.revokeObjectURL(reportURL);
-  status.textContent = 'Running both cases for about thirty seconds…';
+  status.textContent = 'Running all four cases for about thirty seconds…';
   try {
     await yieldToBrowser();
     const report = await compare([{ name: 'GroveDOM Wasm', load }, ...references,

@@ -70,6 +70,17 @@ The sequence stops as declared; HTML120 remains unstarted. Neither rounding nor
 the valid control converts this failure to a pass, and full-scope acceptance
 remains open.
 
+The subsequent full original-scope run completes all eight workloads on native
+and pooled Wasm: eight passes, four failures and four inconclusive controls.
+All 16 raw summaries independently recompute. Pooled HTML600 fails against
+release (0.960358, before/candidate 1.095712, control 1.013614); pooled sitemap600
+fails the filtered before/candidate ratio (0.973739, control 0.998998); pooled
+template fails before/candidate (0.970233, control 0.989376); native SVG300 fails
+both comparisons (release 0.976308, before 0.961373, control 0.993063).
+Native HTML600 passes with release/candidate 1.049332 and before/candidate
+1.237372. These workload-specific passes cannot promote a shared runtime change
+that fails other required panels. The runtime candidate remains isolated.
+
 ## HTML allocation follow-up
 
 Six separate Node/V8 heap captures cover pooled Wasm at 120/600 articles for

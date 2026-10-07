@@ -14,9 +14,9 @@ small { display: block; margin: 1rem 0; }
 </style>
 <h1>GroveDOM in your browser</h1>
 <p>The same Wasm binary as the Node package, initialized asynchronously. Each short
-trial parses a fresh document, queries and edits articles, serializes the result,
+trial parses a fresh document, queries and edits it, serializes the result,
 and disposes GroveDOM. Exact output is checked on every replay. The 120- and
-600-article cases are shared with CI.</p>
+600-article, XML sitemap and SVG cases are shared with CI.</p>
 <p><button id="run" disabled>Run paired comparison (~30 seconds)</button></p>
 <p id="status" role="status">Loading Wasm…</p>
 <p id="cheerio-status" role="status">Loading Cheerio 1.2.0 from the CDN…</p>
@@ -29,7 +29,7 @@ ABBA/BAAB blocks match the local short benchmark. Raw and independent CPU-probe-
 filtered paired ratios include an identical Wasm instance control (expected near
 1×). Ratios are never normalized by controls. CI also compares
 the latest published GroveDOM and shares a roughly two-minute total job budget
-across setup and both cases. This demo uses a shorter shared budget and pooled
+across setup and all four cases. This demo uses a shorter shared budget and pooled
 Wasm heaps. Browser scheduling, compilation and GC affect results; these are
 diagnostics, not production performance gates. Keep this tab active during the
 comparison.</small>

@@ -12,12 +12,14 @@ The diagnostic benchmark job reuses the verified current tarball and installs
 the npm `latest` release into an isolated directory, with install scripts disabled.
 It compares their pooled Wasm browser entries against pinned Cheerio's default
 and htmlparser2 parsers. Both CI and the demo import `demo/workload.js` and
-`demo/comparison.js`: 120 and 600 articles, fresh parse, selection callbacks,
+`demo/comparison.js`: 120 and 600 articles, a 600-entry XML sitemap and a
+300-group SVG document. The shared workloads cover fresh parse, selection callbacks,
 attribute edits, fragment parsing, traversal, removal, append, serialization and
-explicit disposal. Local `test/fixtures.mjs` reexports this same authored workload.
+explicit disposal. Local `test/fixtures.mjs` and `bench/xml-fixtures.mjs` reexport
+the same HTML and XML/SVG workloads. Both XML cases use explicit XML mode.
 
 The **whole benchmark job targets about two minutes**, starting at its first
-step. Setup, artifact download, installation, initialization, warmup and both
+step. Setup, artifact download, installation, initialization, warmup and all four
 cases share that budget. Measurement ends 105 seconds after that first step,
 reserving about 15 seconds for upload/teardown; a three-minute timeout covers
 slow infrastructure. Build jobs and runner queue time are separate. Setup

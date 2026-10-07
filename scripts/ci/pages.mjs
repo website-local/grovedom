@@ -36,9 +36,9 @@ const module = new WebAssembly.Module(readFileSync(join(pkg, 'grovedom.wasm')));
 assert.equal(WebAssembly.Module.imports(module).length, 0, 'Release Wasm must be import-free');
 assert(!WebAssembly.Module.exports(module).some(({ name }) => /profile|__stack/.test(name)), 'Diagnostic Wasm exports');
 mkdirSync(join(out, 'demo'));
-for (const name of ['index.html', 'benchmark.js', 'comparison.js', 'workload.js']) {
+for (const name of ['index.html', 'benchmark.js', 'comparison.js', 'workload.js', 'xml-workload.js']) {
   // Earlier releases have a self-contained benchmark module.
-  if (['comparison.js', 'workload.js'].includes(name) && !existsSync(join(checkout, 'demo', name))) continue;
+  if (['comparison.js', 'workload.js', 'xml-workload.js'].includes(name) && !existsSync(join(checkout, 'demo', name))) continue;
   cpSync(join(checkout, 'demo', name), join(out, 'demo', name));
 }
 writeFileSync(join(out, 'index.html'), `<!doctype html>

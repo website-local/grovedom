@@ -1,5 +1,9 @@
 // Authored workload shared with the local benchmarks, CI and browser demo.
-export const cases = [120, 600].map(rows => ({ id: `articles-${rows}`, rows }));
+import { page as xmlPage, svg, replay as xmlReplay } from './xml-workload.js';
+export const cases = [...[120, 600].map(rows => ({ id: `articles-${rows}`, rows })),
+  { id: 'sitemap-600', kind: 'xml', rows: 600 }, { id: 'svg-300', kind: 'svg', rows: 300 }];
+export const caseSource = c => c.kind === 'xml' ? xmlPage(c.rows) : c.kind === 'svg' ? svg(c.rows) : page(c.rows);
+export const caseReplay = (load, source, c) => c.kind ? xmlReplay(load, source) : replay(load, source);
 export function page(count = 120) {
   let rows = '';
   for (let i = 0; i < count; i++) {

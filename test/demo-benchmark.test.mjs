@@ -3,17 +3,43 @@ import assert from 'node:assert/strict';
 import { load } from 'cheerio';
 import { load as slimLoad } from 'cheerio/slim';
 import { compare, summarize } from '../demo/comparison.js';
-import { cases, page, transform } from '../demo/workload.js';
+import { cases, page, transform, caseSource, caseReplay } from '../demo/workload.js';
+import * as localXML from '../bench/xml-fixtures.mjs';
 import { page as localPage, replay as localReplay } from './fixtures.mjs';
 
 for (const c of cases) test(`local/demo/CI workload ${c.id} matches both Cheerio parsers`, () => {
   assert.equal(page, localPage);
   assert.equal(transform, localReplay);
-  const output = transform(load, page(c.rows));
-  assert.equal(transform(slimLoad, page(c.rows)), output);
-  assert.match(output, /<footer>Done<\/footer>/);
-  assert.match(output, /href="\/offline\/page\/0"/);
-  assert(!output.includes('obsolete'));
+  const source = caseSource(c), output = caseReplay(load, source, c);
+  assert.equal(caseReplay(slimLoad, source, c), output);
+  if (c.kind) {
+    assert.equal(source, (c.kind === 'xml' ? localXML.page : localXML.svg)(c.rows));
+    assert.equal(output, localXML.replay(load, source));
+    if (c.kind === 'xml') {
+      assert.match(output, /processed="yes"/);
+      assert.match(output, /<loc>\.\/extra.xml<\/loc>/);
+      assert(!output.includes('<priority>'));
+    } else {
+      assert.match(output, /xlink:href="#g0-local"/);
+      assert.match(output, /<metadata>processed<\/metadata>/);
+      assert(!output.includes('<title>'));
+    }
+  } else {
+    assert.match(output, /<footer>Done<\/footer>/);
+    assert.match(output, /href="\/offline\/page\/0"/);
+    assert(!output.includes('obsolete'));
+  }
+});
+
+test('all four cases share one deadline and retain their paired blocks', async () => {
+  let clock = 0;
+  const selectedCases = cases.map(c => ({ ...c, rows: 1 }));
+  const result = await compare([{ name: 'A', load }, { name: 'B', load: slimLoad }],
+    { durationMs: 600, now: () => clock++, probe: () => 1, warmups: 1, iterations: 1, selectedCases });
+  assert(result.sufficient);
+  assert(result.elapsedMs < 610);
+  assert.deepEqual(result.results.map(r => r.case), cases.map(c => c.id));
+  assert(result.results.every(r => r.raw.blocks >= 3));
 });
 
 test('shared deadline retains incomplete blocks and balances both opposite-order halves', async () => {
