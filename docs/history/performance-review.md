@@ -516,6 +516,17 @@ These are logical counts, not allocation sizes or timing gains. Trying private
 state first would add a failed brand check to ordinary proxy lookups; these
 counts do not justify changing the map-first path or bypassing getter semantics.
 
+Construction-origin counters attribute 240/247 and 1,200/1,207 authored HTML
+selections to wrapping node inputs. The consumer replay creates 120,205 such
+selections and 51,773 through selection methods; all prior totals and 193-case
+output/event/lifecycle results match. These counts do not establish lifetimes.
+Caching mutable wrappers is unsafe: separate wrappers support independent
+properties and index edits. An identity probe also confirms that current and
+published GroveDOM preserve a separate singleton `eq(0)` snapshot across splice,
+where Cheerio returns the original selection. The initial probe's universal
+snapshot assertion failed for Cheerio and is preserved; no runtime behavior was
+changed to imitate it.
+
 ### XML fault attribution
 
 A separate native sitemap diagnostic finds page-fault variation strongly
