@@ -15,8 +15,8 @@ identical-code controls. No private candidate below is promoted.
 | Candidate or diagnostic | Current evidence | Decision |
 |---|---|---|
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
-| Constructor helper | One scoped pass, three inconclusive cases, twelve unstarted; later HTML confirmation also inconclusive | Full-scope acceptance open |
-| Scalar queue copy | Correctness, replay and exact sixteen-case output checks pass; timing unstarted | Await fixed timing screens |
+| Constructor helper | Three scoped passes, seven inconclusive/incomplete cases, six unstarted; HTML acceptance remains open | Full-scope acceptance open |
+| Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -411,10 +411,46 @@ both backends, seeded fuzzing, and focused heap/worker/browser/Node 24/type chec
 Only the JS queue copy changes; native artifacts remain unchanged. An initial
 native test run used an incompatible Wasm path in cross-backend initialization
 tests; its failed log is retained and the full run with matching artifacts passes.
-The prototype remains private, with its fixed HTML timing screens unstarted.
+The prototype remains private; its completed HTML timing screens are below.
 An output-only check also matches published 0.1.0 and Cheerio on all eight
 original workloads on both backends, preserving the original inclusion set;
 the ninth excluded case matches Cheerio too. This is not timing acceptance.
+
+### Separate 30% activity protocol
+
+A separately declared continuation raises the host CPU/sibling precheck limit
+from 15% to 30%. It keeps the three groups of four blocks, 100 warmups, two
+batches, fixed replay counts and three-pause budget. The independent 1.5 probe
+filter and raw/filtered 2% regression and control limits are unchanged. Earlier
+panels remain closed; results are neither merged nor control-normalized.
+
+The scalar queue candidate completes both pooled HTML panels, retaining all 12
+blocks each. HTML120 passes at release/candidate **1.00822**, before/candidate
+**1.02676**, control **1.01425**. HTML600 fails at **0.96942**, **1.00549** and
+**1.00987**, respectively. Raw and filtered results agree. The last HTML600 block
+has a 17% precheck, admitted by the new protocol. The queue change alone is not
+sufficient to resolve the release regression; no further cases run after failure.
+
+The separate constructor helper then runs previously unstarted scope panels:
+
+| Pooled case | Release/candidate raw / filtered | Before/candidate raw / filtered | Control raw / filtered | Retained | Decision |
+|---|---|---|---|---|---|
+| Sitemap600 | 0.99837 | 1.00836 / 0.99911 | 0.98073 / 0.98601 | 11 | Pass |
+| getPose | 1.03658 | 1.02325 | 0.97031 | 12 | Inconclusive |
+| Relative colors | 1.05883 | 0.98418 | 1.01661 | 12 | Pass |
+| Template | 1.06317 / 1.06903 | 1.02338 / 1.03808 | 0.98500 / 0.97800 | 11 | Inconclusive |
+| Sitemap pipeline | 1.08738 | 0.99155 | 0.97054 | 12 | Inconclusive |
+
+Single ratios mean raw equals filtered. Each inconclusive completed panel has
+an invalid control. Native HTML120 completes one four-block group, then exhausts
+the pause budget before the second group's initialization (36% activity at the
+final check); it has no aggregate result. Seven planned native panels remain
+unstarted in this sequence, including the earlier inconclusive HTML600 case.
+Across the original sixteen cases the helper therefore has three scoped passes,
+seven inconclusive/incomplete cases and six never attempted. No full-scope
+acceptance is claimed. A separate output-only audit matches both published
+0.1.0 and Cheerio on all eight original cases per backend, and also matches
+Cheerio on the ninth historical exclusion; this does not establish timing.
 
 ## Consumer decisions
 

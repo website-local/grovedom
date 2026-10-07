@@ -5,12 +5,15 @@ import assert from 'node:assert/strict';
 import { checkHost } from './host-load.mjs';
 const args = Object.fromEntries(process.argv.slice(2).map(value => { const [key, ...rest] = value.split('='); return [key.replace(/^--/, ''), rest.join('=')]; }));
 if (!args.manifest)
-    throw new Error('Use --manifest=FILE [--groups=1..3] [--warmups=1..100] [--iterations=1..8] [--out=FILE] [--busy=stop|pause|run] [--max-pauses=0..10]');
+    throw new Error('Use --manifest=FILE [--groups=1..3] [--warmups=1..100] [--iterations=1..8] [--out=FILE] [--busy=stop|pause|run] [--max-pauses=0..10] [--max-busy-percent=0..100]');
 const manifest = JSON.parse(fs.readFileSync(args.manifest));
 const groups = Number(args.groups ?? 1);
 const warmups = Number(args.warmups ?? 20);
 const iterations = Number(args.iterations ?? 1);
 const busy = args.busy ?? 'stop';
+const maxBusyPercent = Number(args['max-busy-percent'] ?? 15);
+if (!Number.isFinite(maxBusyPercent) || maxBusyPercent < 0 || maxBusyPercent > 100)
+    throw new RangeError('Expected --max-busy-percent=0..100.');
 if (!['stop', 'pause', 'run'].includes(busy))
     throw new Error('Expected --busy=stop, --busy=pause or --busy=run.');
 const maxPauses = Number(args['max-pauses'] ?? (busy === 'pause' ? 3 : 0));
@@ -30,11 +33,11 @@ function message(child) { return new Promise((resolve, reject) => { function end
 function pin(child, cpu) { const r = spawnSync('taskset', ['-pc', String(cpu), String(child.pid)], { encoding: 'utf8' }); assert.equal(r.status, 0, r.stderr); }
 const comparisons = paired => variants.slice(1).map((v, i) => { const ratio = b => median(b.milliseconds[0]) / median(b.milliseconds[i + 1]), kept = paired.filter(b => b.accepted); return { candidate: v.name, raw: median(paired.map(ratio)), filtered: median(kept.map(ratio)) }; });
 function report() {
-    return { scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and warmups excluded. Two batches per sample; reported milliseconds per whole-corpus replay. Rotate and mirror all variants in each block; rotate/reverse imports.', settings: { groups, blocks, warmups, batches: 2, iterations, busy, maxPauses }, node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: busy === 'pause'
-        ? 'Before initialization and each block, check CPU/sibling activity once. On busy activity, park children and wait one second before rechecking, within a fixed whole-panel pause budget. Never execute a busy block or repeat a measured block. Stop incomplete when the budget is exhausted.'
+    return { scope: 'Separate persistent implementation processes; synchronous complete preloaded replay including disposal. IPC, load checks, startup and warmups excluded. Two batches per sample; reported milliseconds per whole-corpus replay. Rotate and mirror all variants in each block; rotate/reverse imports.', settings: { groups, blocks, warmups, batches: 2, iterations, busy, maxPauses, maxBusyPercent }, node: process.versions.node, variants: variants.map(v => v.name), corpus: inputs, hostPolicy: busy === 'pause'
+        ? `Before initialization and each block, check CPU/sibling activity once. On busy activity, park children and wait one second before rechecking, within a fixed whole-panel pause budget. Never execute a busy block or repeat a measured block. Stop incomplete when the budget is exhausted. Activity limit: ${maxBusyPercent}%.`
         : busy === 'stop'
-        ? 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; stop immediately above15%. No retries or replacement groups.'
-        : 'Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above15%, retry twice after2seconds. Record every attempt; run and flag persistent load.', filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. A stopped panel is incomplete, not a passing screen.', results, pauses, stopped };
+        ? `Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; stop immediately above ${maxBusyPercent}%. No retries or replacement groups.`
+        : `Read inherited affinity through taskset. Before initialization and every paired block, sample CPU and sibling activity for one second; choose minimum sibling max/mean load. If above ${maxBusyPercent}%, retry twice after2seconds. Record every attempt; run and flag persistent load.`, filterPolicy: 'Retain all raw samples; filter complete blocks only on independent probe max/min>1.5. No control normalization. A stopped panel is incomplete, not a passing screen.', results, pauses, stopped };
 }
 function save() {
     if (!args.out) return;
@@ -43,7 +46,7 @@ function save() {
     fs.renameSync(args.out + '.pending', args.out);
 }
 async function hostCheck(location) {
-    let host = await checkHost({ maxAttempts: busy === 'run' ? 3 : 1 });
+    let host = await checkHost({ maxAttempts: busy === 'run' ? 3 : 1, maxBusy: maxBusyPercent / 100 });
     while (busy === 'pause' && !host.quiet && pauses.length < maxPauses) {
         // The decision uses only independent host activity. Completed samples
         // never affect the budget, ordering or whether this block is attempted.
@@ -51,7 +54,7 @@ async function hostCheck(location) {
         save();
         console.error(JSON.stringify({ ...location, pause: pauses.length, maxPauses }));
         await new Promise(resolve => setTimeout(resolve, 1000));
-        host = await checkHost({ maxAttempts: 1 });
+        host = await checkHost({ maxAttempts: 1, maxBusy: maxBusyPercent / 100 });
     }
     return host;
 }

@@ -27,9 +27,11 @@ const optional = f => { try {
 catch {
     return null;
 } };
-export async function checkHost({ maxAttempts = 3 } = {}) {
+export async function checkHost({ maxAttempts = 3, maxBusy = .15 } = {}) {
     if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3)
         throw new RangeError('Host checks allow one to three attempts.');
+    if (!Number.isFinite(maxBusy) || maxBusy < 0 || maxBusy > 1)
+        throw new RangeError('Host activity threshold must be between zero and one.');
     const allowed = readAffinity();
     const siblings = new Map(allowed.map(cpu => [cpu, siblingsOf(cpu)]));
     const attempts = [];
@@ -45,7 +47,7 @@ export async function checkHost({ maxAttempts = 3 } = {}) {
         const ranks = allowed.filter(cpu => busy.has(cpu)).map(cpu => { const group = siblings.get(cpu).filter(n => busy.has(n)), loads = group.map(n => busy.get(n)); return { cpu, siblings: group, cpuBusy: busy.get(cpu), siblingMax: Math.max(...loads), siblingMean: loads.reduce((a, b) => a + b, 0) / loads.length }; }).sort((a, b) => a.siblingMax - b.siblingMax || a.siblingMean - b.siblingMean || a.cpuBusy - b.cpuBusy || a.cpu - b.cpu);
         if (!ranks.length)
             throw Error('No permitted CPU with a valid load sample');
-        const chosen = ranks[0], report = { timestamp: new Date().toISOString(), seconds: 1, affinitySource: 'sched_getaffinity via taskset', allowed, loadavg: optional('/proc/loadavg'), cpuPressure: optional('/proc/pressure/cpu'), memoryAvailableKiB: Number(optional('/proc/meminfo')?.match(/^MemAvailable:\s+(\d+)/m)?.[1]), chosen, quiet: chosen.siblingMax <= .15 };
+        const chosen = ranks[0], report = { timestamp: new Date().toISOString(), seconds: 1, affinitySource: 'sched_getaffinity via taskset', allowed, loadavg: optional('/proc/loadavg'), cpuPressure: optional('/proc/pressure/cpu'), memoryAvailableKiB: Number(optional('/proc/meminfo')?.match(/^MemAvailable:\s+(\d+)/m)?.[1]), chosen, maxBusy, quiet: chosen.siblingMax <= maxBusy };
         attempts.push(report);
         if (report.quiet || attempt + 1 === maxAttempts)
             return { ...report, attempts };

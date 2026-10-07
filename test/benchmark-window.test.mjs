@@ -4,8 +4,9 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { mockProcessEnv } from './mock-process.mjs';
-import { readAffinity } from '../bench/host-load.mjs';
+import { readAffinity, checkHost } from '../bench/host-load.mjs';
 
 test('benchmark child warms through sample scheduling and keeps batches intact', t => {
   const root = mkdtempSync(join(tmpdir(), 'grovedom-window-child-'));
@@ -104,6 +105,7 @@ process.on('disconnect', () => process.exit(0));
     ] }));
     const run = spawnSync(process.execPath, [join(root, 'window.mjs'),
       `--manifest=${join(root, 'manifest.json')}`, `--out=${out}`, '--warmups=1',
+      ...(pausing ? ['--max-busy-percent=30'] : []),
       ...(scenario === 'run' ? ['--busy=run'] : []),
       ...(pausing ? ['--busy=pause', '--max-pauses=2', `--groups=${scenario === 'pause-groups' ? 2 : 1}`] : []),
     ], { encoding: 'utf8', env: mockProcessEnv(), timeout: 10000 });
@@ -114,6 +116,8 @@ process.on('disconnect', () => process.exit(0));
     const report = JSON.parse(readFileSync(out, 'utf8'));
     const rows = readFileSync(events, 'utf8').trim().split('\n').map(JSON.parse);
     assert(rows.filter(row => row.host !== undefined).every(row => row.maxAttempts === (scenario === 'run' ? 3 : 1)));
+    assert.equal(report.settings.maxBusyPercent, pausing ? 30 : 15);
+    assert(rows.filter(row => row.host !== undefined).every(row => row.maxBusy === (pausing ? .30 : .15)));
     const children = scenario === 'initial' ? 0 : scenario === 'pause-groups' ? 4 : 2;
     assert.equal(rows.filter(row => row.event === 'ready').length, children);
     assert.equal(rows.filter(row => row.event === 'stop').length, children);
@@ -143,3 +147,23 @@ process.on('disconnect', () => process.exit(0));
     }
   });
 }
+
+test('host activity threshold rejects invalid values before sampling', async () => {
+  for (const maxBusy of [-.01, 1.01, NaN, Infinity])
+    await assert.rejects(checkHost({ maxBusy }), /threshold/);
+});
+
+test('benchmark window rejects invalid activity percentages', t => {
+  const root = mkdtempSync(join(tmpdir(), 'grovedom-window-options-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const manifest = join(root, 'manifest.json');
+  writeFileSync(manifest, '{}');
+  for (const value of ['-1', '101', 'NaN', 'Infinity', 'invalid']) {
+    const run = spawnSync(process.execPath, [fileURLToPath(new URL('../bench/window.mjs', import.meta.url)),
+      '--manifest=' + manifest, '--max-busy-percent=' + value],
+      { encoding: 'utf8', env: mockProcessEnv(), timeout: 10000 });
+    assert.ifError(run.error);
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /Expected --max-busy-percent=0\.\.100/);
+  }
+});

@@ -146,7 +146,8 @@ for preserved outcomes, settings and profiling limits.
 Subsequent private candidates also lack full-scope acceptance. The input
 descriptor has a valid 2.7% HTML120 release regression; the constructor helper's
 HTML results remain inconclusive. A scalar queue-copy prototype passes correctness
-and exact-scope output checks but has not been timed. Allocator reuse and Wasm
+and exact-scope output checks; its complete HTML600 panel fails against 0.1.0
+with valid controls. Allocator reuse and Wasm
 tier interventions did not reliably stabilize identical-code controls. The
 [current decision table](history/performance-review.md#current-decision) separates
 these candidates and preserves the failed and incomplete evidence. No diagnostic
@@ -224,7 +225,13 @@ weights, browser performance or whole-downloader speedups.
 
 - `bench/window.mjs --manifest=FILE --groups=1..3 --out=FILE`: bounded process
   comparisons, optional explicit init settings, 1–100 warmups and 1–8 replays/batch.
-  Defaults to one host check and stops on busy activity (exit 2). Completed blocks
+  Defaults to one host check and a 15% CPU/sibling activity limit;
+  `--max-busy-percent=30` explicitly allows activity up to 30% (range 0–100).
+  The selected limit applies to initialization, every block and pause rechecks,
+  and is recorded in settings and host reports. Treat a changed limit as a
+  separate protocol; retain prior results. It does not change the independent
+  probe filter or regression/control acceptance limits.
+  Stops on busy activity (exit 2). Completed blocks
   are saved atomically after each block; stopped panels remain incomplete. The
   optional `--busy=pause --max-pauses=3` parks children during brief load spikes,
   waiting one second before a fresh host check. The fixed pause budget applies
