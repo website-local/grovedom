@@ -527,6 +527,14 @@ where Cheerio returns the original selection. The initial probe's universal
 snapshot assertion failed for Cheerio and is preserved; no runtime behavior was
 changed to imitate it.
 
+Four fresh-process CPU captures (current/released/released/current, HTML120,
+200 warmups then 2,000 checked replays at a requested 100 µs sampling interval)
+attribute about 6.8–8.7% of current samples and 7.4–8.8% of released samples to
+selection construction. State lookup is about 0.5% in each; Wasm frames account
+for roughly 57–61%. The factory body is byte-identical to 0.1.0. This identifies
+an existing shared cost, not a measured regression or gain; sample attribution
+is affected by inlining and scheduling and does not replace paired controls.
+
 ### XML fault attribution
 
 A separate native sitemap diagnostic finds page-fault variation strongly
