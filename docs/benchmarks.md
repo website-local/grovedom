@@ -6,6 +6,47 @@ callbacks, serialization and disposal, while also beating the fastest compatible
 Cheerio/parse5 or htmlparser2 configuration. This is not a whole-downloader or
 browser speedup claim. Production input weights remain unvalidated.
 
+## Hosted CI and browser demo
+
+The diagnostic benchmark job reuses the verified current tarball and installs
+the npm `latest` release into an isolated directory, with install scripts disabled.
+It compares their pooled Wasm browser entries against pinned Cheerio's default
+and htmlparser2 parsers. Both CI and the demo import `demo/workload.js` and
+`demo/comparison.js`: 120 and 600 articles, fresh parse, selection callbacks,
+attribute edits, fragment parsing, traversal, removal, append, serialization and
+explicit disposal. Local `test/fixtures.mjs` reexports this same authored workload.
+
+The **whole benchmark job targets about two minutes**, starting at its first
+step. Setup, artifact download, installation, initialization, warmup and both
+cases share that budget. Measurement ends 105 seconds after that first step,
+reserving about 15 seconds for upload/teardown; a three-minute timeout covers
+slow infrastructure. Build jobs and runner queue time are separate. Setup
+exhaustion fails explicitly instead of starting another full timing interval.
+
+Like the local `bench/short.mjs`, each paired block keeps both opposite-order
+halves (ABBA/BAAB or BAAB/ABBA) together. Twenty warmup replays per case/variant
+and 30 independent CPU-probe warmups precede measurement. Each sample times two
+replays with disposal; exact output checks follow outside the timer. Each
+reference is paired directly against current Wasm. A separate instance of the
+identical Wasm module supplies an A/A control. Instances have separate heaps;
+this is the local short harness's in-process method, not the longer fresh-process
+acceptance protocol.
+
+Reports retain every raw and incomplete block. Whole complete blocks are
+filtered only when the independent CPU-probe max/min exceeds 1.5. Raw and
+filtered medians are medians of within-block paired ratios, with per-order
+breakdowns. No ratios are normalized by controls. At least three complete blocks
+per pair/case are required for a successful job; filtered counts and A/A results
+remain visible even when inconclusive. A deadline may truncate the last block,
+which stays in raw evidence and does not enter either median.
+
+Artifacts include exact package versions, Wasm hashes, the resolved dependency
+lockfile and a job-summary comparison table. No quiet-host gate or speedup
+threshold applies here. These shared-host diagnostics do not replace controlled
+regression and adoption qualification below. The browser demo shares this
+paired implementation with a thirty-second total budget, excluding downloads
+and initialization.
+
 ## Short checks
 
 - Review previous results; fix inputs, parser options, groups and batch counts

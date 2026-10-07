@@ -114,9 +114,10 @@ Browser support is **best-effort**. Portable module checks pass, but a tested
 Chromium/Firefox/WebKit version matrix is still pending. No SIMD, shared memory,
 threads or cross-origin isolation is required.
 
-The [browser benchmark](docs/prototype.md#browser-and-demo) compares three short
-rounds against DOMParser and optional CDN-loaded Cheerio 1.2.0, verifying output
-equality before timing. The [hosted demo](https://website-local.github.io/grovedom/)
+The [browser benchmark](docs/prototype.md#browser-and-demo) shares the local and CI
+authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0
+with default and htmlparser2 parsers and an identical-Wasm control, verifying output
+equality on every replay. The [hosted demo](https://website-local.github.io/grovedom/)
 is available after [GitHub Pages deployment](docs/releasing.md#browser-demo-on-github-pages).
 
 ## Packages and platform support

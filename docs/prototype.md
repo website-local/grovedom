@@ -88,13 +88,16 @@ and CSP rules. This is best-effort support, not a tested browser-version matrix.
 node scripts/serve-demo.mjs /scratch/packages 8080
 ```
 
-Open the printed loopback URL. The demo compares three short parsing/query/edit/
-serialization rounds against browser DOMParser and Cheerio 1.2.0's default
-parser, checking exact output equality first and rotating execution order.
-Cheerio is loaded only by the demo from a versioned jsDelivr ESM URL; CDN loading
-is excluded from timing. If it fails or takes more than ten seconds, the local
-DOMParser comparison remains available. This does not add a package dependency
-or establish an adoption multiplier.
+Open the printed loopback URL. The demo compares pooled Wasm with Cheerio 1.2.0's
+default and htmlparser2 parsers using the same 120- and 600-article workloads as
+CI. Parsing, queries, callbacks, edits, serialization and disposal share a
+thirty-second browser budget, with balanced ABBA/BAAB pairs and exact output
+checks on every replay. The authored workload is shared with local benchmarks.
+Raw and independent-probe-filtered paired medians include a separate identical
+Wasm instance control. Cheerio loads from versioned jsDelivr ESM
+URLs; CDN loading and Wasm initialization are excluded from browser timing.
+Loading failures disable the comparison and allow retry by reloading. This does
+not add a package dependency or establish an adoption multiplier.
 
 ## Checks
 

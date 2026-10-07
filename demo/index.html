@@ -15,17 +15,23 @@ small { display: block; margin: 1rem 0; }
 <h1>GroveDOM in your browser</h1>
 <p>The same Wasm binary as the Node package, initialized asynchronously. Each short
 trial parses a fresh document, queries and edits articles, serializes the result,
-and disposes GroveDOM. Exact output is checked before timing.</p>
-<p><label>Articles <select id="rows"><option>120</option><option>600</option></select></label>
-<button id="run" disabled>Run short comparison</button></p>
+and disposes GroveDOM. Exact output is checked on every replay. The 120- and
+600-article cases are shared with CI.</p>
+<p><button id="run" disabled>Run paired comparison (~30 seconds)</button></p>
 <p id="status" role="status">Loading Wasm…</p>
 <p id="cheerio-status" role="status">Loading Cheerio 1.2.0 from the CDN…</p>
 <pre id="results" aria-live="polite"></pre>
-<small>References: Cheerio 1.2.0 with its default parser, loaded from
-<a href="https://cdn.jsdelivr.net/npm/cheerio@1.2.0/+esm">jsDelivr</a>, and the
-browser’s DOMParser and DOM methods. If the CDN is unavailable, the local
-DOMParser comparison still runs. Three rounds with rotating order are a local
-demo, not a production performance gate. Browser
-scheduling, compilation and GC can affect results; raw times are shown.</small>
+<p><a id="download" hidden>Download raw paired results</a></p>
+<small>Cheerio 1.2.0 with its default parser and htmlparser2 is loaded from
+<a href="https://cdn.jsdelivr.net/npm/cheerio@1.2.0/+esm">jsDelivr</a>.
+Downloads and Wasm initialization are excluded from browser timing. Balanced
+ABBA/BAAB blocks match the local short benchmark. Raw and independent CPU-probe-
+filtered paired ratios include an identical Wasm instance control (expected near
+1×). Ratios are never normalized by controls. CI also compares
+the latest published GroveDOM and shares a roughly two-minute total job budget
+across setup and both cases. This demo uses a shorter shared budget and pooled
+Wasm heaps. Browser scheduling, compilation and GC affect results; these are
+diagnostics, not production performance gates. Keep this tab active during the
+comparison.</small>
 <script type="module" src="./benchmark.js"></script>
 </html>

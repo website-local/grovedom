@@ -200,9 +200,43 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  benchmark:
+    needs: packages
+    runs-on: ubuntu-24.04
+    # Safety ceiling; normal target is ~2 minutes total, including setup.
+    timeout-minutes: 3
+    steps:
+      - name: Start total job budget
+        run: echo "GROVEDOM_BENCH_JOB_START_MS=$(date +%s%3N)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set runner paths
+        run: node scripts/ci/runner-paths.mjs
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarballs
+          path: ${{ runner.temp }}/benchmark-tarballs
+      - name: Compare current Wasm, latest release and Cheerio
+        run: node scripts/ci/benchmark.mjs "$RUNNER_TEMP/benchmark-tarballs" "$RUNNER_TEMP/benchmark"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: wasm-benchmark
+          path: |
+            ${{ runner.temp }}/benchmark/result.json
+            ${{ runner.temp }}/benchmark/summary.md
+            ${{ runner.temp }}/benchmark/package-lock.json
+          if-no-files-found: warn
+          retention-days: 14
+
   gate:
     if: always()
-    needs: [build, test, sanitize, packages]
+    needs: [build, test, sanitize, packages, benchmark]
     runs-on: ubuntu-22.04
     timeout-minutes: 2
     steps:

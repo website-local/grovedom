@@ -18,13 +18,15 @@ Actions are pinned to commit IDs. Dependabot groups monthly action updates into
 one PR. Node declarations stay on major 22; TypeScript stays on major 6 until the
 type-check scripts support its replacement for the `typescript/bin/tsc` entry.
 Pull requests receive no release credentials; default token permissions are
-read-only. No benchmark runs on shared CI hosts. Hosted CI passed for the initial
+read-only. A diagnostic benchmark runs on shared CI hosts; its timing ratios do
+not gate releases. Output mismatches, setup failures and insufficient samples
+fail verification. Hosted CI passed for the initial
 0.1.0 artifacts, and both npm packages match those validated tarballs. Actual
 Chromium/Firefox/WebKit checks remain future work.
 
-Verification uses ten runner jobs: two builds, one sanitizer job, package
-assembly, five OS/Node test groups and the final gate. Linux groups cover Node
-22.0.0, 22 and 24; Windows and macOS each use one Node 24 job. Grouping removes
+Verification uses eleven runner jobs: two builds, one sanitizer job, package
+assembly, five OS/Node test groups, one benchmark and the final gate. Linux groups
+cover Node 22.0.0, 22 and 24; Windows and macOS each use one Node 24 job. Grouping removes
 duplicate runner setup without dropping the ten runtime configurations or four
 packaged-install configurations. Each runtime configuration runs in a fresh
 process. All checks in a group are attempted, and any failure fails the job.
