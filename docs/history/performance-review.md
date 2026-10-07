@@ -17,6 +17,7 @@ identical-code controls. No private candidate below is promoted.
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
 | Constructor helper | Three scoped passes, seven inconclusive/incomplete cases, six unstarted; HTML acceptance remains open | Full-scope acceptance open |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
+| Proxy numeric-key guard | Four scoped passes, five inconclusive/incomplete cases, seven unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -451,6 +452,44 @@ seven inconclusive/incomplete cases and six never attempted. No full-scope
 acceptance is claimed. A separate output-only audit matches both published
 0.1.0 and Cheerio on all eight original cases per backend, and also matches
 Cheerio on the ninth historical exclusion; this does not establish timing.
+
+### Selection property-key guard
+
+A separate private candidate checks the first ASCII digit before applying the
+numeric-index regex in the selection proxy's get trap. Other traps and receiver
+forwarding are unchanged. Exact counts show 728/3,608 ordinary property reads
+for HTML120/600, none numeric. The installed consumer replay has 529,550 string
+reads, of which 41,811 are numeric: the guard can avoid 487,739 regex calls in
+this trap. These are call counts, not allocation savings or elapsed gains.
+
+The method-only optimized getter grows from 320 to 560 bytes. A separate mixed
+access trace covers numeric/non-numeric keys and 240 complete HTML replays;
+both baseline and candidate deoptimize on the newly introduced access pattern
+and reoptimize. Shorter or longer generated code alone does not predict speed.
+Focused checks preserve leading-zero properties, symbols, getter receivers and
+index mutation on both backends. Native/pool suites, both 193-case offline
+consumer snapshots, seeded fuzzing, focused heap/worker/browser/Node 24/types
+and exact original-scope outputs pass. An initial scratch suite lacked two
+harness directories; its failure is preserved and the complete-copy suite passes.
+
+Fixed panels use the separate 30% activity protocol above; all retain 12 blocks.
+Raw and filtered ratios agree:
+
+| Case | Release/candidate | Before/candidate | Control | Decision |
+|---|---|---|---|---|
+| Pooled HTML120 | 0.99478 | 1.01973 | 0.96672 | Inconclusive |
+| Pooled HTML600 | 0.98926 | 1.02104 | 0.98620 | Pass |
+| Native HTML120 | 0.99727 | 0.99792 | 0.98272 | Pass |
+| Native HTML600 | 0.99277 | 1.02032 | 0.98304 | Pass |
+| Pooled sitemap600 | 0.99549 | 0.98861 | 0.99529 | Pass |
+| Pooled SVG300 | 0.98266 | 1.01281 | 1.02798 | Inconclusive |
+| Native sitemap600 | 1.00193 | 1.00379 | 0.94568 | Inconclusive |
+| Native SVG300 | 1.04008 | 1.01571 | 0.97180 | Inconclusive |
+
+The four completed inconclusive panels have invalid controls. A subsequent pooled
+getPose panel exhausts its pause budget before collecting samples, leaving seven
+original cases unstarted. Passes from the constructor-helper or queue candidate
+do not transfer. No production change or general speedup is claimed.
 
 ## Consumer decisions
 
