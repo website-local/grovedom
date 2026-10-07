@@ -17,7 +17,7 @@ identical-code controls. No private candidate below is promoted.
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
-| Proxy numeric-key guard | Four scoped passes, eight inconclusive/incomplete cases, four unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
+| Proxy numeric-key guard | Four scoped passes, nine inconclusive/incomplete cases, three unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -500,7 +500,9 @@ blocks. A deferred pooled template panel stops after three blocks in its first
 group when activity exceeds 30%; its partial control does not qualify a panel.
 The following pooled sitemap-pipeline panel stops at its initial activity check
 without samples. Four native cases remain unstarted. These stops leave four
-scoped passes and eight inconclusive/incomplete cases across the original scope.
+scoped passes and eight inconclusive/incomplete cases. An opportunistic native
+getPose attempt then stops after two blocks when activity rises above the limit;
+it leaves nine inconclusive/incomplete cases and three native cases unstarted.
 Passes from other candidates do not transfer.
 No production change or general speedup is claimed. Authored 24-cycle memory
 budgets and fixed pinned-owner/replacement checks pass on native and all three
