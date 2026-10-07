@@ -18,7 +18,7 @@ identical-code controls. No private candidate below is promoted.
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
-| Hoisted attribute validator | Three scoped passes; five pooled cases inconclusive or incomplete; eight native cases unstarted; heap captures confirm lower allocation | Full-scope acceptance open |
+| Hoisted attribute validator | Three scoped passes; six cases inconclusive or incomplete; seven native cases unstarted; heap captures confirm lower allocation | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -592,8 +592,10 @@ in its first group when the bounded host-load pause budget expires. Both raw
 summaries were independently recomputed; neither provides an aggregate result.
 Pooled sitemap-pipeline then stops two blocks short, retaining 4/4/2 blocks.
 Its raw summary also recomputes, but the incomplete group prevents acceptance.
-Eight original native cases remain unmeasured for this candidate; no earlier candidate's
-passes transfer, and no runtime change is promoted.
+Native HTML120 subsequently stops after one retained block when load rises
+again following a qualified precheck. Seven original native cases remain
+unmeasured for this candidate; no earlier candidate's passes transfer, and no
+runtime change is promoted.
 
 The last sitemap-pipeline host precheck reports `0.30000000000000004` against
 the inclusive 30% activity limit. Computing activity as `1 - idle/total` can
