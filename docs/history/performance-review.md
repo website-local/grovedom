@@ -15,9 +15,9 @@ identical-code controls. No private candidate below is promoted.
 | Candidate or diagnostic | Current evidence | Decision |
 |---|---|---|
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
-| Constructor helper | Three scoped passes, seven inconclusive/incomplete cases, six unstarted; HTML acceptance remains open | Full-scope acceptance open |
+| Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
-| Proxy numeric-key guard | Four scoped passes, five inconclusive/incomplete cases, seven unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
+| Proxy numeric-key guard | Four scoped passes, six inconclusive/incomplete cases, six unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -453,6 +453,13 @@ acceptance is claimed. A separate output-only audit matches both published
 0.1.0 and Cheerio on all eight original cases per backend, and also matches
 Cheerio on the ninth historical exclusion; this does not establish timing.
 
+A later scheduled native continuation completes three helper panels. HTML600 and
+sitemap600 remain inconclusive because their controls fail. Native SVG300 fails
+with a valid control: release/candidate **1.00162**, before/candidate **0.95779**,
+control **1.01681**, all 12 blocks retained and raw equal to filtered. This is
+about 4.4% slower than the preceding candidate. The sequence stops, leaving four
+native consumer cases unstarted; the helper is not accepted.
+
 ### Selection property-key guard
 
 A separate private candidate checks the first ASCII digit before applying the
@@ -488,8 +495,31 @@ Raw and filtered ratios agree:
 
 The four completed inconclusive panels have invalid controls. A subsequent pooled
 getPose panel exhausts its pause budget before collecting samples, leaving seven
-original cases unstarted. Passes from the constructor-helper or queue candidate
-do not transfer. No production change or general speedup is claimed.
+original cases unstarted. The next pooled relative-colors panel stops after two
+blocks, leaving six cases unstarted. Passes from other candidates do not transfer.
+No production change or general speedup is claimed. Authored 24-cycle memory
+budgets and fixed pinned-owner/replacement checks pass on native and all three
+Wasm heaps; final tracked live bytes and document counts are zero.
+
+### XML fault attribution
+
+A separate native sitemap diagnostic finds page-fault variation strongly
+associated with batch duration (correlation 0.78). GC overlaps all 192 batches
+and occupies about 1.9% of observed batch time. Fault-only phase captures place
+most native faults in parsing, append/flush work and serialization. A C diagnostic
+extended to include XML serialization confirms variable kernel faults while
+binding-output medians stay around 8–11 per batch. These process-wide counters
+and instrumentation can perturb execution; they do not establish a speedup.
+
+Child-only suppression of allocator trimming reduces median XML faults from
+22–2,956 to roughly 15–18 per batch across six fresh processes. Adding mmap
+threshold control does not materially improve this. But a separate fixed
+default/trim/trim/default identical-code timing experiment does not reliably
+stabilize controls. The first default and trim panels lack enough probe-retained
+blocks per group. The second trim panel retains all 12 blocks and its designated
+control is 0.98130, but three other identical-code pairs exceed 2%. The final
+default control is 1.10556. All outcomes remain diagnostic; no faults or GC time
+are subtracted, and no allocator default or acceptance policy changes.
 
 ## Consumer decisions
 
