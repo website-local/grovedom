@@ -18,7 +18,7 @@ identical-code controls. No private candidate below is promoted.
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
-| Hoisted attribute validator | Three scoped passes; pooled HTML120/getPose inconclusive or incomplete; eleven cases unstarted | Full-scope acceptance open |
+| Hoisted attribute validator | Three scoped passes; four pooled cases inconclusive or incomplete; nine cases unstarted; heap captures confirm lower allocation | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -584,9 +584,23 @@ pooled sitemap600 (raw release/before/control 1.023850/1.030030/1.012826, filter
 1.050576/1.030030/1.010889; 3/4/4 blocks retained) and SVG300
 (1.007901/0.997494/1.009024, raw equals filtered, all 12 retained). Pooled getPose
 stops before the third group's first block after two complete groups; it is
-incomplete, not a pass. All three summaries recompute from raw data. Eleven
-original cases remain unmeasured for this candidate; no earlier candidate's
+incomplete, not a pass. All three summaries recompute from raw data.
+
+The next fixed sequence completes pooled relative-colors with 2/4/4 retained
+blocks, insufficient for acceptance. Pooled template stops after three blocks
+in its first group when the bounded host-load pause budget expires. Both raw
+summaries were independently recomputed; neither provides an aggregate result.
+Nine original cases remain unmeasured for this candidate; no earlier candidate's
 passes transfer, and no runtime change is promoted.
+
+Four separate pooled-Wasm heap captures compare the pre-hoist and hoisted
+versions at 120/600 articles, with 20 warmups, 40 checked replays and 4 KiB
+sampling including collected objects. All outputs match. Estimated total JS
+allocation falls from 7.72 to 6.94 MB and from 40.56 to 34.79 MB; allocation
+attributed directly to `attr()` falls from 1.20 to 0.16 MB and from 6.36 to
+0.99 MB. These statistical captures support the observed removal of RegExp
+allocation; they do not measure exact counts, retained memory, Wasm allocation
+or elapsed performance.
 
 ### Batch-length control diagnostic
 
