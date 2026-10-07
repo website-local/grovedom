@@ -18,6 +18,7 @@ identical-code controls. No private candidate below is promoted.
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
+| Hoisted attribute validator | Removes a surviving RegExp allocation; pooled HTML600 passes, HTML120 has an invalid filtered control | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -555,6 +556,32 @@ selection construction. State lookup is about 0.5% in each; Wasm frames account
 for roughly 57–61%. The factory body is byte-identical to 0.1.0. This identifies
 an existing shared cost, not a measured regression or gain; sample attribution
 is affected by inlining and scheduling and does not replace paired controls.
+
+### Hoisted attribute-name validator
+
+A private follow-up to the proxy candidate moves the unchanged, non-global
+attribute-name RegExp from inside `attr()` to module scope. Captured optimized
+Node 22 code previously allocated a 56-byte RegExp on each validation; the
+hoisted version removes that allocation from the observed hot path. Optimized
+`attr` code changes from 6,600 to 6,588 bytes. This is allocation/code-shape
+evidence, not an elapsed speedup claim. It is the only runtime source change;
+native and Wasm artifacts are unchanged.
+
+Native/pool suites pass 1,735/1,743 cases with 59/51 skips. Both 193-case consumer
+snapshots pass on both backends, as do seeded fuzzing, focused heap/worker/browser
+and Node 24 checks, types, all original comparison outputs, and authored
+24-cycle memory budgets on all four backends. An initial lifecycle subprocess
+loaded workspace JS with the candidate's different Wasm ABI because of the
+working directory; that failure is preserved and the corrected full suite passes.
+
+Fixed pooled HTML panels compare release, pre-hoist proxy candidate, candidate
+and identical control. HTML120 retains 3/4/4 blocks: raw release/before/control
+1.029578/1.001203/1.011122, filtered 1.029578/1.013126/1.032766. The filtered control
+is invalid, so this is inconclusive. HTML600 retains 4/3/4: raw
+0.996922/1.012146/0.993619, filtered 1.000650/1.015192/0.983969, a scoped pass.
+Both summaries recompute from raw data. Fourteen other original cases remain
+unmeasured for this candidate; no earlier candidate's passes transfer, and no
+runtime change is promoted.
 
 ### Batch-length control diagnostic
 
