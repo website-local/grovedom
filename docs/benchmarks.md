@@ -63,6 +63,17 @@ records costs missed by the consumer profile. The reproducible
 access, ancestry, overlapping roots, sibling traversal and attribute enumeration.
 Runtime changes remain private where timing controls are incomplete.
 
+The resumed input/validator candidate passed both pooled-Wasm HTML screens but
+failed its XML sitemap before/after screen (0.9777, control 1.0024). SVG controls
+and consumer completion remain unresolved. It was not promoted; the
+[complete outcomes](history/performance-review.md#resumed-transfer-and-validator-screens)
+preserve the earlier text-candidate failure and every stopped panel.
+
+A later private input-descriptor variant has passing evidence for several
+individual cases, including a longer-batch SVG confirmation. Four native
+controls remain outside tolerance, and four pooled-Wasm cases lack complete
+passing panels. This does not establish full-scope non-regression.
+
 An earlier eight-case pool diagnostic observed six byte-limit retirements and
 new instances over three passes. Raising the idle byte budget from 16 to 32 MiB
 removed them, retaining 19.125 instead of 15.125 MiB; final passes had no growth.
@@ -111,6 +122,35 @@ context. The profiling pass changed no insertion behavior; matched native/Wasm
 release builds were byte-identical, with no release Wasm diagnostic imports/exports.
 
 ## Regression checkpoints
+
+### Investigation against 0.1.0 (open)
+
+The private query-context candidate removes quadratic root-list scans: the
+600-article replay performs 2,400 membership checks instead of 1,619,700, without
+adding allocations. Scoped matching also uses indexed membership for ordinary
+trees; template contexts retain an ID-list fallback to preserve Cheerio's order
+and fragment boundaries. Correctness and sanitizer gates pass.
+
+**Performance acceptance remains open.** A fixed six-panel comparison had five
+inconclusive controls. The saved-MDN Wasm pipeline failed its screen at
+0.9196 release/candidate, with control 0.9850. A subsequent common-path experiment
+was inconclusive and discarded. These results do not establish non-regression
+against 0.1.0. A measurement follow-up aligned warmup scheduling with samples and
+removed repeated probe deoptimization; its six panels were still inconclusive.
+A later complete quiet HTML120 panel failed at 0.9678 release/candidate with
+valid control 1.0173 (all 12 blocks retained). The candidate improved the
+pre-fix code by 1.0545, but a roughly 3.3% gap against 0.1.0 remains.
+See the [full investigation](history/performance-review.md#query-context-regression-investigation)
+for preserved outcomes, settings and profiling limits.
+
+Subsequent private candidates also lack full-scope acceptance. The input
+descriptor has a valid 2.7% HTML120 release regression; the constructor helper's
+HTML results remain inconclusive. A scalar queue-copy prototype passes correctness
+and exact-scope output checks but has not been timed. Allocator reuse and Wasm
+tier interventions did not reliably stabilize identical-code controls. The
+[current decision table](history/performance-review.md#current-decision) separates
+these candidates and preserves the failed and incomplete evidence. No diagnostic
+setting changes the default-runtime acceptance requirement.
 
 ### Corrected affinity and final confirmation
 
@@ -186,6 +226,12 @@ weights, browser performance or whole-downloader speedups.
   comparisons, optional explicit init settings, 1–100 warmups and 1–8 replays/batch.
   Defaults to one host check and stops on busy activity (exit 2). Completed blocks
   are saved atomically after each block; stopped panels remain incomplete. The
+  optional `--busy=pause --max-pauses=3` parks children during brief load spikes,
+  waiting one second before a fresh host check. The fixed pause budget applies
+  across the whole panel (0–10 pauses), never changes the sample count, and adds
+  at most about two seconds per pause including the host check. Exhaustion stops
+  incomplete; measured blocks are never repeated. Record this as a distinct
+  protocol and keep earlier stopped panels closed. The
   explicit `--busy=run` retains the older retry-and-record behavior.
 - `bench/phase-profile.mjs`, `bench/consumer-profile.mjs`,
   `bench/fragment-profile.mjs`: instrumented attribution, not acceptance timings.

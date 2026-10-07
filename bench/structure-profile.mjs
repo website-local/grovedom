@@ -21,6 +21,16 @@ const shapes = {
         const roots = $($('div').get().reverse());
         return { $, run: () => roots.find('b'), output: nodes => nodes.length };
     },
+    disjointFind(load, size) {
+        const $ = load('<main>' + Array.from({ length: size }, (_, i) => `<section><b data-i="${i}"></b></section>`).join('') + '</main>');
+        const roots = $($('section').get().reverse());
+        return { $, run: () => roots.find('b'), output: nodes => nodes.get().map(node => node.attribs['data-i']) };
+    },
+    scopedFind(load, size) {
+        const $ = load('<main>' + Array.from({ length: size }, (_, i) => `<section><div><b data-i="${i}"></b></div></section>`).join('') + '</main>');
+        const roots = $($('section').get().reverse());
+        return { $, run: () => roots.find('div > b'), output: nodes => nodes.get().map(node => node.attribs['data-i']) };
+    },
     siblingUntil(load, size) {
         const $ = load('<main>' + Array.from({ length: size }, (_, i) => `<i data-i="${i}"></i>`).join('') + '</main>');
         const nodes = $('i');
