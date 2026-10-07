@@ -17,7 +17,7 @@ identical-code controls. No private candidate below is promoted.
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
-| Proxy numeric-key guard | Four scoped passes, nine inconclusive/incomplete cases, three unstarted; native HTML and pooled large HTML/sitemap pass | Full-scope acceptance open |
+| Proxy numeric-key guard | Six scoped passes, ten inconclusive/incomplete cases; all 16 original combinations attempted | Full-scope acceptance open |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -492,8 +492,11 @@ Raw and filtered ratios agree:
 | Pooled SVG300 | 0.98266 | 1.01281 | 1.02798 | Inconclusive |
 | Native sitemap600 | 1.00193 | 1.00379 | 0.94568 | Inconclusive |
 | Native SVG300 | 1.04008 | 1.01571 | 0.97180 | Inconclusive |
+| Native relative-colors | 1.08286 | 1.00512 | 0.99449 | Pass |
+| Native template | 1.10823 | 0.98431 | 1.00776 | Pass |
+| Native sitemap pipeline | 1.01921 | 1.02610 | 0.95658 | Inconclusive |
 
-The four completed inconclusive panels have invalid controls. A subsequent pooled
+The completed inconclusive panels have invalid controls. A subsequent pooled
 getPose panel exhausts its pause budget before collecting samples, leaving seven
 original cases unstarted. The next pooled relative-colors panel stops after two
 blocks. A deferred pooled template panel stops after three blocks in its first
@@ -503,6 +506,12 @@ without samples. Four native cases remain unstarted. These stops leave four
 scoped passes and eight inconclusive/incomplete cases. An opportunistic native
 getPose attempt then stops after two blocks when activity rises above the limit;
 it leaves nine inconclusive/incomplete cases and three native cases unstarted.
+Those three cases then complete all 12 blocks each: relative-colors and template
+pass, while sitemap pipeline has an invalid control. Template is about 1.6%
+slower than the pre-change candidate, within the scoped 2% tolerance; it is not
+an incremental speedup. All 16 original combinations are now attempted, with
+six passes and ten inconclusive/incomplete results. Every raw summary was
+recomputed; incomplete groups were not extended or merged.
 Passes from other candidates do not transfer.
 No production change or general speedup is claimed. Authored 24-cycle memory
 budgets and fixed pinned-owner/replacement checks pass on native and all three
