@@ -535,6 +535,19 @@ for roughly 57–61%. The factory body is byte-identical to 0.1.0. This identifi
 an existing shared cost, not a measured regression or gain; sample attribution
 is affected by inlining and scheduling and does not replace paired controls.
 
+### Batch-length control diagnostic
+
+A separate pooled HTML120 batch-size diagnostic uses four identical copies in
+fixed 16/64/64/16-replay panels, each with three groups of four mirrored blocks,
+100 warmups and two batches per sample. Host activity is recorded without
+gating this diagnostic. Every panel has sufficient retained blocks. Designated
+raw/filtered controls are 1.01318/1.01318, 0.95240/0.94996,
+0.97279/0.97279 and 1.04097/1.09494; respectively two, four, four and five of the
+six identical-code pairings fall outside the 2% range. Increasing batch length
+does not reliably stabilize controls here. The temporary diagnostic cap is 64;
+public and acceptance harness settings remain unchanged, and no result counts
+as candidate acceptance.
+
 ### XML fault attribution
 
 A separate native sitemap diagnostic finds page-fault variation strongly
