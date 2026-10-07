@@ -40,7 +40,10 @@ export function prepareDependency(source, build, manifestPath) {
     cpSync(source, staging, { recursive: true, filter: path => !path.split(/[\\/]/).includes('.git') });
     for (const patch of patches) {
       for (const check of [true, false]) {
-        const result = spawnSync('git', ['apply', '--whitespace=error', ...(check ? ['--check'] : []), patch], {
+        // Reviewed output hashes cover exact bytes. Git for Windows commonly
+        // enables autocrlf; do not let user line-ending settings rewrite patches.
+        const result = spawnSync('git', ['-c', 'core.autocrlf=false', '-c', 'core.eol=lf',
+          'apply', '--whitespace=error', ...(check ? ['--check'] : []), patch], {
           cwd: staging, encoding: 'utf8', env: process.env,
         });
         if (result.error || result.status !== 0)

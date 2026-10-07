@@ -7,7 +7,18 @@ import { tmpdir } from 'node:os';
 import { prepareDependency } from '../scripts/prepare-dependency.mjs';
 import { sourceFingerprint } from '../scripts/source-fingerprint.mjs';
 
-test('dependency patches verify upstream, patch bytes and cached output without editing the input', t => {
+for (const autocrlf of [undefined, 'true', 'false']) {
+test(`dependency patches verify upstream, patch bytes and cached output without editing the input (${autocrlf ?? 'default'} autocrlf)`, t => {
+  if (autocrlf !== undefined) {
+    // Reproduce Windows/user Git settings without changing any config file.
+    const overrides = { GIT_CONFIG_COUNT: '2', GIT_CONFIG_KEY_0: 'core.autocrlf',
+      GIT_CONFIG_VALUE_0: autocrlf, GIT_CONFIG_KEY_1: 'core.eol', GIT_CONFIG_VALUE_1: 'crlf' };
+    const previous = Object.fromEntries(Object.keys(overrides).map(key => [key, process.env[key]]));
+    t.after(() => { for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    } });
+    Object.assign(process.env, overrides);
+  }
   const root = mkdtempSync(join(tmpdir(), 'grovedom-dependency-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const source = join(root, 'source'), expected = join(root, 'expected'), build = join(root, 'build');
@@ -35,3 +46,4 @@ test('dependency patches verify upstream, patch bytes and cached output without 
   writeFileSync(join(source, 'example.c'), 'tampered\n');
   assert.throws(() => prepareDependency(source, build, manifestPath), /reviewed upstream tree/);
 });
+}
