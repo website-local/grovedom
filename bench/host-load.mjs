@@ -41,8 +41,12 @@ export async function checkHost({ maxAttempts = 3, maxBusy = .15 } = {}) {
         const after = sample(), busy = new Map();
         for (const [cpu, b] of before) {
             const a = after.get(cpu);
-            if (a && a.total > b.total)
-                busy.set(cpu, Math.max(0, 1 - (a.idle - b.idle) / (a.total - b.total)));
+            if (a && a.total > b.total) {
+                const total = a.total - b.total;
+                // Divide busy ticks directly: 1 - 70/100 rounds above the
+                // inclusive 30% threshold even though exactly 30 ticks are busy.
+                busy.set(cpu, Math.max(0, (total - (a.idle - b.idle)) / total));
+            }
         }
         const ranks = allowed.filter(cpu => busy.has(cpu)).map(cpu => { const group = siblings.get(cpu).filter(n => busy.has(n)), loads = group.map(n => busy.get(n)); return { cpu, siblings: group, cpuBusy: busy.get(cpu), siblingMax: Math.max(...loads), siblingMean: loads.reduce((a, b) => a + b, 0) / loads.length }; }).sort((a, b) => a.siblingMax - b.siblingMax || a.siblingMean - b.siblingMean || a.cpuBusy - b.cpuBusy || a.cpu - b.cpu);
         if (!ranks.length)

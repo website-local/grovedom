@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, readFileSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,6 +8,29 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { mockProcessEnv } from './mock-process.mjs';
 import { readAffinity, checkHost } from '../bench/host-load.mjs';
+
+test('host gate includes the exact threshold without admitting the next busy tick', { skip: process.platform !== 'linux' }, async t => {
+  const cpus = readAffinity(), read = fs.readFileSync;
+  let reads = 0, busyTicks = 0;
+  t.mock.method(fs, 'readFileSync', (path, ...args) => {
+    if (path === '/proc/stat') {
+      const after = reads++ % 2;
+      return cpus.map(cpu => `cpu${cpu} ${500 + after * busyTicks} 0 0 ${500 + after * (100 - busyTicks)} 0 0 0 0`).join('\n');
+    }
+    const sibling = String(path).match(/^\/sys\/devices\/system\/cpu\/cpu(\d+)\/topology\/thread_siblings_list$/);
+    if (sibling) return sibling[1];
+    return read(path, ...args);
+  });
+  t.mock.method(globalThis, 'setTimeout', callback => { queueMicrotask(callback); return 0; });
+  for (const threshold of [0, 15, 30, 100]) {
+    for (const ticks of [threshold - 1, threshold, threshold + 1].filter(n => n >= 0 && n <= 100)) {
+      busyTicks = ticks;
+      const result = await checkHost({ maxAttempts: 1, maxBusy: threshold / 100 });
+      assert.equal(result.chosen.siblingMax, ticks / 100);
+      assert.equal(result.quiet, ticks <= threshold, `${ticks} busy ticks at ${threshold}%`);
+    }
+  }
+});
 
 test('benchmark child warms through sample scheduling and keeps batches intact', t => {
   const root = mkdtempSync(join(tmpdir(), 'grovedom-window-child-'));
