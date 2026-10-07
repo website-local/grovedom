@@ -619,6 +619,21 @@ The validator allocation reduction is therefore not exercised by this failing
 workload. This does not invalidate the timing failure or identify its cause;
 text extraction and surrounding replay work remain the next attribution targets.
 
+Four fresh native CPU captures subsequently run candidate/release/release/candidate,
+each with 100 warmups, 1,000 checked sitemap-pipeline replays and a requested
+100 microsecond sampling interval. All output and lifecycle hashes match.
+Inclusive text-method samples occupy 3.82–4.15% for the candidate and 4.28–4.34%
+for release; selection creation occupies 3.76–3.78% and 3.62–3.71%, respectively.
+Document loading occupies 11.78–12.13% and 11.30–11.42%. Consumer URL parsing and
+construction account for substantial additional work. Inclusive categories
+overlap, and native frames and V8 inlining limit attribution; separate profile
+durations are not paired speedups.
+
+Source extraction confirms that `text()`, the shared `read()` function and the
+selection factory are byte-for-byte identical to release. This profile does
+not isolate a causal regression or justify rewriting those functions. The
+valid timing failure remains evidence against accepting the candidate.
+
 The last sitemap-pipeline host precheck reports `0.30000000000000004` against
 the inclusive 30% activity limit. Computing activity as `1 - idle/total` can
 round an exact boundary above that limit. The host checker now divides busy
