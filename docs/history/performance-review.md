@@ -60,6 +60,16 @@ prevents an elapsed improvement or acceptance claim. A separate JS/binary
 crossover also has an invalid large-case control. Both remain preserved;
 the mechanism and CPU attribution justify further qualification, not promotion.
 
+A subsequent predeclared browser-entry HTML600 panel completes three groups of
+four blocks, all retained, with 100 warmups and two batches of four replays.
+Raw equals filtered: release/candidate 0.979082, CI-before/candidate 1.114005,
+identical control 0.996960. Independent raw recomputation confirms the result.
+This supports about 10.2% less elapsed time than the CI commit, but the candidate
+still takes about 2.14% longer than release and fails the fixed 0.98 tolerance.
+The sequence stops as declared; HTML120 remains unstarted. Neither rounding nor
+the valid control converts this failure to a pass, and full-scope acceptance
+remains open.
+
 ## HTML allocation follow-up
 
 Six separate Node/V8 heap captures cover pooled Wasm at 120/600 articles for
