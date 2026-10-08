@@ -7,11 +7,16 @@ export function median(values) {
 }
 export function createProbe(now) {
   let sink = 0;
-  return () => {
+  function work() {
     let value = sink;
-    const start = now();
     for (let i = 0; i < 3000000; i++) value = (Math.imul(value ^ i, 1664525) + 1013904223) | 0;
     sink = value;
+  }
+  return () => {
+    // Keep the cold clock call out of the loop's OSR compilation. Otherwise
+    // leaving the optimized loop can repeatedly deoptimize the CPU probe.
+    const start = now();
+    work();
     return now() - start;
   };
 }

@@ -5,7 +5,7 @@ under the accompanying [BSD-3-Clause license](LICENSE.md). `sources.json` pins
 the revision and SHA-256 hashes. Regenerate the data offline with:
 
 ```sh
-node scripts/import-web-platform-tests.mjs /path/to/pinned/wpt
+node scripts/import-web-platform-tests.mjs ./reference/wpt
 ```
 
 All 207 records from `dom/nodes/selectors.js`'s `validSelectors` array are

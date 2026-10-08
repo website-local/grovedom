@@ -16,7 +16,7 @@ The pinned dependency is recorded in [native/dependency.json](../native/dependen
 ```sh
 npm run build:native
 npm run build:wasm
-node scripts/package-targets.mjs --out=/scratch/packages --wasm=/scratch/wasm --native=/scratch/native
+node scripts/package-targets.mjs --out=./build/packages --wasm=./build/wasm --native=./build/native
 ```
 
 Use a **new** output directory. Packaging creates independent `grovedom` and
@@ -49,7 +49,7 @@ release loading does not inspect metadata or compare package versions.
 
 ```js
 import { init, load } from 'grovedom';
-init({ wasm: '/application/assets/grovedom.wasm', heap: 'pool' });
+init({ wasm: './assets/grovedom.wasm', heap: 'pool' });
 const $ = load('<p>Hello</p>');
 try { console.log($('p').text()); } finally { $.dispose(); }
 ```
@@ -62,7 +62,7 @@ and `poolMaxBytes` are nonnegative integers; zero disables idle retention.
 
 ```js
 import { init, load } from 'grovedom-native';
-init({ addon: '/application/native/grovedom.node' }); // optional custom location
+init({ addon: './native/grovedom.node' }); // optional custom location
 ```
 
 Native defaults to its bundled addon. Package entries own independent state and
@@ -85,7 +85,7 @@ calls are rejected; await the original call. URL fetching follows browser CORS
 and CSP rules. This is best-effort support, not a tested browser-version matrix.
 
 ```sh
-node scripts/serve-demo.mjs /scratch/packages 8080
+node scripts/serve-demo.mjs ./build/packages 8080
 ```
 
 Open the printed loopback URL. The demo compares pooled Wasm with Cheerio 1.2.0's
@@ -112,7 +112,7 @@ test/browser-sandbox.mjs` checks the browser ESM graph without Node globals; it
 is not a browser-engine test.
 
 `npm run test:types` reuses an existing compiler (`GROVEDOM_TSC`).
-After package assembly, `node scripts/check-package-types.mjs /scratch/packages`
+After package assembly, `node scripts/check-package-types.mjs ./build/packages`
 checks isolated downstream Node and browser imports with no third-party types;
 set `TMPDIR` for its temporary project. Declaration checking stays enabled.
 `npm run test:fuzz` runs deterministic mutation replays; use disk-backed

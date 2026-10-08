@@ -27,7 +27,7 @@ browser `:enabled` semantics remain explicitly different from the Cheerio contra
 
 `test/browser-correctness.html` runs the same 845 WPT-derived cases through async
 browser initialization. Serve the workspace over HTTP with the Wasm file also
-available, then open `/test/browser-correctness.html?wasm=/path/grovedom.wasm`.
+available, then open `test/browser-correctness.html?wasm=../assets/grovedom.wasm`.
 The URL must satisfy browser CORS rules. The local server accepts `.mjs` and JSON:
 
 ```sh

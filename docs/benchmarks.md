@@ -42,6 +42,12 @@ per pair/case are required for a successful job; filtered counts and A/A results
 remain visible even when inconclusive. A deadline may truncate the last block,
 which stays in raw evidence and does not enter either median.
 
+The probe keeps its arithmetic loop separate from its clock calls. This avoids
+repeated V8 deoptimization at the loop exit: a 150-call diagnostic on each of
+Node 22 and 24 observed 150 such exits before the change and none afterward.
+This repairs probe execution; it does not explain the DOM regressions or change
+the classification of earlier results.
+
 Artifacts include exact package versions, Wasm hashes, the resolved dependency
 lockfile and a job-summary comparison table. No quiet-host gate or speedup
 threshold applies here. These shared-host diagnostics do not replace controlled

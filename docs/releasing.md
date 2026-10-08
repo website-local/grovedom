@@ -40,8 +40,8 @@ For local validation, configure existing build directories, `TMPDIR` and
 `GROVEDOM_FUZZ_DIR` as described in [setup](prototype.md), then run:
 
 ```sh
-npm run ci:pack -- /scratch/release
-npm run ci:test -- all-heaps both /scratch/release/tarballs
+npm run ci:pack -- ./build/release
+npm run ci:test -- all-heaps both ./build/release/tarballs
 ```
 
 `all-heaps` requires Linux native artifacts. Use `portable wasm` instead for a
