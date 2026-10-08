@@ -19,12 +19,70 @@ identical-code controls. No private candidate below is promoted.
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
 | Hoisted attribute validator | Full scope: four passes, eleven inconclusive/incomplete, one valid native sitemap-pipeline failure | Not accepted |
-| Distinct sibling query roots | Exact CI source has quadratic root-coverage scans; isolated fast path removes the query CPU hotspot and passes native/pool/sanitizer suites | Qualification and full-scope timing open |
+| Distinct sibling query roots | Removes the CI query hotspot; full original scope has eight passes, four failures and four inconclusive controls | Not accepted |
+| General root index | Correctness passes; first twenty-panel screen has one pass and nineteen inconclusive panels | Not accepted |
+| Inline ASCII whitespace | Removes repeated helper calls; full twenty-panel screen has five passes, six failures and nine inconclusive controls | Rejected and removed |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
 them. Historical failed, incomplete and blocked checkpoints below remain
 evidence and describe their state at that time, not an unfixable regression.
+
+### Resumed binary counts and full-scope checks
+
+A later general root-index candidate retains the template fallback and adds no
+node fields or allocations. Its first 20-panel screen remains unaccepted: one
+pass and nineteen inconclusive panels. An independent audit corrected an earlier
+flattened summary to the required median of three group medians; the overall
+decision did not change. A separate single-tag dispatch experiment was rejected
+after four passes, three failures and thirteen inconclusive panels.
+
+Diagnostic instrumentation of the actual released and index-candidate Wasm
+binaries counts executed non-structural opcodes and function entries. Three
+checked replays at each CI workload give identical counts and outputs. The index
+candidate executes 1.64%/1.43% more opcodes at HTML120/600 and 0.25%/0.34% more
+at sitemap600/SVG300. These are Wasm operation counts, not machine instructions
+or elapsed speedups. They do not explain the whole timing regression.
+
+The HTML counts include 2,760/13,800 calls to a whitespace helper that was inline
+in the older ASCII-only implementation. A new candidate kept the short ASCII
+check inline and moved the unchanged bounded Unicode checks to a separate
+function. It removed those calls and 10,320/51,600 opcodes; XML/SVG counts stayed
+unchanged. Correctness, native sanitizers, both consumer snapshots and memory
+checks passed, but **the candidate was rejected** by its performance screen.
+
+All twenty panels completed: eight workloads on native and pooled Wasm, plus
+four separate browser-entry workloads under Node. The fixed protocol used
+three groups of four blocks, 100 warmups, two batches, and 16/4/32/1 replays
+per batch for HTML120/HTML600/XML/pipelines. All 240 block prechecks qualified at
+the declared 30% activity limit; 237 blocks passed the independent 1.5 probe filter.
+The audit reconstructed all 1,920 sample records. Five panels passed, six
+failed, and nine had inconclusive controls. Failed cases below have valid raw
+and filtered controls; ratios are release/candidate, index/candidate and control.
+
+| Failed panel | Release | Index | Control, raw / filtered |
+|---|---:|---:|---:|
+| Pooled HTML120 | 0.9656 | 1.0302 | 1.0105 / same |
+| Pooled template pipeline | 1.0648 | 0.9726 | 1.0030 / same |
+| Native HTML120 | 0.9559 | 0.9839 | 1.0033 / same |
+| Native getPose pipeline | 1.0503 | 0.9499 | 1.0155 / same |
+| Browser sitemap600 | 0.9721 | 0.9948 | 1.0092 / same |
+| Browser SVG300 | 1.0125 | 0.9661 | 1.0049 / 0.9847 |
+
+Raw and filtered comparison ratios agree in these six panels. Every failure
+retains twelve blocks except browser SVG300, which retains eleven. A separate
+browser HTML120 pass has only 0.0003 headroom over the 0.98 release threshold.
+No panel was extended or normalized by its control. The experiment was removed;
+the index candidate remains isolated and unaccepted. None of these results
+transfers acceptance to that candidate or proves a browser-engine result.
+
+These replays use selectively restored archive inputs and newly fetched HTTP
+responses where historical response bytes were unavailable. Current responses
+are kept distinct from historical inputs; their timings are not merged. The
+193-case installed and development consumer snapshots each match outputs,
+events and logs on native and pooled Wasm, with 303 loads/disposals. Authored
+120-cycle memory runs enforce fixed budgets; separate custom-corpus runs have
+no fixed budgets. This qualification does not supersede the failed timings.
 
 ## CI large-HTML regression follow-up
 

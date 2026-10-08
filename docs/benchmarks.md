@@ -202,6 +202,12 @@ tier interventions did not reliably stabilize identical-code controls. The
 these candidates and preserves the failed and incomplete evidence. No diagnostic
 setting changes the default-runtime acceptance requirement.
 
+The later [full-scope ASCII check](history/performance-review.md#resumed-binary-counts-and-full-scope-checks)
+completed all twenty native, pooled-Wasm and browser-entry panels: five passes,
+six failures and nine inconclusive controls, retaining 237 of 240 blocks.
+Removing repeated whitespace-helper calls did not establish non-regression;
+the experiment was rejected. The original index candidate remains unaccepted.
+
 ### Corrected affinity and final confirmation
 
 The architecture refactor's six-panel screen passed its declared tolerance.
