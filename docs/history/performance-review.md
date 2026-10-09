@@ -22,6 +22,8 @@ identical-code controls. No private candidate below is promoted.
 | Distinct sibling query roots | Removes the CI query hotspot; full original scope has eight passes, four failures and four inconclusive controls | Not accepted |
 | General root index | Correctness passes; first twenty-panel screen has one pass and nineteen inconclusive panels | Not accepted |
 | Inline ASCII whitespace | Removes repeated helper calls; full twenty-panel screen has five passes, six failures and nine inconclusive controls | Rejected and removed |
+| Class operand validation | Twenty panels attempted: six passes, one valid browser HTML120 failure and thirteen inconclusive panels | Not accepted; removed |
+| Portable short ASCII loop | Correctness passes; both timing prerequisites stop before samples; allocation sampling estimates about 23% more JS allocation | Removed; no elapsed acceptance |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -83,6 +85,72 @@ are kept distinct from historical inputs; their timings are not merged. The
 events and logs on native and pooled Wasm, with 303 loads/disposals. Authored
 120-cycle memory runs enforce fixed budgets; separate custom-corpus runs have
 no fixed budgets. This qualification does not supersede the failed timings.
+
+### Class operands and portable decoding
+
+A separate class guard validates its immutable operand once, then compares the
+whole attribute value when byte lengths match. Escaped whitespace and longer
+class lists retain the general matcher. It adds no fields or allocations. Three
+checked diagnostic repetitions remove 66,191/332,591 executed Wasm opcodes at
+HTML120/600, about 0.83%/0.84% versus the index candidate. XML/SVG counts are
+unchanged; these counts are not elapsed gains.
+
+Full 1,797-case native/pool suites pass on Node 22 and 24, along with native
+sanitizers, faults, seeded fuzzing, browser/fallback checks, declarations and both
+193-case consumer snapshots. All eight scope outputs match through native, Node
+Wasm and browser entries. Four authored 120-cycle memory budgets pass; four
+separate custom-corpus diagnostics retain null budgets.
+
+The fixed twenty-panel screen remains **unaccepted**: six passes, one failure
+and thirteen inconclusive panels. Eleven panels complete. One pooled HTML600
+panel is interrupted after its first group; eight others exhaust the declared
+host-load pause budget. The interrupted result is preserved without replacement
+groups; only previously unstarted panels continue. Four completed panels have
+invalid controls. The independent audit reconstructs all 1,208 sample records
+and 151 measured blocks, of which 147 pass the independent probe filter.
+
+| Qualified panel | Release/candidate | Index/candidate | Control, raw / filtered | Decision |
+|---|---:|---:|---:|---|
+| Pooled HTML120 | 0.9953 | 1.0526 | 1.0012 / same | Pass |
+| Native HTML120 | 0.9943 | 1.0013 | 0.9848 / same | Pass |
+| Pooled sitemap600 | 0.9823 | 0.9923 | 1.0107 / same | Pass |
+| Pooled SVG300 | 0.9895 | 0.9843 | 1.0001 / same | Pass |
+| Pooled getPose pipeline | 1.0273 | 0.9976 / 1.0006 | 0.9858 / 0.9841 | Pass |
+| Browser HTML120 | 0.9643 | 0.9881 | 0.9916 / same | Fail |
+| Browser sitemap600 | 0.9803 | 1.0111 | 1.0036 / same | Pass |
+
+Comparison ratios are raw and filtered where two values appear; otherwise they
+agree. Pooled getPose retains eleven blocks; the other rows retain twelve.
+Browser HTML120 is about 3.7% slower than the published release despite the Node
+HTML passes. The browser sitemap pass has only 0.0003 headroom. Native template
+also has an adverse before/candidate ratio of 0.9489, with invalid control 1.0364;
+it remains inconclusive. No passing panel transfers to another candidate.
+
+The portable decoder is unchanged from 0.1.0. Exact tracing finds identical
+decode counts across release, index and class-guard candidates: 240/1,200 short
+ASCII results plus one long serialization at HTML120/600, 600 longer ASCII
+results plus serialization for sitemap600, and 300 short results plus
+serialization for SVG300. These are existing costs to investigate, not evidence
+that a decoder edit caused the regression.
+
+A portable-only follow-up constructs results of at most 32 ASCII bytes directly,
+retaining the existing decoder for longer or non-ASCII output. It removes
+240/1,200 decoder calls and temporary byte views at HTML120/600 and 300 for SVG;
+sitemap counts stay unchanged. The portable Node 22/24 suites each pass 1,749
+cases with 51 skips. Both consumer snapshots, browser/fallback checks, seeded
+fuzzing, all eight scope outputs and three authored heap budgets pass. Native
+and Node runtime graphs and compiled artifacts are byte-identical to the
+qualified class candidate; their prior checks are explicitly reused.
+
+Both new browser HTML timing prerequisites stop at the initial host check
+without samples; eighteen other panels remain pending. Separate allocation
+captures use 100 warmups, 200 checked replays and a 4,096-byte sampling interval,
+including collected objects. Estimated JS allocation per replay rises by
+22.8%/23.2% at HTML120/600: removing byte views introduces temporary string
+construction. These estimates cover allocation volume; elapsed performance was
+not measured. The decoder loop is removed, with its frozen source, qualification
+and inconclusive panels preserved. The class guard is also removed from the
+working candidate; the original index candidate remains unaccepted.
 
 ## CI large-HTML regression follow-up
 

@@ -208,6 +208,17 @@ six failures and nine inconclusive controls, retaining 237 of 240 blocks.
 Removing repeated whitespace-helper calls did not establish non-regression;
 the experiment was rejected. The original index candidate remains unaccepted.
 
+A later [class-operand candidate](history/performance-review.md#class-operands-and-portable-decoding)
+attempted all twenty panels: six passes, one failure and thirteen inconclusive
+results. Browser HTML120 fails at 0.9643 release/candidate with valid control
+0.9916, despite passing Node HTML120 panels. Only eleven panels complete; the
+interrupted and host-stopped panels stay incomplete. Reduced operation counts
+and passing correctness checks do not establish full-scope non-regression.
+The subsequent portable ASCII decoder loop removes small decoder calls but
+raises sampled JS allocation by about 23% in both HTML sizes. It is removed;
+both timing prerequisites stopped before collecting samples, so there is no
+elapsed result for that experiment.
+
 ### Corrected affinity and final confirmation
 
 The architecture refactor's six-panel screen passed its declared tolerance.
