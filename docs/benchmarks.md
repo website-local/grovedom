@@ -219,6 +219,14 @@ raises sampled JS allocation by about 23% in both HTML sizes. It is removed;
 both timing prerequisites stopped before collecting samples, so there is no
 elapsed result for that experiment.
 
+A private [HTML opening-tag writer](history/performance-review.md#html-opening-tag-writer)
+removes about 7% of executed Wasm opcodes in both authored HTML sizes, with
+unchanged XML/SVG counts and passing correctness, sanitizer, consumer and memory
+checks. Both HTML120 timing prerequisites complete but have invalid controls;
+the pooled panel also lacks sufficient retained blocks. The fixed sequence stops
+with eighteen panels pending. The writer remains uncommitted, with no elapsed
+speedup or full-scope acceptance claim.
+
 ### Corrected affinity and final confirmation
 
 The architecture refactor's six-panel screen passed its declared tolerance.

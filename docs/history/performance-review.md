@@ -24,6 +24,7 @@ identical-code controls. No private candidate below is promoted.
 | Inline ASCII whitespace | Removes repeated helper calls; full twenty-panel screen has five passes, six failures and nine inconclusive controls | Rejected and removed |
 | Class operand validation | Twenty panels attempted: six passes, one valid browser HTML120 failure and thirteen inconclusive panels | Not accepted; removed |
 | Portable short ASCII loop | Correctness passes; both timing prerequisites stop before samples; allocation sampling estimates about 23% more JS allocation | Removed; no elapsed acceptance |
+| HTML opening-tag writer | Removes about 7% of authored HTML Wasm opcodes; qualification passes, but both timing prerequisites are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -151,6 +152,57 @@ construction. These estimates cover allocation volume; elapsed performance was
 not measured. The decoder loop is removed, with its frozen source, qualification
 and inconclusive panels preserved. The class guard is also removed from the
 working candidate; the original index candidate remains unaccepted.
+
+### HTML opening-tag writer
+
+A separate candidate builds on the original index code and replaces the HTML
+element-output callback protocol with direct attribute spans. An attribute's
+name, punctuation and first unescaped value span share one bounded output copy.
+Ampersands, double quotes and NBSP are escaped directly; namespace metadata,
+attribute order and literal angle brackets are preserved. Closing tags, text,
+XML serialization, JS, dependency code and build defaults are unchanged.
+
+Three checked diagnostic repetitions give identical operation counts and exact
+Cheerio output. The existing counter counts executed non-structural Wasm opcodes,
+not machine instructions or elapsed time:
+
+| Workload | Index opcodes | Candidate opcodes | Reduction |
+|---|---:|---:|---:|
+| HTML120 | 7,968,552 | 7,413,345 | 6.97% |
+| HTML600 | 39,418,000 | 36,646,153 | 7.03% |
+
+The candidate removes 8,778/43,818 attribute-output callback entries and
+5,412/27,012 `memcpy` calls at the two HTML sizes. Sitemap600 and SVG300 counts
+are unchanged. These are work reductions, not speedup claims.
+
+All 28 qualification stages pass. Full 1,799-case native/pool suites pass on
+Node 22 and 24: native has 1,740 passes and 59 skips; pool has 1,748 passes and
+51 skips. Native ASan/UBSan with leak detection, owned-buffer failure recovery,
+seeded fuzzing, focused shared/fresh/worker checks, portable browser/fallback
+checks and types pass. Both 193-case consumer snapshots match on both backends,
+with 303 loads and disposals each. All eight scope outputs match through native,
+Node Wasm and browser entries. Four authored 120-cycle memory budgets pass;
+four separate 24-cycle custom diagnostics have null budgets. Final tracked live
+and control bytes are zero; fresh and trimmed pool capacity are zero.
+
+The immutable twenty-panel protocol puts browser and pooled Node HTML120 first,
+stopping unless both pass. It uses 100 warmups, three groups of four blocks, two
+batches of sixteen replays, the 30% activity limit and three-pause budget. Both
+panels complete, but neither qualifies:
+
+| Panel | Release/candidate, raw / filtered | Index/candidate, raw / filtered | Control | Retained by group | Decision |
+|---|---:|---:|---:|---|---|
+| Browser HTML120 | 1.0159 | 1.0125 | 0.9780 | 4 / 4 / 4 | Inconclusive |
+| Pooled HTML120 | 1.1055 / 1.0438 | 1.0770 / 1.0704 | 0.9244 | 3 / 4 / 2 | Inconclusive |
+
+Single values have identical raw and filtered results. Controls lie outside
+0.98–1.02 in both panels. The pooled panel also has fewer than three retained
+blocks in its last group and fewer than ten overall. The audit reconstructs
+192 sample records and 24 complete blocks, retaining 21 by the independent 1.5
+probe filter; all prechecks meet the declared host limit. Nothing is normalized,
+extended or rerun. Eighteen panels remain pending under the original stop rule.
+The qualified source stays private and uncommitted. Neither elapsed improvement
+nor full-scope non-regression is established, and earlier failures remain evidence.
 
 ## CI large-HTML regression follow-up
 
