@@ -234,6 +234,8 @@ against both 0.1.0 and the preceding private candidate. The SVG control is outsi
 the 2% tolerance, so the fixed sequence stops with eighteen panels pending.
 The combined candidate remains private and unaccepted; operation counts and one
 passing panel do not establish full-scope non-regression.
+A later ordinary-ASCII precheck increases XML/SVG operation counts and is removed
+before elapsed timing. It adds no acceptance evidence or replacement panels.
 
 ### Corrected affinity and final confirmation
 

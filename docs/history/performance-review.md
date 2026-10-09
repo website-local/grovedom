@@ -27,6 +27,7 @@ candidate below is promoted.
 | Portable short ASCII loop | Correctness passes; both timing prerequisites stop before samples; allocation sampling estimates about 23% more JS allocation | Removed; no elapsed acceptance |
 | HTML opening-tag writer | Removes about 7% of authored HTML Wasm opcodes; qualification passes, but both timing prerequisites are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
 | Bounded XML-name equality | Full qualification passes; pooled sitemap timing passes, but SVG controls are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
+| XML ordinary-ASCII precheck | Focused correctness passes, but total sitemap/SVG Wasm opcodes increase 1.09%/0.65%; misses the declared work-reduction screen | Rejected and removed before elapsed timing |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -264,6 +265,27 @@ sitemap passes the declared aggregate rule, not a universal repeatability claim.
 SVG's aggregate controls fail, leaving eighteen panels pending under the stop
 rule. No samples are replaced, controls normalized, or previous passes transferred.
 The candidate stays private and uncommitted; full-scope acceptance remains open.
+
+A follow-up checks ordinary ASCII before XML entity dispatch, using a fixed mask
+for the six escaped ASCII bytes and keeping the existing Unicode and raw-output
+paths. It targets `gd_xml_escape`, which accounts for about 9% of executed Wasm
+opcodes in both XML workloads. The experiment declares a minimum 2% reduction in
+total SVG opcodes, with unchanged HTML counts, before full qualification or timing.
+
+All 37 focused XML checks pass. Three counter repetitions have identical counts
+and exact Cheerio outputs, but the additional classifier increases work:
+
+| Workload | XML-name candidate opcodes | Precheck opcodes | Increase |
+|---|---:|---:|---:|
+| Sitemap600 | 9,014,556 | 9,112,920 | 1.09% |
+| SVG300 | 5,531,080 | 5,567,116 | 0.65% |
+
+The entire increase is in `gd_xml_escape`; HTML counts remain unchanged. This
+does not prove an elapsed regression, but it misses the declared screening
+threshold. The source is restored byte-for-byte to the qualified XML-name
+candidate; no full qualification or elapsed panel is started for the precheck.
+Its source, Wasm artifact and raw counts remain preserved. The eighteen pending
+panels and earlier closed results keep their original status.
 
 ## CI large-HTML regression follow-up
 
