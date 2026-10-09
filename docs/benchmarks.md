@@ -227,6 +227,14 @@ the pooled panel also lacks sufficient retained blocks. The fixed sequence stops
 with eighteen panels pending. The writer remains uncommitted, with no elapsed
 speedup or full-scope acceptance claim.
 
+A subsequent [bounded XML-name comparison](history/performance-review.md#bounded-xml-name-equality)
+removes 6.53% of executed sitemap Wasm opcodes and 4.56% for SVG, with unchanged
+HTML counts and passing full qualification. Its pooled sitemap screen passes
+against both 0.1.0 and the preceding private candidate. The SVG control is outside
+the 2% tolerance, so the fixed sequence stops with eighteen panels pending.
+The combined candidate remains private and unaccepted; operation counts and one
+passing panel do not establish full-scope non-regression.
+
 ### Corrected affinity and final confirmation
 
 The architecture refactor's six-panel screen passed its declared tolerance.

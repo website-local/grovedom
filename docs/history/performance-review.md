@@ -9,8 +9,9 @@ or a new release speedup.
 ## Current decision
 
 The investigation is active. Acceptance still requires all eight original
-workloads on both backends, with the documented 2% tolerance and sufficient
-identical-code controls. No private candidate below is promoted.
+workloads on both backends and four separate browser-entry panels, with the
+documented 2% tolerance and sufficient identical-code controls. No private
+candidate below is promoted.
 
 | Candidate or diagnostic | Current evidence | Decision |
 |---|---|---|
@@ -25,6 +26,7 @@ identical-code controls. No private candidate below is promoted.
 | Class operand validation | Twenty panels attempted: six passes, one valid browser HTML120 failure and thirteen inconclusive panels | Not accepted; removed |
 | Portable short ASCII loop | Correctness passes; both timing prerequisites stop before samples; allocation sampling estimates about 23% more JS allocation | Removed; no elapsed acceptance |
 | HTML opening-tag writer | Removes about 7% of authored HTML Wasm opcodes; qualification passes, but both timing prerequisites are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
+| Bounded XML-name equality | Full qualification passes; pooled sitemap timing passes, but SVG controls are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
 | Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
@@ -203,6 +205,65 @@ probe filter; all prechecks meet the declared host limit. Nothing is normalized,
 extended or rerun. Eighteen panels remain pending under the original stop rule.
 The qualified source stays private and uncommitted. Neither elapsed improvement
 nor full-scope non-regression is established, and earlier failures remain evidence.
+
+### Bounded XML-name equality
+
+A subsequent candidate adds bounded word comparisons to the qualified but
+unaccepted HTML writer. XML element-name and attribute-name cache lookups, plus
+closing-tag matching against the parent name, need equality rather than ordering.
+Names up to sixteen bytes use overlapping head/tail words loaded with constant-size
+`memcpy`; every load stays within the supplied range. Longer names keep `memcmp`.
+The change adds no allocations, cache entries, document fields, dependency changes,
+target features or JS/ABI changes.
+
+This reduces an existing cost, without establishing the cause of the elapsed
+regressions. The preceding XML/SVG opcode increases against 0.1.0 were only
+0.25%/0.34%. Three checked repetitions of the new candidate have identical
+executed non-structural Wasm counts and exact Cheerio outputs:
+
+| Workload | HTML-writer opcodes | Candidate opcodes | Reduction |
+|---|---:|---:|---:|
+| Sitemap600 | 9,644,684 | 9,014,556 | 6.53% |
+| SVG300 | 5,795,423 | 5,531,080 | 4.56% |
+
+HTML120/600 counts remain 7,413,345/36,646,153. Sitemap/SVG `memcmp` calls fall
+from 10,808/6,019 to 4,809/2,424. These are executed Wasm counts, not machine
+instructions or elapsed gains.
+
+All 28 qualification stages pass. The 1,801-case suites pass on Node 22/24:
+native has 1,742 passes and 59 skips, pooled Wasm 1,750 passes and 51 skips.
+Fresh native ASan/UBSan and leak checks pass, including direct equality tests at
+allocation boundaries for lengths 0–65 and eight alignments. Differential XML
+tests cover case, Unicode, shared name prefixes, cache churn, cloning and rename.
+Owned-buffer fault recovery, shared/fresh/worker checks, seeded fuzzing, portable
+browser/fallback checks and types pass. Both 193-case consumers match on both
+backends, each with 303 balanced loads/disposals. All eight scope outputs match
+through native, Node Wasm and browser entries under Node. Four authored 120-cycle
+memory budgets pass; four separate 24-cycle corpus diagnostics have null budgets.
+Final tracked live/control bytes and fresh/trimmed pool capacity are zero.
+
+The frozen twenty-panel plan starts with the two pooled XML cases and stops
+unless both pass. The immediate before comparator is the frozen HTML writer;
+published 0.1.0 remains the release comparator. Each panel has 100 warmups, three
+groups of four blocks, two batches of 32 replays, the 30% host-activity limit and
+a three-pause budget. Acceptance retains the median of three group medians,
+ratios at least 0.98, both raw/filtered controls within 0.98–1.02, at least three
+retained blocks per group and ten in total.
+
+| Panel | Release/candidate, raw / filtered | Before/candidate, raw / filtered | Control, raw / filtered | Retained by group | Decision |
+|---|---:|---:|---:|---|---|
+| Pooled sitemap600 | 1.0409 | 1.0296 | 0.9872 | 4 / 4 / 4 | Pass |
+| Pooled SVG300 | 1.0060 | 1.0254 | 1.0326 / 1.0398 | 4 / 3 / 4 | Inconclusive |
+
+Single values have identical raw/filtered aggregates. Independent reconstruction
+verifies 192 sample records and all 24 completed blocks; 23 pass the fixed 1.5
+probe filter. All measured prechecks meet the host limit. Sitemap uses one pause,
+SVG none. Median/max batches are 51.97/78.54 ms and 27.27/37.60 ms respectively.
+Group controls still vary: sitemap 0.9427–0.9970, SVG 0.9621–1.0466 raw. The
+sitemap passes the declared aggregate rule, not a universal repeatability claim.
+SVG's aggregate controls fail, leaving eighteen panels pending under the stop
+rule. No samples are replaced, controls normalized, or previous passes transferred.
+The candidate stays private and uncommitted; full-scope acceptance remains open.
 
 ## CI large-HTML regression follow-up
 
