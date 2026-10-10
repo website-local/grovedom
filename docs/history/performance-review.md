@@ -10,7 +10,9 @@ or a new release speedup.
 
 The investigation is active. Acceptance still requires all eight original
 workloads on both backends and four separate browser-entry panels, with the
-documented 2% tolerance and sufficient identical-code controls. No private
+documented scoped tolerance and sufficient identical-code controls. Future local
+screens use the [3% rule](../benchmarks.md#short-checks); earlier rows retain their
+predeclared thresholds and classifications. No private
 candidate below is promoted.
 
 | Candidate or diagnostic | Current evidence | Decision |

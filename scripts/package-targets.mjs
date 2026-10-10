@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { resolve, join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import { prepareBenchmarkControl } from './prepare-benchmark-control.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = Object.fromEntries(process.argv.slice(2).map(value => {
@@ -51,4 +52,5 @@ for (const target of ['wasm', 'native']) {
   writeFileSync(join(destination, 'README.md'), '# ' + manifest.name + '\n\nExperimental ' + (target === 'wasm' ? 'Wasm-first HTML/XML DOM for Node, with a best-effort browser entry.' : 'Linux Node-API alternative to GroveDOM.') + '\n\nStandalone runtime and TypeScript declarations; Cheerio is not required.\n\nImport { init, load } from this package. Call init before DOM operations to set a custom ' + (target === 'wasm' ? 'wasm path, bytes or module; defaults use the bundled binary and an eight-instance bounded pool. In browsers, import grovedom/browser and await init().' : 'addon path; otherwise first use loads the bundled addon.') + '\n\nAlways call $.dispose() in finally after using a loaded document. Selections and handles belong to that document and package. The Cheerio-shaped API is partial; unsupported APIs are explicit errors. Node 22 (including 22.0.0) and Node 24 are tested; browser engines remain best-effort. No runtime environment variables or package metadata checks are used.\n\nGroveDOM is [MIT licensed](LICENSE). Bundled libraries retain their [third-party licenses and notices](THIRD_PARTY_NOTICES.md).\n');
 }
 cpSync(join(root, 'demo'), join(out, 'demo'), { recursive: true });
+prepareBenchmarkControl(join(out, 'grovedom'), join(out, 'demo/control'));
 console.log('Prepared separate Wasm and native packages. Nothing published.');

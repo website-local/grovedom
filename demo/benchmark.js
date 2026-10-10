@@ -1,5 +1,5 @@
 import { init, load } from '../grovedom/src/browser.js';
-import { init as initControl, load as controlLoad } from '../grovedom/src/browser.js?paired-control';
+import { init as initControl, load as controlLoad } from './control/src/browser.js';
 import { compare } from './comparison.js';
 
 const run = document.querySelector('#run');
@@ -27,7 +27,8 @@ async function loadCheerio() {
   } finally { clearTimeout(timeout); }
 }
 try {
-  [, , references] = await Promise.all([init({ heap: 'pool' }), initControl({ heap: 'pool' }), loadCheerio()]);
+  [, , references] = await Promise.all([init({ heap: 'pool' }),
+    initControl({ wasm: new URL('../grovedom/grovedom.wasm', import.meta.url), heap: 'pool' }), loadCheerio()]);
   status.textContent = 'Ready. HTML, XML sitemap and SVG cases match CI.';
   run.disabled = false;
 } catch (error) {

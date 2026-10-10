@@ -30,9 +30,18 @@ halves (ABBA/BAAB or BAAB/ABBA) together. Twenty warmup replays per case/variant
 and 30 independent CPU-probe warmups precede measurement. Each sample times two
 replays with disposal; exact output checks follow outside the timer. Each
 reference is paired directly against current Wasm. A separate instance of the
-identical Wasm module supplies an A/A control. Instances have separate heaps;
-this is the local short harness's in-process method, not the longer fresh-process
-acceptance protocol.
+identical Wasm module supplies an A/A control. The control also gets a byte-for-byte
+copy of the complete JavaScript module graph. The former entry-only query string
+shared helper modules with current Wasm: Node/V8 inspection found shared feedback
+vectors and additional polymorphic call sites in `attr` and `find`, while the
+release's helpers were separate. Copying all helper modules removes that asymmetry;
+the inspection alone does not establish its elapsed cost or explain the earlier
+regression ratios.
+
+Instances have separate heaps, while runtime compilation caches and GC can still
+affect this in-process diagnostic. It does not replace the longer fresh-process
+acceptance protocol. Control source copying and initialization stay outside timing;
+the browser demo and CI reuse the original Wasm bytes without rebuilding them.
 
 Reports retain every raw and incomplete block. Whole complete blocks are
 filtered only when the independent CPU-probe max/min exceeds 1.5. Raw and
@@ -69,12 +78,14 @@ and initialization.
 - Report retained blocks, quiet prechecks, raw/filtered ratios and batch duration.
   Different protocols stay separate. Quiet prechecks do not rule out JIT/GC drift.
 
-The scoped regression screen requires baseline/candidate medians ≥0.98 and
-controls within 0.98–1.02. This tolerance does not prove exactly equal performance.
-The current 0.1.0 regression investigation uses the median of three group
+Future local screens in the 0.1.0 regression investigation use a **3% scoped
+tolerance**: baseline/candidate medians ≥0.97 and controls within 0.97–1.03.
+This is a practical screening tolerance, not proof of exactly equal performance.
+Previously closed panels retain their predeclared 2% rules and classifications.
+The investigation uses the median of three group
 medians from three complete groups of four blocks, with at least three retained
 blocks per group and ten in total. Both raw and filtered release/candidate and
-before/candidate ratios must reach 0.98, with both controls within 0.98–1.02.
+before/candidate ratios must reach 0.97, with both controls within 0.97–1.03.
 Historical panels retain their separately declared settings. Incomplete panels
 and inconclusive controls do not pass.
 

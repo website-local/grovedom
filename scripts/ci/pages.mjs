@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node
 import { join, resolve } from 'node:path';
 import { readRelease } from './artifacts.mjs';
 import { releaseOptions } from './release-options.mjs';
+import { prepareBenchmarkControl } from '../prepare-benchmark-control.mjs';
 
 const [directory, source, output, tag, expectedCommit] = process.argv.slice(2);
 assert(directory && source && output && tag?.startsWith('v'),
@@ -41,6 +42,7 @@ for (const name of ['index.html', 'benchmark.js', 'comparison.js', 'workload.js'
   if (['comparison.js', 'workload.js', 'xml-workload.js'].includes(name) && !existsSync(join(checkout, 'demo', name))) continue;
   cpSync(join(checkout, 'demo', name), join(out, 'demo', name));
 }
+prepareBenchmarkControl(pkg, join(out, 'demo/control'));
 writeFileSync(join(out, 'index.html'), `<!doctype html>
 <html lang="en"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

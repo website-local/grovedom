@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readRelease } from './artifacts.mjs';
 import { compare } from '../../demo/comparison.js';
+import { prepareBenchmarkControl } from '../prepare-benchmark-control.mjs';
 
 const [tarballsArg, outputArg] = process.argv.slice(2);
 assert(tarballsArg && outputArg, 'Use benchmark.mjs TARBALLS NEW_OUTPUT');
@@ -25,17 +26,18 @@ execFileSync('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', '
   `current@file:${join(tarballs, current.file)}`, 'released@npm:grovedom@latest', `cheerio@${pkg.devDependencies.cheerio}`],
 { cwd: out, stdio: 'inherit', timeout: remaining - 3000 });
 const metadata = {};
-async function wasm(name, instance = '') {
+async function wasm(name, entry) {
   const root = join(out, 'node_modules', name);
   const info = JSON.parse(readFileSync(join(root, 'package.json')));
   const bytes = readFileSync(join(root, 'grovedom.wasm'));
-  const api = await import(pathToFileURL(join(root, 'src/browser.js')).href + instance);
+  const api = await import(pathToFileURL(entry ?? join(root, 'src/browser.js')).href);
   await api.init({ wasm: bytes, heap: 'pool' });
   metadata[name] = { version: info.version, wasmSha256: createHash('sha256').update(bytes).digest('hex') };
   return api.load;
 }
 const currentLoad = await wasm('current'), releasedLoad = await wasm('released');
-const controlLoad = await wasm('current', '?paired-control');
+const controlEntry = prepareBenchmarkControl(join(out, 'node_modules/current'), join(out, 'control'));
+const controlLoad = await wasm('current', controlEntry);
 const cheerio = await import(pathToFileURL(join(out, 'node_modules/cheerio/dist/esm/index.js')));
 const slim = await import(pathToFileURL(join(out, 'node_modules/cheerio/dist/esm/slim.js')));
 metadata.cheerio = { version: JSON.parse(readFileSync(join(out, 'node_modules/cheerio/package.json'))).version };
