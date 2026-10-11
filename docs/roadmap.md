@@ -33,6 +33,11 @@ best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
   Nineteen pass the practical median screen and five remain inconclusive;
   p90/p95 controls are less consistent. No primary gain meets the declared
   criteria, so the validator stays private and the selected runtime is unchanged.
+- A [raw node-kind cache trial](history/performance-review.md#raw-node-kind-cache)
+  removes repeated observations on the broader corpora but has no supported
+  primary gain. Eighteen median screens pass; six remain inconclusive, including
+  a pooled real-page resource stop. The cache stays private, and the original
+  regression and tail limitations remain open.
 - Hosted build/package checks passed Node 22.0.0 and maintained Node 22/24 on
   Linux, plus pooled Wasm on Node 24 Windows/macOS. Browser engines remain untested.
 

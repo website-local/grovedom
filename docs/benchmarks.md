@@ -231,6 +231,14 @@ p90/p95 controls qualify in only 12/24 and 9/24. No panel meets the predeclared
 primary gain criteria, so the validator stays private. The earlier Wasm writer
 selection and unresolved historical panels retain their separate evidence.
 
+A subsequent [raw node-kind cache trial](history/performance-review.md#raw-node-kind-cache)
+targets repeated observations on the real/seeded corpora while preserving all
+twenty original regression panels. Eighteen median screens pass and six remain
+inconclusive, including one pooled real-page memory-guard stop. Pooled seeded
+inputs have promising secondary results, but their p90 interval includes parity
+and the four-test Holm p value is 0.126953125. No primary gain is supported;
+the cache stays private and the selected runtime remains unchanged.
+
 ### Investigation against 0.1.0 (open)
 
 The private query-context candidate removes quadratic root-list scans: the
