@@ -1,0 +1,43 @@
+diff --git a/source/lexbor/selectors/selectors.c b/source/lexbor/selectors/selectors.c
+--- a/source/lexbor/selectors/selectors.c
++++ b/source/lexbor/selectors/selectors.c
+@@ -2015,8 +2015,7 @@
+ 
+             if (pseudo->type == LXB_CSS_SELECTOR_PSEUDO_CLASS_FUNCTION_NTH_CHILD) {
+                 while (node != NULL) {
+-                    if (node->local_name != LXB_TAG__TEXT
+-                        && node->local_name != LXB_TAG__EM_COMMENT)
++                    if (node->type == LXB_DOM_NODE_TYPE_ELEMENT)
+                     {
+                         index++;
+                     }
+@@ -2026,8 +2025,7 @@
+             }
+             else {
+                 while (node != NULL) {
+-                    if (node->local_name != LXB_TAG__TEXT
+-                        && node->local_name != LXB_TAG__EM_COMMENT)
++                    if (node->type == LXB_DOM_NODE_TYPE_ELEMENT)
+                     {
+                         index++;
+                     }
+@@ -2181,8 +2179,7 @@
+     node = node->prev;
+ 
+     while (node != NULL) {
+-        if (node->local_name != LXB_TAG__TEXT
+-            && node->local_name != LXB_TAG__EM_COMMENT)
++        if (node->type == LXB_DOM_NODE_TYPE_ELEMENT)
+         {
+             return false;
+         }
+@@ -2218,8 +2215,7 @@
+     node = node->next;
+ 
+     while (node != NULL) {
+-        if (node->local_name != LXB_TAG__TEXT
+-            && node->local_name != LXB_TAG__EM_COMMENT)
++        if (node->type == LXB_DOM_NODE_TYPE_ELEMENT)
+         {
+             return false;
+         }

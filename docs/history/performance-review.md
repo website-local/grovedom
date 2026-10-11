@@ -12,8 +12,11 @@ The investigation is active. Acceptance still requires all eight original
 workloads on both backends and four separate browser-entry panels, with the
 documented scoped tolerance and sufficient identical-code controls. Future local
 screens use the [3% rule](../benchmarks.md#short-checks); earlier rows retain their
-predeclared thresholds and classifications. No private
-candidate below is promoted.
+predeclared thresholds and classifications. The later best-effort trial below
+selects the HTML writer for Wasm only; the original combined-runtime comparison
+completes with six practical median passes, one failure and thirteen
+inconclusive panels; no panel meets all median and tail criteria. Full-scope
+non-regression remains unresolved.
 
 | Candidate or diagnostic | Current evidence | Decision |
 |---|---|---|
@@ -27,14 +30,448 @@ candidate below is promoted.
 | Inline ASCII whitespace | Removes repeated helper calls; full twenty-panel screen has five passes, six failures and nine inconclusive controls | Rejected and removed |
 | Class operand validation | Twenty panels attempted: six passes, one valid browser HTML120 failure and thirteen inconclusive panels | Not accepted; removed |
 | Portable short ASCII loop | Correctness passes; both timing prerequisites stop before samples; allocation sampling estimates about 23% more JS allocation | Removed; no elapsed acceptance |
-| HTML opening-tag writer | Removes about 7% of authored HTML Wasm opcodes; qualification passes, but both timing prerequisites are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
-| Bounded XML-name equality | Full qualification passes; pooled sitemap timing passes, but SVG controls are inconclusive and eighteen panels remain pending | Private and uncommitted; not accepted |
+| HTML opening-tag writer | Corrected p90 support on pooled large HTML and the broader seeded corpus; real-page timing remains incomplete and the original-scope screen has unresolved regressions/controls | Selected for Wasm only; no universal speedup or full-scope acceptance |
+| Bounded XML-name equality | Earlier sitemap screen passes with unresolved SVG controls; six new panels have no adjusted primary p90 support | Removed after the complete best-effort trial |
 | XML ordinary-ASCII precheck | Focused correctness passes, but total sitemap/SVG Wasm opcodes increase 1.09%/0.65%; misses the declared work-reduction screen | Rejected and removed before elapsed timing |
-| Allocator reuse / Wasm tier controls | Neither intervention reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
+| Until Set deduplication | Broader corpus: one short pass, one native real-page failure and two inconclusive panels | Rejected and removed; correctness fixes retained |
+| Restored JSON span writer | Earlier short checks are mixed; four new broader-corpus panels have no adjusted primary support and pooled synthetic tails are unfavorable | Not selected |
+| Broader-corpus correctness fixes | Earlier reserved window remains seven passes, two failures, nine invalid controls and two incomplete panels; selected combination passes 33 correctness/resource stages | Correctness fixes retained; original-scope timing remains separate |
+| Allocator reuse / Wasm tier / fixed-seed controls | None of these interventions reliably keeps identical-code timing within 2% | Do not change defaults or correct results using these diagnostics |
 
 These are separate candidates and protocols: passes do not transfer between
 them. Historical failed, incomplete and blocked checkpoints below remain
 evidence and describe their state at that time, not an unfixable regression.
+
+### Best-effort isolated optimizations
+
+After the earlier controls remained unstable, a new fixed protocol compared
+three isolated changes with twelve fresh process groups and eight mirrored
+blocks per panel. Each before/candidate pair differs in one C file; its JS
+graphs are byte-identical. The third role is a complete independent copy of
+before. Imports, execution and panel order rotate. All 192 measured workers
+complete, producing 9,216 batches; the independent whole-block probe filter
+retains 8,274 (89.8%). No elapsed ratios determine filtering or repetitions.
+
+HTML covers 120/600 articles on native, pooled Wasm and the browser entry under
+Node. XML covers sitemap600/SVG300 on the same entries. JSON spans cover all
+48 real response/error pages and 44 successful seeded inputs on native/pool;
+four malformed XML/SVG cases remain separate rejection checks. No additional
+web requests are made. This is Node 24 evidence, not browser-engine validation.
+
+All variants use ordinary GC/JIT and common benchmark-only 128 MiB old-space
+and 4 MiB semispace limits. Authored batches contain 16 HTML120, four HTML600
+or 32 XML/SVG replays; each corpus batch is one entire group. Every batch checks
+its output. Host admission permits up to 30% activity and waits up to ten minutes
+per sudden-load episode. Only complete mirrored blocks whose surrounding
+independent PBKDF2 probes have max/min at most 1.5 enter filtered estimates.
+
+Ratios below are before/candidate; above one is faster. p90/p95 are quantiles
+of batch-amortized elapsed time per replay, not individual-document latencies.
+The primary one-sided p90 test swaps labels as whole process groups and uses
+Holm correction across all sixteen panels. It assumes label exchangeability
+under the null. Pointwise 95% intervals resample whole fresh-process groups
+10,000 times. Medians and p95 are secondary descriptions, not additional
+uncorrected primary tests. All panels exceed eight eligible groups and 128
+retained batches per role.
+
+| Panel | Retained batches/role | Paired median | p90 | p95 | Adjusted p90 p | Median control |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| html-wasm-html120 | 168/192 | 1.0693 | 1.0708 | 1.0589 | 0.6543 | 1.0074 |
+| html-wasm-html600 | 180/192 | 1.0649 | 1.0842 | 1.1186 | 0.0078 | 0.9972 |
+| html-native-html120 | 178/192 | 1.0308 | 1.0549 | 1.0909 | 0.4995 | 1.0061 |
+| html-native-html600 | 176/192 | 1.0443 | 0.9986 | 0.9586 | 1.0000 | 1.0083 |
+| html-browser-html120 | 170/192 | 1.0692 | 1.0893 | 1.1012 | 0.0220 | 1.0220 |
+| html-browser-html600 | 178/192 | 1.0599 | 1.0668 | 1.0688 | 0.2393 | 0.9801 |
+| xml-wasm-sitemap600 | 174/192 | 1.0261 | 1.0292 | 1.0271 | 1.0000 | 1.0052 |
+| xml-wasm-svg300 | 184/192 | 1.0121 | 1.0390 | 1.0537 | 0.3555 | 1.0039 |
+| xml-native-sitemap600 | 178/192 | 1.0012 | 1.0135 | 1.0182 | 1.0000 | 0.9870 |
+| xml-native-svg300 | 172/192 | 1.0026 | 0.9796 | 0.9520 | 1.0000 | 1.0077 |
+| xml-browser-sitemap600 | 176/192 | 1.0267 | 1.0100 | 1.0065 | 1.0000 | 0.9986 |
+| xml-browser-svg300 | 176/192 | 0.9868 | 1.0256 | 1.0934 | 1.0000 | 0.9904 |
+| json-native-real | 178/192 | 1.0011 | 1.0091 | 1.0261 | 1.0000 | 0.9958 |
+| json-native-synthetic | 160/192 | 1.0409 | 1.0477 | 1.0718 | 0.3555 | 1.0118 |
+| json-wasm-real | 162/192 | 0.9909 | 1.0034 | 1.0078 | 1.0000 | 0.9895 |
+| json-wasm-synthetic | 148/192 | 1.0073 | 0.9660 | 0.9310 | 1.0000 | 0.9891 |
+
+The pooled-Wasm HTML600 interval is **1.0574–1.1285** for p90 and
+**1.0626–1.1437** for p95. Its p90/p95 controls are 0.9996/1.0161, and all
+twelve group medians improve (1.0298–1.0928). The HTML writer is therefore
+selected for Wasm, where p90/p95 times fall 7.8%/10.6% in this workload. Its
+body is unchanged from the measured and previously sanitizer-qualified code.
+
+Browser HTML120 also passes the corrected primary test, but its p90/p95
+controls are 1.0666/1.0744. That drift limits attribution. All sixteen raw and
+filtered paired-median controls meet the 3% band; this does not establish
+equally stable tails. No control normalizes a comparison.
+
+Native keeps the preceding HTML callback writer: its HTML600 p95 estimate
+is unfavorable, with a broad 0.8829–1.0386 interval and matching control-tail
+drift. Standard XML-name comparison is restored on both targets. JSON spans
+remain absent. Their promising secondary results do not override the lack of
+family-adjusted primary support; pooled JSON-synthetic p95 is also unfavorable.
+The earlier failed/inconclusive panels remain unchanged.
+
+One initial measured worker stopped during warmup, before any measured block,
+at the prospective RSS guard. A documented resource-only amendment preserved
+the fourteen already-completed workers and raised that guard while retaining
+the container guard, heap limits, timings, filters, counts and original deadline.
+The remaining 178 logical workers ran once. The failed zero-block attempt and
+every raw or rejected block remain in the evidence.
+
+The selected combination passes the [expanded qualification](../testing.md#broader-corpus-follow-up).
+Its [completed original-scope comparison](#selected-runtime-in-the-original-scope)
+is separate; the isolated result does not establish full-scope non-regression.
+
+### Selected runtime in the original scope
+
+The selected combination subsequently completes all **240 measured workers**
+across the original twenty panels: eight native, eight pooled Wasm and four
+browser-entry cases under Node. Four independent module graphs compare published
+0.1.0, the original preceding candidate, selected current and identical current.
+The control is **current/identical current**; the preceding isolated trial used
+before/identical before. These are separate comparisons.
+
+Twelve fresh processes per panel each contain eight four-role mirrored blocks,
+producing 15,360 batches. The unchanged independent probe filter retains
+**9,624 (62.7%)**. Common benchmark-only heap limits, ordinary GC/JIT, rotated
+orders and ten-minute load waits remain in force. All workers finish without
+benchmark-process swap or measured major faults. No panel is extended.
+
+Only ten panels meet the predeclared minimum of eight eligible process groups
+and 128 retained batches per role. Sixteen have valid raw/filtered median
+controls. **Six pass both practical median screens, one fails and thirteen are
+inconclusive. No panel meets every raw/filtered median and tail criterion.**
+The table reports filtered comparator/current ratios; above one favors current.
+An apparent pass in the last column is only the 3% median screen.
+
+| Panel | Retained batches/role | Median release / before | p90 release / before | p95 release / before | Median control | Median screen |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| wasm-html120 | 130/192 | 1.0496 / 1.0004 | 1.0306 / 1.0293 | 1.0163 / 1.0214 | 0.9695 | Control drift |
+| browser-html120 | 116/192 | 1.0199 / 1.0012 | 1.0099 / 0.9673 | 1.0374 / 0.9448 | 0.9792 | Low retention |
+| wasm-sitemap600 | 116/192 | 1.0220 / 0.9725 | 0.9821 / 0.9866 | 1.0258 / 0.9796 | 1.0032 | Low retention |
+| wasm-svg300 | 132/192 | 1.0293 / 1.0015 | 0.9832 / 1.0018 | 1.0159 / 1.1009 | 1.0187 | Pass |
+| native-html120 | 130/192 | 1.0026 / 0.9689 | 0.9712 / 0.9660 | 1.0213 / 0.9950 | 0.9869 | Before fails |
+| wasm-html600 | 134/192 | 1.0456 / 1.0401 | 1.0191 / 1.0201 | 1.0103 / 1.0233 | 1.0123 | Pass |
+| wasm-getpose | 106/192 | 1.0552 / 1.0240 | 1.0854 / 1.0324 | 1.0850 / 0.9964 | 1.0011 | Low retention |
+| wasm-relative-colors | 44/192 | 1.0856 / 1.0362 | 1.1389 / 1.0345 | 1.0800 / 0.9699 | 0.9977 | Low retention |
+| wasm-template | 74/192 | 1.0408 / 1.0046 | 1.0170 / 1.0109 | 0.9853 / 1.0516 | 0.9911 | Low retention |
+| wasm-sitemap-pipeline | 120/192 | 1.0728 / 1.0425 | 1.0840 / 1.0735 | 1.0112 / 1.0167 | 0.9484 | Low retention |
+| native-html600 | 154/192 | 1.0470 / 1.0108 | 1.1070 / 1.0343 | 1.0567 / 0.9924 | 0.9410 | Control drift |
+| native-sitemap600 | 130/192 | 1.0228 / 1.0010 | 1.0773 / 1.0125 | 1.0603 / 0.9637 | 0.9983 | Pass |
+| native-svg300 | 152/192 | 0.9807 / 0.9932 | 0.9838 / 0.9888 | 0.9779 / 0.9942 | 1.0092 | Pass |
+| native-getpose | 80/192 | 1.0486 / 1.0280 | 1.0407 / 1.0557 | 1.0192 / 1.0853 | 0.9932 | Low retention |
+| native-relative-colors | 150/192 | 1.0524 / 0.9852 | 1.0417 / 0.9635 | 1.0352 / 0.9795 | 1.0307 | Control drift |
+| native-template | 152/192 | 1.0623 / 1.0705 | 1.1350 / 1.1161 | 1.0527 / 1.0353 | 1.0108 | Pass |
+| native-sitemap-pipeline | 122/192 | 1.0341 / 1.0311 | 1.1235 / 1.0460 | 1.1097 / 1.0989 | 1.0056 | Low retention |
+| browser-html600 | 108/192 | 1.0856 / 1.0218 | 1.1492 / 1.0543 | 1.1158 / 1.0113 | 1.0269 | Low retention |
+| browser-sitemap600 | 126/192 | 1.0057 / 0.9899 | 0.9717 / 0.9899 | 1.0174 / 0.9916 | 0.9907 | Low retention |
+| browser-svg300 | 130/192 | 1.0362 / 1.0093 | 1.0041 / 1.0513 | 0.9285 / 0.9740 | 0.9931 | Pass |
+
+Native HTML120 fails the before/current median screen: raw/filtered ratios
+0.9693/0.9689, controls 0.9851/0.9869, with 130 retained batches per role. The
+filtered median's pointwise 95% interval is 0.9523–0.9840. Its p90/p95 intervals
+remain broad and its tail controls drift; this does not establish a precise
+universal regression. Native retains its preceding callback writer as selected
+by the separate isolated trial.
+
+Pooled HTML600's release/current paired median is 1.0456, with interval
+1.0268–1.0720. Its p90 ratio is only 1.0191 (0.9691–1.0655), and p95 is 1.0103
+(0.9490–1.0689); p90/p95 controls are 1.0467/1.0422. This does not independently
+reproduce the isolated writer's tail improvement. Browser SVG's filtered p95
+release/current ratio is unfavorable at 0.9285 (0.8609–1.0411), with control
+0.9524. These outcomes remain explicit despite favorable medians elsewhere.
+
+All raw/filtered time quantiles, ratios, controls, group records and pointwise
+whole-process bootstrap intervals are preserved. Intervals are descriptive,
+not simultaneous proof across twenty panels. No control normalization or
+timing-based filtering is used. The isolated Wasm writer selection remains
+workload-specific; full-scope non-regression against 0.1.0 and the preceding
+candidate remains unresolved.
+
+### Selected writer on the broader corpus
+
+A separate two-panel check isolates the selected Wasm HTML writer on all
+48 real response/error pages and 44 successful seeded HTML/XML/SVG inputs.
+The other four seeded inputs remain explicit malformed rejections. Both
+variants use the current correctness fixes, identical JS and standard XML-name
+comparison; only the opening-tag writer differs. The third role is an independent
+identical copy of the callback-writer baseline. These are convenience corpora,
+with no production weighting or claim that each individual input improves.
+
+Two real-page preflights hit the fixed memory guard before any measured worker.
+The next resource-only amendment uses a common benchmark-only 96 MiB old-space
+cap and 4 MiB semispace, retaining ordinary GC. Source/artifacts, inputs, counts,
+orders, warmups, independent probe filtering, guards and primary tests stay
+fixed. Both new preflights pass. The intended twelve fresh processes per panel
+still use eight mirrored three-role blocks; the primary p90 tests retain Holm
+correction across both declared panels.
+
+| Corpus | Complete groups | Retained batches/role | Paired median | p90 ratio (95% interval) | p95 ratio (95% interval) | Median control | Primary result |
+| --- | ---: | --- | ---: | --- | --- | ---: | --- |
+| 48 real pages | 6/12 | 88/96 collected; 192 planned | 1.0273 | 0.9955 [0.9476, 1.0326] | 0.9701 [0.9206, 1.0272] | 0.9876 | Incomplete |
+| 44 seeded inputs | 12/12 | 172/192 | 1.0196 | 1.0433 [1.0059, 1.0749] | 1.0467 [1.0004, 1.0986] | 0.9964 | Holm p=0.0313 |
+
+The synthetic corpus supports the writer's p90 improvement: elapsed p90 falls
+from 207.276 to 198.665 ms per whole-corpus replay (**4.2%**), and p95
+from 217.458 to 207.760 ms (**4.5%**). Filtered p90/p95 controls are
+1.0052/1.0030; raw and filtered median and tail control point estimates
+all stay within 3%. Raw p90/p95 ratios are 1.0398/1.0411. The median
+interval [0.9981, 1.0356] includes parity; p95 remains a secondary description.
+Pointwise process-bootstrap intervals do not establish an improvement for
+every synthetic case or every runtime configuration.
+
+The real-page panel stops during its seventh worker at the unchanged memory
+guard. Six complete workers, one completed block and a partial block in the
+interrupted worker are preserved; five later groups are not started. Only the
+six complete workers enter its descriptive estimates, below the eight-group
+and 128-retained-batch minimum. Filtered p90 shows no gain and p95 is unfavorable;
+raw p90/p95 ratios are 1.0001/0.9745. Its raw/filtered p95 controls
+0.9456/0.9572 also drift. No real-page tail improvement or non-regression
+is accepted. Completed synthetic workers continue after that resource stop.
+
+All eighteen complete workers, the interrupted worker and both earlier failed
+preflights remain in the evidence. The filtered estimates retain 780 of 864
+batches from complete workers. Counts are not extended to obtain a pass, and
+controls never normalize comparisons. This supports one additional synthetic
+workload for the Wasm writer; broader Web performance and the original twenty-panel
+non-regression goal remain unresolved.
+
+### Broader corpus and historical lead trials
+
+A separate fixed convenience sample contains 48 public response bodies from
+50 requests across 41 requested hostnames, with no redirects followed or retries.
+It preserves 39 HTTP 200 responses, one 301, two 403, four 404, one 418 and one 429;
+two TLS transport failures have no replacement inputs. Original bodies total
+14,449,938 bytes. No MDN page was requested; one duplicate body pair remains.
+The corresponding 48 seeded inputs cover sixteen families in each of HTML, XML
+and SVG. This adds coverage without claiming a representative crawl distribution.
+
+The new workload checks whole-document serialization, 27 selectors, raw
+attributes/relations, traversal, callbacks, seeded mutations, snapshots and
+disposal. Qualification finds 92 exact Cheerio matches plus four explicit
+malformed XML/SVG parse rejections on native, all Wasm heaps and the portable
+browser entry under Node. Structural sibling counting, implicit template scope,
+and until callback/filter/chain behavior required correctness repairs before
+performance comparison. [Testing details](../testing.md#broader-corpus-follow-up)
+keep rejection safety separate from successful-output coverage.
+
+The historical until lead still used linear membership scans. Private source
+instrumentation counts 279,431 identity comparisons for 2,191 accepted real-page
+visits, and 2,185,116 comparisons for 10,018 synthetic visits. Most real-page
+comparisons come from one large specification page; twelve synthetic cases and
+four real cases exceed 1,000 comparisons. The isolated Set trial preserves every
+visit and callback. These counts are logical work, not elapsed gains.
+
+Whole-attribute reads also change the profile: 7,825 real and 4,596 synthetic
+calls, whereas the earlier consumers made none. One bounded pooled-Wasm CPU
+capture per group attributes about 1.9%/8.3% of exclusive samples to attribute
+materialization, and about 5% of synthetic samples to the JSON writer. These are
+single-profile observations with variable sampling intervals. A source recheck
+found that the earlier JSON span writer was preserved in another uncommitted
+experiment but absent from this comparator. Its exact function and regression
+tests were reused for the second trial; pointer-record and joined-string layouts
+were deferred. The initial review's assumption that it was already active was
+incorrect.
+
+Both trials use the same corrected reference and separate native/pooled-Wasm
+real/synthetic panels. Each panel has one fresh group, three rotated/mirrored
+blocks, ten whole-corpus warmups, and two batches of one replay per sample.
+Each implementation and an identical-reference control run in separate processes.
+All 48 real inputs and 44 successful synthetic inputs enter their group; the four
+malformed rejections stay outside successful-DOM timing. Every output phase is
+checked after each timed batch. Startup, disk, IPC, probes and verification are
+excluded; recurring allocation, output creation, disposal and in-batch GC remain.
+
+The fixed activity threshold is 30%, with three pauses and a 90-second per-panel /
+240-second experiment deadline. All panels complete and all measured prechecks
+are quiet. Each trial retains eleven of twelve blocks using only probe max/min
+<=1.5. There are no repeated or extended panels. Raw/filtered baseline/candidate
+and identical-code control ratios follow; a single value means both agree.
+
+| Trial / panel | Candidate raw / filtered | Control raw / filtered | Retained | Batch ms median / max | Short outcome |
+|---|---:|---:|---:|---:|---|
+| Set / pool real | 1.0006 | 1.0057 | 3/3 | 777.8 / 844.2 | Non-regression only |
+| Set / pool synthetic | 1.0028 | 1.0451 | 3/3 | 202.6 / 257.4 | Inconclusive |
+| Set / native real | 0.9737 | 0.9857 | 3/3 | 755.1 / 1104.5 | Fails 2% tolerance |
+| Set / native synthetic | 1.0413 / 0.9961 | 1.0472 / 1.0229 | 2/3 | 201.8 / 245.7 | Inconclusive |
+| JSON spans / pool real | 1.0278 | 0.9746 | 3/3 | 776.6 / 922.9 | Inconclusive |
+| JSON spans / pool synthetic | 0.9987 | 0.9989 | 3/3 | 202.9 / 247.5 | Non-regression only |
+| JSON spans / native real | 1.0069 | 0.9821 | 3/3 | 743.9 / 805.1 | Non-regression only |
+| JSON spans / native synthetic | 1.0920 / 1.0767 | 1.0390 / 1.0392 | 2/3 | 202.8 / 257.3 | Inconclusive |
+
+Independent audits reconstruct all 72 samples and 144 batches per trial, including
+order, probe decisions, output-verification counts and raw-file hashes. The short
+rule requires three retained blocks, candidate ratios >=0.98 and controls within
+0.98–1.02. A consistent-benefit signal additionally requires a median >=1.02 and
+all block ratios above one; neither trial meets that rule with valid controls.
+No ratios are normalized by controls. One-group diagnostic passes cannot satisfy
+the original three-group, twenty-panel goal.
+
+The Set change is rejected, and the JSON writer is not promoted. Both experiments
+remain preserved; the corrected reference is restored. Native/pooled Node 22/24,
+native sanitizer, corpus, fuzz, browser/fallback, type, consumer and memory checks
+pass for the trials, with focused verification after restoration. Correctness
+fixes and new fixtures remain separate from any speed claim. No original timing
+panel is reopened, combined with these data, or reclassified.
+
+### Correctness fixes in the original scope
+
+The corrected reference retains the broader corpus's selector, template-scope
+and until-traversal repairs, together with the preceding private HTML writer and
+bounded XML-name comparison. Neither the Set nor JSON span trial is included.
+All eight original workload outputs match Cheerio on native, pooled Wasm and the
+browser entry under Node. This is separate from the broader corpus qualification.
+
+A new fixed plan compares this candidate against published 0.1.0 and the frozen
+pre-corpus XML-name candidate. It preserves all twenty original panels and starts
+with pooled Node and browser-entry HTML120. Each prerequisite uses three groups
+of four rotated/mirrored blocks, 100 warmups and two batches of sixteen replays
+per sample. Implementations and an identical-candidate control occupy separate
+processes; startup, artifact reads, IPC and probes stay outside DOM timing.
+The activity limit remains 30%, with three allowed pauses and the independent
+probe max/min filter of 1.5.
+
+Acceptance uses the median of three group medians. Raw and filtered
+release/candidate and before/candidate ratios must reach 0.98, with controls in
+0.98–1.02 and at least three retained blocks per group and ten overall. Both
+prerequisites complete with all blocks retained; raw and filtered values agree.
+
+| Panel | Release / candidate | Before / candidate | Control | Retained | Batch ms median / max | Decision |
+|---|---:|---:|---:|---:|---:|---|
+| Pooled Node HTML120 | 1.0490 | 1.0055 | 0.9564 | 12/12 | 28.0 / 36.2 | Inconclusive |
+| Browser entry HTML120 | 1.0209 | 0.9954 | 0.9769 | 12/12 | 28.7 / 38.9 | Inconclusive |
+
+Independent reconstruction checks 192 samples, 384 batches and all 24 blocks.
+Every measured precheck is quiet; no pause is used. Pooled Node group medians
+range 1.0448–1.0825 against release and 1.0043–1.0071 against before, with controls
+0.9360–1.0000. Browser group ranges are 1.0105–1.0565 and 0.9926–1.0015, with
+controls 0.9689–0.9770. Quiet prechecks do not establish stable identical-code
+timing. Neither panel establishes elapsed gains or non-regression.
+
+The prescribed stop leaves eighteen explicit pending panels:
+
+| Entry | Pending workloads |
+|---|---|
+| Native | HTML120, HTML600, sitemap600, SVG300, getPose, relative colors, template, sitemap pipeline |
+| Pooled Node | HTML600, sitemap600, SVG300, getPose, relative colors, template, sitemap pipeline |
+| Browser | HTML600, sitemap600, SVG300 |
+
+Both prerequisites are closed without retries or extensions. Earlier passes do
+not transfer to this candidate, and the original goal remains unaccepted. This
+checks necessary correctness fixes; it adds no third historical optimization
+trial. Browser-entry measurements under Node do not establish browser-engine
+performance. Runtime changes remain uncommitted.
+
+### Fixed-seed control diagnostic
+
+A separate measurement diagnostic tests whether process random/hash state helps
+explain identical-code variation. GroveDOM uses WeakMap branding and Map lookups.
+Two disposable probes with `--hash-seed=1 --random-seed=1` produce the same eight
+object identity hashes; the two default probes differ. This checks those objects,
+not all runtime hashing, and the joint flags do not isolate hashing from other
+random-generator effects.
+
+Each HTML120 panel uses four copies of the corrected candidate: two default Node
+processes and two with fixed seeds. Actual child flags are verified. The native
+syntax used to print probe hashes is absent from timing children. Settings remain
+three groups of four rotated/mirrored blocks, 100 warmups, two batches of sixteen
+replays, 30% activity, three allowed pauses and the independent 1.5 probe filter.
+Each panel has a fixed 90-second deadline and completes without a pause. Outputs
+agree at preflight; startup and input/artifact reads are outside timing.
+
+| Panel | Default control | Fixed-seed control | Retained | Batch ms median / max |
+|---|---:|---:|---:|---:|
+| Pooled Node HTML120 | 1.0180 | 0.9872 | 12/12 | 27.6 / 39.6 |
+| Browser entry HTML120 | 0.9961 | 0.9581 | 12/12 | 28.3 / 42.1 |
+
+An independent audit reconstructs 192 samples and 384 batches; all 24 measured
+prechecks are quiet and all blocks retained. Raw and filtered medians of three
+group medians agree. Default group controls span 0.9796–1.0549 for pooled Node
+and 0.9396–1.0385 for the browser entry; fixed-seed ranges are 0.9761–0.9914 and
+0.9542–0.9694. The browser fixed-seed control remains outside the 2% tolerance,
+so the declared stabilization signal fails. Default-control passes in this
+diagnostic do not transfer to the original candidate screen. Both panels are
+closed; no seed search, retry, runtime flag change or performance acceptance
+follows. Browser entry still runs under Node, not an actual browser engine.
+
+### Reserved window confirmation
+
+A newly available reserved idle window permits one fresh attempt at all twenty
+original panels. The corrected candidate, published 0.1.0 and preceding XML-name
+candidate remain unchanged. No earlier result transfers. Default Node 22 runtime
+flags, three groups of four rotated/mirrored blocks, 100 warmups, two batches,
+30% activity limit, three pauses and the independent 1.5 probe filter remain.
+Each batch contains sixteen HTML120, four HTML600, thirty-two XML/SVG or one
+complete consumer replay. Startup, input reads, IPC and probes stay outside timing.
+
+The plan attempts every panel once regardless of earlier outcomes, with a fixed
+180-second panel deadline and 1,800-second overall deadline. All twenty are
+attempted in about 21.6 minutes; eighteen finish all three groups. Both relative
+colors panels reach the panel deadline after one complete group, so neither has
+an aggregate ratio. Their actual median batches are 271.2 ms for pooled Node and
+265.0 ms for native; one hundred warmups per process make this panel limit
+insufficient. Those partial results are preserved without extension.
+
+The unchanged acceptance rule uses the median of three group medians, requires
+at least three retained blocks per group and ten overall, raw and filtered
+comparison ratios >=0.98, and controls within 0.98–1.02. Values below show raw /
+filtered when they differ. Retention denominators are the twelve planned blocks.
+
+| Panel | Release / candidate | Before / candidate | Control | Retained | Decision |
+|---|---:|---:|---:|---:|---|
+| Pooled Node HTML120 | 1.0340 | 1.0117 | 1.0205 | 12/12 | Inconclusive: control |
+| Browser entry HTML120 | 1.0103 | 0.9947 | 1.0117 | 12/12 | Pass |
+| Pooled Node sitemap600 | 0.9856 | 0.9969 | 1.0273 | 12/12 | Inconclusive: control |
+| Pooled Node SVG300 | 1.0135 | 1.0024 | 1.0131 | 12/12 | Pass |
+| Native HTML120 | 1.0473 | 1.0291 | 1.0126 | 12/12 | Pass |
+| Pooled Node HTML600 | 1.0457 | 0.9514 | 1.0330 | 12/12 | Inconclusive: control |
+| Pooled Node getPose | 1.0032 | 1.0002 | 1.0148 | 12/12 | Pass |
+| Pooled Node relative colors | — | — | — | 4/12 | Incomplete: deadline |
+| Pooled Node template | 1.0267 | 0.9923 / 0.9876 | 1.0209 / 1.0223 | 11/12 | Inconclusive: control |
+| Pooled Node sitemap pipeline | 1.0322 | 1.0150 | 0.9501 | 12/12 | Inconclusive: control |
+| Native HTML600 | 0.9625 | 1.0064 | 1.0567 | 12/12 | Inconclusive: control |
+| Native sitemap600 | 1.0209 | 0.9851 | 0.9036 | 12/12 | Inconclusive: control |
+| Native SVG300 | 1.0204 | 0.9740 | 1.0196 | 12/12 | Fail: before / candidate |
+| Native getPose | 1.0759 | 1.0360 | 0.9976 | 12/12 | Pass |
+| Native relative colors | — | — | — | 4/12 | Incomplete: deadline |
+| Native template | 1.1411 / 1.1251 | 0.9748 / 0.9764 | 1.0178 / 1.0139 | 11/12 | Fail: before / candidate |
+| Native sitemap pipeline | 1.0129 | 0.9608 | 1.0208 | 12/12 | Inconclusive: control |
+| Browser entry HTML600 | 1.0399 | 1.0159 | 0.9969 | 12/12 | Pass |
+| Browser entry sitemap600 | 1.0208 | 1.0380 | 0.9850 | 12/12 | Pass |
+| Browser entry SVG300 | 0.9583 | 0.9666 | 1.0303 | 12/12 | Inconclusive: control |
+
+Independent reconstruction verifies 1,792 samples, 3,584 batches and all 224
+completed blocks. Every measured precheck is quiet; 222 blocks survive the
+unchanged probe filter. Native SVG and the native template consumer fail their
+before/candidate comparisons with valid aggregate controls. Nine completed panels
+have invalid controls, and two are incomplete. Seven panel passes do not satisfy
+the full scope. None of these results is normalized, extended or merged with a
+closed panel, and the runtime remains uncommitted and unaccepted.
+
+A subsequent untimed trace compares both native snapshots, with and without a
+diagnostic facade, for three repetitions of each failed workload: 24 replays with
+identical outputs. Before/candidate call traces agree exactly. SVG makes six
+single-root plain-tag queries and 300 observations. The template consumer makes
+483 single-root queries, 525 scalar matches and five loads/disposals. Neither
+uses until traversal, and neither enters multi-root coverage handling. The SVG
+workload does not use the patched CSS sibling predicates. These counts provide
+no new algorithmic hotspot explaining the failures; native instructions, code
+layout and JIT/GC behavior were not measured. No third historical optimization
+trial or additional timing follows from this trace.
+
+A subsequent static comparison resolves native addresses, compiler-generated
+symbol suffixes and byte-identical string labels. Of 1,081 paired function
+bodies, 1,079 have the same remaining instruction text, including the read,
+execute and XML serialization paths. Only `gk_query` and the patched Lexbor CSS
+matcher differ; both are smaller. The query shrink also moves following code,
+so equal logical call counts do not imply identical code placement. Static
+instruction text does not measure executed work or explain the elapsed failures.
+This inspection adds no runtime change, timing retry or performance acceptance.
+
+All 58 runtime files and matching artifacts are verified unchanged. Existing
+correctness, sanitizer, consumer and memory evidence remains separately scoped;
+this confirmation does not claim a new full qualification matrix or a real
+browser-engine run. The original performance goal remains open.
 
 ### Resumed binary counts and full-scope checks
 

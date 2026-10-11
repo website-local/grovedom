@@ -11,6 +11,7 @@ disposed after its case, including failures.
 | jQuery 3.7.1 | Selected whitespace/class, fragment insertion, mixed content and callback-index regressions |
 | WPT / DOM, HTML and CSS standards | Selector order/scope/identity, escapes, static snapshots, duplicate IDs, foreign fragment CDATA and formatting-element parsing |
 | GroveDOM regressions | Buffered observations, callbacks, handles/disposal, worker ownership, Wasm growth/pools, options, faults and standalone declarations |
+| Balanced generated corpus | 48 seeded HTML/XML/SVG inputs covering width, depth, Unicode, long values, namespaces, malformed input, templates, forms and retained selections |
 
 [Cheerio/jQuery selection](../test/upstream/README.md) and
 [WPT selection](../test/web-platform/README.md) identify exact sources, licenses,
@@ -84,6 +85,82 @@ installed/development consumer snapshot on native and Wasm. The snapshots are
 historical, not a claim about every subsequent downloader revision. Use
 [short performance checks](benchmarks.md) when a runtime change warrants them;
 adding correctness fixtures alone does not require another benchmark campaign.
+
+## Broader corpus follow-up
+
+The [balanced fixture generator](../bench/balanced-fixtures.mjs) adds sixteen
+families in each of HTML, XML and SVG, with fixed seeds. Its
+[workload](../bench/corpus-workload.mjs) checks whole-document serialization,
+27 selectors, raw attributes and relations, traversal, callback observations,
+seeded edits, retained snapshots and disposal. Four deliberately malformed
+XML/SVG inputs check rejection and lifecycle safety separately from successful
+output comparisons. They are not successful-output passes.
+
+A separate private convenience sample preserves 48 public HTTP responses from
+50 fixed requests, including redirects and error/challenge bodies; two transport
+failures were recorded without replacement requests. The sample includes no MDN
+pages. The original bodies and headers remain separate from decoded inputs, and
+one duplicate body pair is retained. This is additional coverage, not a random
+web sample or a validated production distribution.
+
+The offline [corpus checker](../bench/check-corpus.mjs) takes a local manifest
+with an `entries` array. Each entry supplies `id`, `group`, `mode` (`html`, `xml`
+or `svg`), a relative UTF-8 `file`, its `sha256`, and a deterministic `seed` or
+explicit `operations`. It fetches nothing:
+
+```sh
+node --expose-gc bench/check-corpus.mjs \
+  --manifest=./build/corpus/manifest.json --out=./build/corpus/report.json
+```
+
+Developer backend/heap settings apply as described in [setup](prototype.md).
+The report preserves phase hashes, mismatches, exceptions and lifecycle counters;
+any mismatch or exception returns exit status 2. The 96-case follow-up has
+**92 exact matches and four explicit malformed-input rejections** on native,
+all three Wasm heap modes and the portable browser entry under Node. Native
+sanitizer checks cover the same inputs. Direct-mode replays are checked separately.
+Private downloaded inputs and reports are not shipped with the package.
+
+The corpus exposed structural selectors counting non-element siblings and
+template queries discarding explicit roots across fragment boundaries. Reduced
+tests reproduce both defects before their fixes. Until-traversal tests also
+preserve repeated stop-callback visits and indices, filter the visit stream
+before deduplication/sorting, and return the original selection from `end()`.
+
+The two historical optimization trials qualified up to 1,865 cases on Node 22/24:
+native 1,806 pass / 59 skip, pooled Wasm 1,814 / 51, with no unexpected failures.
+Native ASan/UBSan/leak checks, owned-output allocation failures, 200 seeded cases
+per backend, browser normal/fallback checks, types, both 193-case consumer
+snapshots and all four authored memory budgets pass. Custom-corpus lifecycle
+runs remain separate and disable those authored budgets. The experiments were
+not promoted; their [timing outcomes](history/performance-review.md#broader-corpus-and-historical-lead-trials)
+do not establish performance acceptance. The corrected baseline is preserved
+with focused checks after restoring its runtime code.
+
+The restored reference also matches all eight original workload outputs against
+Cheerio on native, pooled Wasm and the browser entry under Node. After two
+inconclusive timing prerequisites, a fresh [reserved-window confirmation](history/performance-review.md#reserved-window-confirmation)
+attempts all twenty panels and still lacks full performance acceptance. Its
+untimed follow-up verifies exact before/candidate outputs on the two failed
+workloads; this is not a new full correctness matrix. Successful correctness
+checks do not satisfy the timing gate or establish browser-engine coverage.
+
+The later selected runtime keeps the HTML span writer only for Wasm and restores
+the preceding native writer and standard XML-name comparison. Its 1,866-case
+matrix passes on Node 22 and 24: native **1,807 pass /59 skip**, pooled Wasm
+**1,815 /51**. The additional case versus the earlier 1,865-case checkpoint
+checks transitive benchmark-control isolation. Native ASan/UBSan/leak and owned
+output-failure checks, both 193-case consumer snapshots on both backends,
+200 seeded cases per backend, browser normal/fallback and type checks pass.
+The broader corpus again has 92 exact matches and four explicit malformed
+rejections across native, all Wasm heap modes and the portable entry.
+All four authored memory budgets pass; separate custom-corpus lifecycle checks
+continue to disable those fixed budgets. The retained Wasm writer's body is
+unchanged from its preceding native sanitizer qualification; the current native
+sanitizer run exercises the restored native path. These correctness results do
+not supply performance acceptance. The separate [writer timing check](history/performance-review.md#selected-writer-on-the-broader-corpus)
+completes its seeded-input panel; real-page timing remains incomplete after a
+resource stop.
 
 ## Seeded fuzzing
 

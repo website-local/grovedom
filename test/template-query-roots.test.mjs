@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { load } from '../diagnostics/index.js';
+import { load as cheerio } from 'cheerio';
+
+for (const execution of ['buffered', 'direct']) {
+  test(`explicit query roots inside templates survive covered-root removal, ${execution}`, () => {
+    const source = '<main id="outer"><section id="before"><b id="a">a</b></section>' +
+      '<template id="t"><section id="inside"><span id="b">b</span><template>' +
+      '<section id="nested"><b id="c">c</b></section></template></section></template>' +
+      '<section id="after"><b id="d">d</b></section></main>';
+    const trace = factory => {
+      const $ = factory(source, { execution });
+      const ids = value => value.get().map(node => $(node).attr('id') ?? node.name);
+      const one = selector => $(selector)[0], outer = one('#outer'), inside = one('#inside'), nested = one('#nested');
+      const roots = [[outer, inside], [inside, outer], [outer, inside, nested],
+        [nested, inside, outer, inside], [one('#before'), inside, nested, one('#after')],
+        [$.root()[0], inside, nested], [inside.parent, outer, nested]];
+      const records = [];
+      try {
+        for (const list of roots) for (const selector of ['b', 'span, b', 'section > b', ':is(span,b)', 'b, span, a, entry, text'])
+          records.push(ids($(list).find(selector)));
+        // Reparenting changes which roots can cover others. Retained roots keep
+        // their identity; the original template no longer supplies that subtree.
+        $(outer).append(inside);
+        for (const list of roots.slice(0, 5)) for (const selector of ['b', 'span, b', 'section > b'])
+          records.push(ids($(list).find(selector)));
+        $(inside).remove();
+        records.push(ids($([outer, nested, inside]).find('b, span')));
+        return records;
+      } finally { $.dispose?.(); }
+    };
+    assert.deepEqual(trace(load), trace(cheerio));
+  });
+}

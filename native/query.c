@@ -5,10 +5,22 @@ static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
     return node;
 }
 
-static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index) {
+static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index, int cross_fragments) {
     for (size_t i = 0; i < index; i++) if (ids[i] == ids[index]) return 1;
-    for (lxb_dom_node_t *parent = doc->nodes[ids[index]].node->parent; parent; parent = parent->parent)
+    for (lxb_dom_node_t *parent = doc->nodes[ids[index]].node->parent; parent; parent = parent->parent) {
+        /* An element-only find does not enter template contents. A containing
+         * root beyond that boundary cannot cover an explicit root inside it. */
+        if (!cross_fragments && parent->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) break;
         for (size_t i = 0; i < count; i++) if (parent == doc->nodes[ids[i]].node) return 1;
+    }
+    return 0;
+}
+
+static int gd_indexed_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index) {
+    gd_node *root = &doc->nodes[ids[index]];
+    if (root->order != index) return 1;
+    for (lxb_dom_node_t *parent = root->node->parent; parent; parent = parent->parent)
+        if (gd_query_root_member(doc, ids, count, parent)) return 1;
     return 0;
 }
 
@@ -223,16 +235,25 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     }
     gd_results_reset(doc);
     if (!possible) return gd_result_set(doc, match == GD_QUERY_ANY ? GD_NUMBER : GD_IDS, doc->results, 0, 0);
-    int cross_fragments = 0;
-    if (doc->templates && !match) for (size_t i = 0; i < count; i++) {
-        if (doc->nodes[ids[i]].node->type != LXB_DOM_NODE_TYPE_ELEMENT) { cross_fragments = 1; break; }
-    }
+    /* Cheerio omits its implicit scope when any context lacks an element
+     * parent. That search also traverses template contents, even for a mixed
+     * list of ordinary element and template-content roots. */
+    int cross_fragments = doc->templates && !match && !scoped;
     if (scoped) doc->selector_context = count == 1 ?
         (gd_selector_context) { .node = doc->nodes[ids[0]].node } : (gd_selector_context) { .ids = ids, .count = count };
+    int indexed_roots = !match && count > 1 && !doc->templates && count <= UINT32_MAX;
+    if (indexed_roots) {
+        /* Reverse assignment keeps the first occurrence of duplicate roots.
+         * Ordinary queries never otherwise use order, and no user callback or
+         * tree edit can run during a synchronous kernel query. */
+        for (size_t i = count; i-- > 0;) doc->nodes[ids[i]].order = (uint32_t) i;
+    }
     for (size_t i = 0; i < count; i++) {
         // Search a containing context once even when a descendant appears
         // earlier. Disjoint contexts still retain caller order, as in Cheerio.
-        if (!match && count > 1 && gd_covered_root(doc, ids, count, i)) continue;
+        if (!match && count > 1 && (indexed_roots
+            ? gd_indexed_covered_root(doc, ids, count, i)
+            : gd_covered_root(doc, ids, count, i, cross_fragments))) continue;
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         // Filtering a snapshot preserves duplicate entries and their positions.

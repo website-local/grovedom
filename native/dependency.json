@@ -13,7 +13,11 @@
     {
       "file": "patches/lexbor-cheerio-hooks.patch",
       "sha256": "b9506012fe98d0c18d3794d59d8bc8fe7d18943bd282c9721eba63f5f9484435"
+    },
+    {
+      "file": "patches/lexbor-element-siblings.patch",
+      "sha256": "e32258c38b363b595e31d90cceb04416c6d263712b5fcaebca3015a67946df07"
     }
   ],
-  "patchedTreeSha256": "ec2e7137110e7f58fa87349c0d939ae5972e11c97689a589eaedefa7e5917365"
+  "patchedTreeSha256": "ac6d90a1141c8ce747b40cec05f4d414820a11989fc5684030c346b9de97bae6"
 }

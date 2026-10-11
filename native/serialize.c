@@ -1,6 +1,8 @@
 #include "internal.h"
 
+#ifndef __wasm__
 typedef struct { gd_buffer *output; int value; } gd_attribute_output;
+#endif
 
 lxb_status_t gd_write(const lxb_char_t *data, size_t length, void *context) {
     GD_PROFILE_ADD(GP_OUTPUT_CHUNKS, 1); GD_PROFILE_ADD(GP_OUTPUT_BYTES, length);
@@ -65,6 +67,86 @@ static lxb_status_t gd_doctype_data(gd_document *doc, lxb_dom_document_type_t *t
     return LXB_STATUS_OK;
 }
 
+#ifdef __wasm__
+static lxb_status_t gd_html_attribute(gd_buffer *output, const char *prefix, size_t prefix_length,
+    const lxb_char_t *name, size_t name_length, const lexbor_str_t *value) {
+    const lxb_char_t *data = value ? value->data : NULL;
+    size_t length = value ? value->length : 0, first = 0;
+    /* HTML attribute values escape only ampersands, quotes and NBSP. Copy the
+     * name, punctuation and first plain span together; most values end here. */
+    while (first < length) {
+        unsigned char c = data[first];
+        if (c == '&' || c == '"' || (c == 0xc2 && first + 1 < length && data[first + 1] == 0xa0)) break;
+        first++;
+    }
+    if (name_length > SIZE_MAX - prefix_length - 4 ||
+        first > SIZE_MAX - prefix_length - name_length - 4) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    size_t size = prefix_length + name_length + first + 4;
+    if (size > SIZE_MAX - output->length ||
+        !gd_reserve((void **) &output->data, &output->capacity, output->length + size, 1)) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    lxb_char_t *target = output->data + output->length;
+    *target++ = ' ';
+    if (prefix_length) { memcpy(target, prefix, prefix_length); target += prefix_length; }
+    if (name_length) { memcpy(target, name, name_length); target += name_length; }
+    *target++ = '='; *target++ = '"';
+    if (first) { memcpy(target, data, first); target += first; }
+    if (first == length) *target = '"';
+    else size--;
+    output->length += size;
+    GD_PROFILE_ADD(GP_OUTPUT_CHUNKS, 1); GD_PROFILE_ADD(GP_OUTPUT_BYTES, size);
+    if (first == length) return LXB_STATUS_OK;
+
+    size_t start = first;
+    for (size_t i = first; i < length; i++) {
+        const char *entity;
+        size_t bytes, consumed = 1;
+        if (data[i] == '&') { entity = "&amp;"; bytes = 5; }
+        else if (data[i] == '"') { entity = "&quot;"; bytes = 6; }
+        else if (data[i] == 0xc2 && i + 1 < length && data[i + 1] == 0xa0) {
+            entity = "&nbsp;"; bytes = 6; consumed = 2;
+        } else continue;
+        if ((i > start && gd_write(data + start, i - start, output) != LXB_STATUS_OK) ||
+            gd_write((const lxb_char_t *) entity, bytes, output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+        i += consumed - 1;
+        start = i + 1;
+    }
+    if (start < length && gd_write(data + start, length - start, output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    return gd_write((const lxb_char_t *) "\"", 1, output);
+}
+
+static lxb_status_t gd_html_element(gd_buffer *output, lxb_dom_element_t *element) {
+    size_t length;
+    const lxb_char_t *name = lxb_dom_element_qualified_name(element, &length);
+    if (!name) return LXB_STATUS_ERROR;
+    if (gd_write((const lxb_char_t *) "<", 1, output) != LXB_STATUS_OK ||
+        gd_write(name, length, output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    if (element->is_value && element->is_value->data &&
+        !lxb_dom_element_attr_is_exist(element, (const lxb_char_t *) "is", 2) &&
+        gd_html_attribute(output, NULL, 0, (const lxb_char_t *) "is", 2, element->is_value) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+    for (lxb_dom_attr_t *attr = element->first_attr; attr; attr = attr->next) {
+        const char *prefix = NULL;
+        size_t prefix_length = 0;
+        /* HTML serialization uses namespace metadata even though the public
+         * Cheerio-shaped attribute view exposes adjusted foreign local names. */
+        if (attr->node.ns == LXB_NS__UNDEF || attr->node.ns == LXB_NS_XML ||
+            attr->node.ns == LXB_NS_XMLNS || attr->node.ns == LXB_NS_XLINK) {
+            name = lxb_dom_attr_local_name(attr, &length);
+            if (!name) return LXB_STATUS_ERROR;
+            if (attr->node.ns == LXB_NS_XML) { prefix = "xml:"; prefix_length = 4; }
+            else if (attr->node.ns == LXB_NS_XLINK) { prefix = "xlink:"; prefix_length = 6; }
+            else if (attr->node.ns == LXB_NS_XMLNS && !(length == 5 && memcmp(name, "xmlns", 5) == 0)) {
+                prefix = "xmlns:"; prefix_length = 6;
+            }
+        } else {
+            name = lxb_dom_attr_qualified_name(attr, &length);
+            if (!name) return LXB_STATUS_ERROR;
+        }
+        lxb_status_t status = gd_html_attribute(output, prefix, prefix_length, name, length, attr->value);
+        if (status != LXB_STATUS_OK) return status;
+    }
+    return gd_write((const lxb_char_t *) ">", 1, output);
+}
+#else
 static lxb_status_t gd_attribute_write(const lxb_char_t *data, size_t length, void *context) {
     gd_attribute_output *output = context;
     /* Lexbor emits escaping entities as separate chunks. HTML attributes
@@ -77,17 +159,24 @@ static lxb_status_t gd_attribute_write(const lxb_char_t *data, size_t length, vo
     } else if (length >= 2 && data[length - 2] == '=' && data[length - 1] == '"') output->value = 1;
     return gd_write(data, length, output->output);
 }
+#endif
 
-/* Reuse Lexbor's escaping and opening-tag serializer. Iterative traversal
+/* Reuse Lexbor's non-element serializer. Iterative traversal
  * bounds linear-stack use even for deeply nested templates; no temporary heap
  * allocation is needed per node. */
 static lxb_status_t gd_serialize_tree(gd_document *doc, lxb_dom_node_t *root) {
     if (doc->xml) return gd_xml_serialize(doc, root, doc->xml_flags);
     lxb_dom_node_t *node = root;
+#ifndef __wasm__
     gd_attribute_output output = { &doc->output, 0 };
+#endif
     while (node) {
         lxb_status_t status;
+#ifdef __wasm__
+        if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) status = gd_html_element(&doc->output, lxb_dom_interface_element(node));
+#else
         if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) status = lxb_html_serialize_cb(node, gd_attribute_write, &output);
+#endif
         else status = node->type == LXB_DOM_NODE_TYPE_DOCUMENT || node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT ? LXB_STATUS_OK : lxb_html_serialize_cb(node, gd_write, &doc->output);
         if (status != LXB_STATUS_OK) return status;
         lxb_dom_node_t *child = node->first_child;

@@ -11,6 +11,7 @@ fails the build. Build metadata records the effective source fingerprint.
 | --- | --- | --- |
 | [`lexbor-foreign-text.patch`](lexbor-foreign-text.patch) | Restrict raw-text serialization to HTML namespace parents. SVG and MathML text must escape markup characters even inside elements named `style` or `script`. | [`foreign-content.test.mjs`](../../test/foreign-content.test.mjs): namespace/tag combinations, serialize/reparse, ordinary HTML controls |
 | [`lexbor-cheerio-hooks.patch`](lexbor-cheerio-hooks.patch) | Route class/insensitive attribute comparisons and select insertion modes to GroveDOM-owned compatibility helpers; accept literal non-ASCII identifier scalars. | [`compatibility-gaps.test.mjs`](../../test/compatibility-gaps.test.mjs), WPT escapes and owned-buffer fault checks |
+| [`lexbor-element-siblings.patch`](lexbor-element-siblings.patch) | Count only element siblings for child-position selectors, excluding doctypes, processing instructions and CDATA. | [`element-sibling-selectors.test.mjs`](../../test/element-sibling-selectors.test.mjs): HTML/XML, forward/reverse positions, filters, scoped queries and edits |
 
 The serialization change follows the namespace condition in the
 [HTML fragment serialization algorithm](https://html.spec.whatwg.org/multipage/parsing.html#serialising-html-fragments).

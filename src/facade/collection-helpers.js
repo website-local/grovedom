@@ -35,19 +35,28 @@ export function createCollectionHelpers(context) {
     }
     function until(source, axis, stop, selector) {
         const { state, ids } = entry(source), result = [];
+        let matched = 0;
+        const stopAt = typeof stop === 'function' ? function () { return stop.call(this, matched, this); } : stop;
         for (const id of ids) {
             for (const node of selection(state, Uint32Array.of(id))._traverse(axis)) {
-                if (stop && state.api(node).is(stop))
-                    break;
-                if (!result.includes(node))
-                    result.push(node);
+                if (stopAt && state.api(node).is(stopAt)) break;
+                matched++;
+                if (selector || !result.includes(node)) result.push(node);
             }
         }
-        let resultIds = inputIds(state, result);
-        if (axis === 9 && ids.length > 1)
-            resultIds = edit(state, 13, resultIds).reverse();
-        const value = selection(state, resultIds, source);
-        return selector ? value.filter(selector) : value;
+        let value = selection(state, inputIds(state, result), source);
+        if (selector) {
+            // Filters observe every accepted visit before deduplication/sorting.
+            value = value.filter(selector);
+            const record = selections.get(value);
+            record.previous = source;
+            if (ids.length > 1 && record.ids.length > 1) record.ids = record.ids.filter((id, index, values) => values.indexOf(id) === index);
+        }
+        if (axis === 9 && ids.length > 1) {
+            const record = selections.get(value);
+            record.ids = edit(state, 13, record.ids).reverse();
+        }
+        return value;
     }
     const classTokens = value => typeof value === 'string' ? value.match(/\S+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
     function classes(source, action, value, force, argc) {

@@ -54,8 +54,98 @@ static void sweep_growth(int xml, int query) {
     assert(0 && "Owned growth sweep did not reach success");
 }
 
+static void sweep_attribute_output(void) {
+    char source[32768], expected[32768];
+    strcpy(source, "<div title='");
+    for (int i = 0; i < 500; i++) strcat(source, "plain&amp;&quot;&nbsp;&lt;&gt;");
+    strcat(source, "' data-empty=''></div>");
+    const uint32_t root = 1;
+    gd_document *reference = gk_new();
+    assert(reference);
+    input(reference, source);
+    assert(gk_parse(reference, 1, 0));
+    const gd_result *serialized = gk_read(reference, READ_HTML, &root, 1);
+    assert(serialized && serialized->length < sizeof(expected));
+    size_t length = serialized->length;
+    memcpy(expected, serialized->data, length);
+    gk_delete(reference);
+    for (long failure = 0; failure < 64; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(gk_parse(doc, 1, 0));
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_read(doc, READ_HTML, &root, 1);
+        int success = result != NULL;
+        if (!success) assert(!strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY"));
+        gd_test_fail_after(-1);
+        result = gk_read(doc, READ_HTML, &root, 1);
+        assert(result && result->length == length && !memcmp(result->data, expected, length));
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 0);
+            fprintf(stderr, "HTML attribute output: %ld failure sites recovered\n", failure);
+            return;
+        }
+    }
+    assert(0 && "HTML attribute output sweep did not reach success");
+}
+
+static uint32_t selected_id(gd_document *doc, const char *selector) {
+    const uint32_t root = 1;
+    input(doc, selector);
+    const gd_result *result = gk_query(doc, &root, 1, 0);
+    assert(result && result->kind == GD_IDS && result->length == 1);
+    return *(const uint32_t *) result->data;
+}
+
+static void sweep_attribute_json(int xml) {
+    char source[10000], expected[10000];
+    const char *prefix = "<i data-x='", *suffix = "'></i>";
+    size_t n = strlen(prefix);
+    memcpy(source, prefix, n);
+    memset(source + n, 'x', 4096); n += 4096;
+    source[n++] = '"'; source[n++] = '\\';
+    memset(source + n, 'y', 4096); n += 4096;
+    strcpy(source + n, suffix);
+    n = strlen("{\"data-x\":\"");
+    memcpy(expected, "{\"data-x\":\"", n);
+    memset(expected + n, 'x', 4096); n += 4096;
+    memcpy(expected + n, "\\\"\\\\", 4); n += 4;
+    memset(expected + n, 'y', 4096); n += 4096;
+    memcpy(expected + n, "\"}", 2); n += 2;
+    for (long failure = 0; failure < 16; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(xml ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+        uint32_t id = selected_id(doc, "i");
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_read(doc, READ_ATTRS, &id, 1);
+        int success = result != NULL;
+        if (!success) assert(strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY") == 0);
+        gd_test_fail_after(-1);
+        result = gk_read(doc, READ_ATTRS, &id, 1);
+        assert(result && result->length == n && memcmp(result->data, expected, n) == 0);
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 1);
+            fprintf(stderr, "Attribute JSON growth xml=%d: %ld failure sites recovered\n", xml, failure);
+            return;
+        }
+    }
+    assert(0 && "Attribute JSON growth sweep did not reach success");
+}
+
 int main(void) {
+    sweep_attribute_json(0);
+    sweep_attribute_json(1);
     for (int xml = 0; xml < 2; xml++) for (int query = 0; query < 2; query++) sweep_growth(xml, query);
+    sweep_attribute_output();
     const uint32_t root = 1;
     for (int operation = 0; operation < 4; operation++) {
         gd_document *doc = gk_new();

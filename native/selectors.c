@@ -315,7 +315,11 @@ static int within_scope(gd_document *doc, node *n) {
     if (!context.node && !context.count) return 1;
     for (; n; n = n->parent) {
         if (n == context.node) return 1;
-        for (size_t i = 0; i < context.count; i++) if (n == doc->nodes[context.ids[i]].node) return 1;
+        if (context.count && !doc->templates && context.count <= UINT32_MAX) {
+            if (gd_query_root_member(doc, context.ids, context.count, n)) return 1;
+        } else {
+            for (size_t i = 0; i < context.count; i++) if (n == doc->nodes[context.ids[i]].node) return 1;
+        }
     }
     return 0;
 }

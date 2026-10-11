@@ -14,15 +14,30 @@ best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
 - Fragment reuse improves an authored bulk-insertion case. Consumer profiling
   points instead to repeated tag checks and attribute access. See
   [evidence and limits](benchmarks.md); none establishes production adoption.
+- A [broader corpus](testing.md#broader-corpus-follow-up) adds real response/error
+  pages and seeded HTML/XML/SVG inputs. It exposes selector and traversal bugs
+  missed by the MDN replays. Two historical optimization trials establish no
+  repeatable gain. A fresh reserved-window comparison attempts all twenty
+  original panels: seven pass, two fail before/candidate checks, nine have invalid
+  controls and two reach their deadlines. The regression goal remains open.
+- A later best-effort comparison selects the HTML opening-tag writer for Wasm:
+  pooled large-HTML p90/p95 times fall 7.8%/10.6%, with adjusted statistical
+  support. Native keeps its previous writer; XML-name and JSON-span trials are
+  excluded. The selected runtime passes full correctness and resource checks;
+  its completed twenty-panel comparison has six practical median passes, one
+  before/current failure and thirteen inconclusive panels. Tail uncertainty
+  prevents full-scope performance acceptance. The broader seeded corpus also
+  supports the writer's p90 gain; real-page timing remains incomplete.
 - Hosted build/package checks passed Node 22.0.0 and maintained Node 22/24 on
   Linux, plus pooled Wasm on Node 24 Windows/macOS. Browser engines remain untested.
 
 ## Priorities
 
-1. Optimize concrete consumer bottlenecks with short, predeclared comparisons;
-   resolve the private input/validator experiments before broader tuning. The
-   [static review](history/performance-review.md) separates consumer priorities
-   from wide/deep-tree costs. Preserve callbacks, handles and pooled-Wasm speed.
+1. Retain workload-supported optimizations and preserve the unresolved
+   regression evidence. Future performance work should isolate concrete
+   bottlenecks with fixed comparisons; the [static review](history/performance-review.md)
+   separates consumer priorities from wide/deep-tree costs. Preserve callbacks,
+   handles and pooled-Wasm speed.
 2. Broaden stateful fuzzing and parser/allocation-failure coverage. Current owned
    buffer fault tests do not establish universal upstream OOM recovery.
 3. Validate original production inputs and workload weights with the application
