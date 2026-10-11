@@ -223,6 +223,14 @@ candidate, and thirteen are inconclusive. None meets every median and tail
 criterion. The writer has workload-specific support; full-scope non-regression
 remains unresolved.
 
+An [isolated attribute-validator follow-up](history/performance-review.md#isolated-attribute-validator-with-shorter-batches)
+uses shorter batches and releases verified corpus outputs between document
+timers. All twenty-four panels complete; nineteen pass the practical median
+screen and five are inconclusive. Median controls qualify in 23/24 panels, but
+p90/p95 controls qualify in only 12/24 and 9/24. No panel meets the predeclared
+primary gain criteria, so the validator stays private. The earlier Wasm writer
+selection and unresolved historical panels retain their separate evidence.
+
 ### Investigation against 0.1.0 (open)
 
 The private query-context candidate removes quadratic root-list scans: the

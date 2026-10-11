@@ -28,6 +28,11 @@ best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
   before/current failure and thirteen inconclusive panels. Tail uncertainty
   prevents full-scope performance acceptance. The broader seeded corpus also
   supports the writer's p90 gain; real-page timing remains incomplete.
+- A later [isolated validator trial](history/performance-review.md#isolated-attribute-validator-with-shorter-batches)
+  completes twenty-four panels with shorter batches and bounded corpus outputs.
+  Nineteen pass the practical median screen and five remain inconclusive;
+  p90/p95 controls are less consistent. No primary gain meets the declared
+  criteria, so the validator stays private and the selected runtime is unchanged.
 - Hosted build/package checks passed Node 22.0.0 and maintained Node 22/24 on
   Linux, plus pooled Wasm on Node 24 Windows/macOS. Browser engines remain untested.
 

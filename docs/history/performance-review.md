@@ -18,13 +18,18 @@ completes with six practical median passes, one failure and thirteen
 inconclusive panels; no panel meets all median and tail criteria. Full-scope
 non-regression remains unresolved.
 
+A later [isolated validator follow-up](#isolated-attribute-validator-with-shorter-batches)
+completes twenty-four panels using shorter batches and bounded corpus outputs.
+Nineteen pass the practical median screen and five remain inconclusive. None
+meets the declared primary gain criteria, so the validator stays private.
+
 | Candidate or diagnostic | Current evidence | Decision |
 |---|---|---|
 | Input descriptor | Valid HTML120 release regression: ratio 0.9736, control 0.9996, all 12 blocks retained | Not accepted |
 | Constructor helper | Valid native SVG before/after regression: ratio 0.9578, control 1.0168, all 12 blocks retained | Not accepted |
 | Scalar queue copy | HTML120 passes; HTML600 fails against release at 0.9694 with valid control 1.0099; all 12 blocks retained in each | Not accepted |
 | Proxy numeric-key guard | Initial scope: six passes, ten inconclusive/incomplete; fixed confirmation finds a valid pooled HTML120 failure against 0.1.0 | Not accepted |
-| Hoisted attribute validator | Full scope: four passes, eleven inconclusive/incomplete, one valid native sitemap-pipeline failure | Not accepted |
+| Hoisted attribute validator | Earlier trial: four passes, eleven inconclusive/incomplete, one valid failure; later isolated twenty-four-panel trial has nineteen median passes, five inconclusive and no supported primary gain | Not selected |
 | Distinct sibling query roots | Removes the CI query hotspot; full original scope has eight passes, four failures and four inconclusive controls | Not accepted |
 | General root index | Correctness passes; first twenty-panel screen has one pass and nineteen inconclusive panels | Not accepted |
 | Inline ASCII whitespace | Removes repeated helper calls; full twenty-panel screen has five passes, six failures and nine inconclusive controls | Rejected and removed |
@@ -235,6 +240,125 @@ batches from complete workers. Counts are not extended to obtain a pass, and
 controls never normalize comparisons. This supports one additional synthetic
 workload for the Wasm writer; broader Web performance and the original twenty-panel
 non-regression goal remain unresolved.
+
+### Isolated attribute validator with shorter batches
+
+The unchanged, non-global attribute-name RegExp was tried again at module scope,
+isolated against the selected `0b83e8d` runtime. **It is not selected:** no panel
+meets the predeclared primary gain criteria. This is a new comparison, separate
+from the [earlier validator trial](#hoisted-attribute-name-validator).
+Only the private JavaScript selection module changes; native/Wasm binaries and
+the previously selected Wasm HTML writer remain unchanged.
+
+All 48 allocation diagnostics pass. Separate unhooked Node 22/24 heap
+samples estimate 13–15% less JavaScript allocation on both authored HTML sizes;
+the real and seeded corpus totals remain within 0.6% of baseline. Eight optimized
+code captures confirm removal of the observed 56-byte RegExp allocation before
+the test. These establish allocation/code-generation evidence, not elapsed gains
+or absence of deoptimizations in other or inlined callers.
+
+The fixed timing plan retains eight native, eight pooled-Wasm and four portable
+entry workloads under Node 24, plus native/pool real and seeded corpus panels.
+The original twenty panels compare independent graphs for 0.1.0, immediate
+baseline, candidate and identical candidate; corpus panels omit 0.1.0. Each panel
+uses twelve fresh processes with eight mirrored blocks. Authored batches contain
+eight HTML120, two HTML600 or sixteen XML/SVG replays; consumer batches contain
+one complete pipeline replay. Common benchmark-only old/semispace limits remain
+128/4 MiB for original panels and 96/4 MiB for corpus panels. Ordinary GC/JIT
+remains included, with no forced collection or subtraction.
+
+Corpus batches cover all 48 real pages or 44 successful seeded inputs. Each
+document's parse, DOM work, serialization and disposal are timed, then its result
+is verified and released outside that timer. The batch sums those document
+intervals. This bounds retained benchmark outputs; it is a separate protocol
+from the earlier whole-corpus timing and does not complete the earlier isolated
+writer's real-page comparison. Four malformed inputs remain explicit rejections.
+
+All **288 measured workers and 24 preflights complete**, without a resource stop
+or benchmark-process swap or measured major faults. The independent whole-block
+probe filter retains **13,688/17,664 batches (77.5%)**. Twenty-seven load pauses
+across twenty-six workers settle in about sixteen seconds each; the configured
+ten-minute allowance per episode is not exhausted. No panel is extended, no
+sample is replaced, and candidate times never determine filtering.
+
+The before/candidate p90 group-label-swap test uses Holm correction across all
+twenty-four panels. Its exchangeability assumption and the 10,000 whole-process
+bootstrap resamples match the preceding method. A supported gain requires all
+twelve processes complete, at least eight with retained data, 128 retained
+batches per role, a p90 interval above one, adjusted p≤0.05 and raw/filtered
+median and p90 controls within 3%. p95 remains secondary. The practical median
+screen requires sufficient data, raw/filtered comparator ratios ≥0.97 and
+raw/filtered median controls in 0.97–1.03.
+
+Twenty panels have sufficient samples. Raw/filtered median controls qualify in
+**23/24**, p90 controls in **12/24**, and p95 controls in **9/24**. There are
+**nineteen practical median passes, zero valid median failures and five
+inconclusive panels**. This shows the lighter runner can complete the suite;
+it does not identify the cause of better median stability or establish stable
+tails. The table preserves every panel's filtered ratios and pointwise 95%
+intervals. Ratios above one favor the candidate; percentiles describe fixed-batch
+amortized replay time. Controls are candidate/identical candidate. Corpus rows
+have no release comparison; a median pass does not imply a tail pass.
+
+| Panel | Retained batches/role | Median release / before | Before p90 (95% interval) | Before p95 (95% interval) | Median / p90 / p95 control | Median screen |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| wasm-html120 | 162/192 | 1.0730 / 1.0126 | 1.0002 [0.9607, 1.0615] | 0.9959 [0.9293, 1.1132] | 1.0043 / 1.0574 / 1.0909 | Pass |
+| browser-html120 | 158/192 | 1.0859 / 1.0176 | 0.9785 [0.8755, 1.0501] | 0.9373 [0.8741, 1.0534] | 1.0065 / 0.9970 / 1.0179 | Pass |
+| wasm-sitemap600 | 158/192 | 1.0106 / 1.0030 | 1.0523 [0.9547, 1.1289] | 1.0143 [0.9632, 1.1134] | 0.9948 / 0.9442 / 0.9496 | Pass |
+| wasm-svg300 | 168/192 | 1.0279 / 1.0034 | 0.9819 [0.9108, 1.1032] | 0.9961 [0.8999, 1.1021] | 0.9949 / 1.0151 / 1.0608 | Pass |
+| native-html120 | 168/192 | 1.0221 / 1.0210 | 1.0363 [0.9607, 1.1259] | 1.0188 [0.9408, 1.1234] | 0.9961 / 1.0131 / 1.0444 | Pass |
+| wasm-html600 | 166/192 | 1.0733 / 1.0252 | 1.0473 [0.9755, 1.0879] | 1.0173 [0.9608, 1.0788] | 1.0068 / 0.9886 / 0.9755 | Pass |
+| wasm-getpose | 116/192 | 1.0320 / 0.9885 | 0.9270 [0.8437, 1.0420] | 0.9019 [0.8243, 1.0720] | 1.0092 / 1.0928 / 1.0648 | Low retention |
+| wasm-relative-colors | 48/192 | 1.0568 / 1.0022 | 1.0159 [0.9764, 1.0634] | 1.0460 [0.7204, 1.1017] | 1.0096 / 1.0377 / 0.9989 | Low retention |
+| wasm-template | 98/192 | 1.0757 / 1.0075 | 1.0122 [0.9661, 1.1753] | 1.1010 [0.9287, 1.3088] | 0.9945 / 0.9405 / 0.9073 | Low retention |
+| wasm-sitemap-pipeline | 138/192 | 1.0383 / 1.0232 | 1.0343 [0.9601, 1.0971] | 0.9724 [0.9150, 1.1172] | 0.9905 / 1.0097 / 1.0592 | Pass |
+| native-html600 | 168/192 | 1.0676 / 1.0665 | 1.1346 [1.0806, 1.3004] | 1.2319 [1.1379, 1.3424] | 0.9790 / 0.9455 / 0.9805 | Pass |
+| native-sitemap600 | 176/192 | 0.9894 / 1.0096 | 1.0236 [0.9914, 1.0592] | 1.0168 [0.9855, 1.0632] | 0.9949 / 0.9727 / 0.9404 | Pass |
+| native-svg300 | 172/192 | 0.9995 / 1.0237 | 1.0385 [0.9830, 1.1109] | 1.0457 [0.9634, 1.1310] | 1.0060 / 0.9592 / 0.9985 | Pass |
+| native-getpose | 110/192 | 1.0180 / 0.9918 | 0.9741 [0.9119, 1.0774] | 0.9651 [0.8995, 1.0429] | 1.0007 / 1.0477 / 0.9942 | Low retention |
+| native-relative-colors | 174/192 | 1.0864 / 1.0017 | 0.9874 [0.9591, 1.0412] | 1.0030 [0.9546, 1.0713] | 1.0056 / 0.9936 / 1.0093 | Pass |
+| native-template | 166/192 | 1.0463 / 0.9936 | 0.9656 [0.7442, 1.1554] | 1.0122 [0.9481, 1.0596] | 0.9992 / 0.9706 / 0.9610 | Pass |
+| native-sitemap-pipeline | 132/192 | 1.0193 / 1.0320 | 1.0781 [0.9768, 1.1507] | 1.0771 [0.8548, 1.1699] | 1.0293 / 0.9986 / 0.9396 | Control drift |
+| browser-html600 | 142/192 | 1.1008 / 1.0339 | 1.0166 [0.9404, 1.1101] | 0.9934 [0.9123, 1.0825] | 1.0082 / 1.0189 / 1.0713 | Pass |
+| browser-sitemap600 | 154/192 | 1.0149 / 1.0017 | 0.9774 [0.9340, 1.0101] | 0.9695 [0.9037, 1.0184] | 0.9968 / 0.9819 / 1.0065 | Pass |
+| browser-svg300 | 168/192 | 1.0522 / 1.0024 | 0.9977 [0.9185, 1.0605] | 1.0538 [0.9747, 1.1315] | 0.9960 / 1.0114 / 0.9877 | Pass |
+| native-corpus-real | 190/192 | — / 1.0043 | 0.9963 [0.9802, 1.0236] | 1.0242 [0.9941, 1.0483] | 0.9973 / 0.9841 / 0.9707 | Pass |
+| native-corpus-synthetic | 142/192 | — / 1.0000 | 1.0030 [0.9373, 1.0465] | 0.9406 [0.9033, 1.0490] | 1.0053 / 1.0333 / 1.0690 | Pass |
+| wasm-corpus-real | 172/192 | — / 1.0059 | 0.9967 [0.9654, 1.0334] | 1.0050 [0.9479, 1.0551] | 0.9993 / 1.0111 / 0.9949 | Pass |
+| wasm-corpus-synthetic | 136/192 | — / 1.0195 | 1.0293 [0.9920, 1.0612] | 1.0006 [0.9488, 1.0951] | 1.0045 / 1.0072 / 1.0418 | Pass |
+
+Native HTML600 has the strongest numerical result: before/candidate median
+**1.0665**, p90 **1.1346** (1.0806–1.3004) and p95 **1.2319**
+(1.1379–1.3424). Ten of twelve process-group medians improve. However, raw/filtered
+p90 controls are **0.9605/0.9455**, outside 3%. The exhaustive primary test has
+9/4,096 qualifying permutations, p=0.002197265625; Holm correction gives
+**0.052734375**, above 0.05. Neither the lower interval nor the promising median
+overrides these failures. There is no selection using a smaller test family or
+a secondary endpoint.
+
+Pooled HTML600's p90 interval includes parity. Pooled getPose, native synthetic
+and portable HTML120 have unfavorable filtered p95 ratios of 0.9019, 0.9406 and
+0.9373, respectively; the former two also have drifting p95 controls. Native
+sitemap-pipeline is inconclusive because its raw median control is 1.0344,
+despite a filtered control inside tolerance. The other four inconclusive panels
+lack retained samples. Only native real-corpus meets every declared median and
+tail non-regression criterion, against the immediate baseline alone. No primary
+gain is supported, and full-scope acceptance remains unresolved.
+
+All 22 qualification stages pass: full 1,866-case native/pool suites on Node
+22/24 (1,807/1,815 passes and 59/51 skips), 92 broader-corpus matches plus four
+explicit rejections on five configurations, 200 seeded cases per backend,
+portable normal/fallback checks, types, both 193-case consumer snapshots on both
+backends and all four authored 120-cycle memory budgets. C and binaries are
+unchanged; existing sanitizer evidence is historical, with no new sanitizer run.
+
+A separate implementation reconstructs filtering and durations from raw samples
+and checks all 1,096 point estimates, 1,088 bootstrap interval endpoints and
+twenty-four exhaustive permutation/Holm results. It uses weighted empirical
+distributions rather than the original bootstrap helper. Every comparison agrees
+within floating-point roundoff. Raw/filtered release contrasts, controls and
+unfavorable intervals remain preserved; no result normalizes by its control.
+No runtime change is promoted from this follow-up.
 
 ### Broader corpus and historical lead trials
 
