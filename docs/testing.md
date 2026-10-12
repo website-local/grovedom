@@ -19,10 +19,29 @@ adaptations and exclusions. Imported WPT expectations are fixed upstream data;
 they are not calculated by GroveDOM or Cheerio during the run. Parser assertions
 also check reciprocal parent/sibling links and stable handle identity.
 
-The quality checkpoint has 1,759 cases: native 1,700 pass / 59 skip; pooled Wasm
-1,708 / 51, with no TODOs or unexpected failures. Skips are never counted as
-passes. Exact malformed-XML recovery, jQuery's empty-set `html()` result and
-browser `:enabled` semantics remain explicitly different from the Cheerio contract.
+## Current qualification
+
+The selected raw-XML quote correction passes the 1,870-case suite on Node 22/24:
+native **1,811 pass /59 exclusions**, pooled Wasm **1,819 /51**. Native
+ASan/UBSan with leak detection, other Wasm heaps, workers, portable browser
+normal/fallback checks, types, seeded fuzzing, both 193-case consumer snapshots,
+the broader corpus and all four 120-cycle authored memory budgets also pass.
+Custom-corpus lifecycle checks are separate and disable those fixed budgets.
+
+Three additional XML attribute-selector cases pass separately on the selected
+native/pool runtime on Node 22/24 and native sanitizers. They cover nested
+predicates, escaped/case-sensitive names, operators/modifiers, callback order,
+mutation visibility and retained snapshots. The expanded owned-buffer test
+checks XML Unicode comparison failure, successful retry and complete disposal.
+These tests extend the 1,870-case checkpoint without a runtime change; the
+unselected atom candidate's separate full 1,873-case matrix is not substituted
+for that selected-runtime qualification.
+
+Saved-input checks cover 174 inputs. All 193 pipeline cases match each preserved
+installed/development consumer snapshot on native/Wasm; these historical snapshots
+do not qualify every downloader revision. Skips, explicit malformed-input
+rejections and policy exclusions are never counted as successful-output passes.
+Correctness/resource checks do not establish elapsed improvement or adoption.
 
 ## Browser entry
 
@@ -52,126 +71,52 @@ best-effort until the page is executed in actual engines.
 
 ## Additional checks
 
-`npm run test:types` and `scripts/check-package-types.mjs` cover declarations,
-including isolated consumers without Cheerio. `npm run test:fuzz` uses explicit
-seeds and disk-backed reproducers. Sanitizer and owned-buffer failure checks are
-described in [setup](prototype.md). Keep raw reports and local paths outside Git.
-Foreign-content regressions compare Cheerio's HTML and XML modes across namespace
-collisions, attribute removal/reinsertion, cloning, renaming and serialization.
-Ancestor-selector tests check backtracking through nested list pseudo-classes;
-XML serializer tests cover entities, doctype identifiers and quote framing when
-entity encoding is disabled. Long names and values cross output-buffer boundaries
-while checking per-call options, selection output and retained strings in both
-execution modes. Dependency-patch tests reject modified inputs, patches and
-cached trees, and ensure preparation does not modify the supplied upstream source.
+Types and isolated package imports require no Cheerio declarations. Sanitizer and
+owned-buffer failure commands are in [setup](prototype.md); keep raw reports and
+local paths outside Git. [Source-audit regressions](source-audit.md) cover
+callbacks/coercion, lazy data, class spacing, traversal, fragment roots and XML
+references. Foreign-content, template/select parsing, Unicode/token boundaries,
+serializer quoting, command-buffer bounds, handles, disposal and worker cases
+check successful outputs and tree/ownership invariants.
 
-The [source-driven audit](source-audit.md) adds callback/coercion, lazy data,
-class spacing, form/link pseudo, traversal ordering, fragment-root, doctype and
-XML numeric-reference regressions. Unicode/operator and token tests cover
-word-sized boundaries in HTML and XML. The former Unicode identifier TODOs are
-resolved; Cheerio/browser policy exclusions retain their upstream expectations.
-Insertion tests distinguish default-template parsing for append/prepend/siblings
-from destination-context parsing for `html(value)`, including selects, tables,
-SVG and MathML. Command-buffer tests check truncated headers, overflow-shaped
-lengths, typed-array view bounds, invalid IDs, partial effects and owner recovery.
-
-Native ASan/UBSan with leak detection passes the full suite. Owned-buffer failure
-checks recreate the document for every allocation countdown, exercising later
-node/result/serialization/Unicode growth failures after earlier allocations
-succeed. Four HTML/XML query/serialization sweeps cover 28 failed growth requests,
-then verify retry, a second live owner and disposal. Four additional XML-output
-sweeps cover 14 failed growth requests across HTML/XML owners with encoded/raw
-attribute values, checking exact retry output and complete disposal. This does
-not test every upstream allocation or establish universal out-of-memory recovery.
-
-The raw-attribute quote correction passes a 1,870-case suite on Node 22/24:
-native has 1,811 passes and 59 exclusions, pooled Wasm 1,819 and 51. Native
-sanitizers, other Wasm heaps, workers, portable browser checks, types, both
-193-case consumer snapshots, the broader corpus, seeded fuzzing and all four
-120-cycle authored memory budgets also pass. These correctness and resource
-checks do not establish an elapsed performance improvement.
-
-Saved-input checks cover 174 inputs; all 193 pipeline cases match each preserved
-installed/development consumer snapshot on native and Wasm. The snapshots are
-historical, not a claim about every subsequent downloader revision. Use
-[short performance checks](benchmarks.md) when a runtime change warrants them;
-adding correctness fixtures alone does not require another benchmark campaign.
+Owned-buffer fault tests recreate the document for every allocation countdown,
+then verify retry, other live owners and disposal. HTML/XML query/serialization
+sweeps cover 28 failed growth requests; XML-output sweeps cover 14 more in
+encoded/raw modes. They do not cover every upstream allocation or prove universal
+out-of-memory recovery. Dependency tests reject modified inputs, patches and
+cached trees without modifying the supplied upstream source.
 
 ## Broader corpus follow-up
 
-The [balanced fixture generator](../bench/balanced-fixtures.mjs) adds sixteen
-families in each of HTML, XML and SVG, with fixed seeds. Its
-[workload](../bench/corpus-workload.mjs) checks whole-document serialization,
-27 selectors, raw attributes and relations, traversal, callback observations,
-seeded edits, retained snapshots and disposal. Four deliberately malformed
-XML/SVG inputs check rejection and lifecycle safety separately from successful
-output comparisons. They are not successful-output passes.
+The [balanced generator](../bench/balanced-fixtures.mjs) creates sixteen families
+in each of HTML, XML and SVG with fixed seeds. The
+[workload](../bench/corpus-workload.mjs) checks serialization, 27 selectors, raw
+attributes/relations, traversal, callback observations, seeded edits, retained
+snapshots and disposal. Four malformed XML/SVG inputs check rejection/lifecycle
+safety separately from successful output comparisons.
 
-A separate private convenience sample preserves 48 public HTTP responses from
-50 fixed requests, including redirects and error/challenge bodies; two transport
-failures were recorded without replacement requests. The sample includes no MDN
-pages. The original bodies and headers remain separate from decoded inputs, and
-one duplicate body pair is retained. This is additional coverage, not a random
-web sample or a validated production distribution.
+A private convenience sample preserves 48 public HTTP responses from 50 fixed
+requests, including redirects and error/challenge bodies. Two transport failures
+had no replacement requests; one duplicate body pair is retained. The sample
+contains no MDN pages and is not a random web or validated production distribution.
+Original response data, decoded inputs and local reports remain outside Git.
 
-The offline [corpus checker](../bench/check-corpus.mjs) takes a local manifest
-with an `entries` array. Each entry supplies `id`, `group`, `mode` (`html`, `xml`
-or `svg`), a relative UTF-8 `file`, its `sha256`, and a deterministic `seed` or
-explicit `operations`. It fetches nothing:
+The offline [checker](../bench/check-corpus.mjs) reads an `entries` array containing
+`id`, `group`, `mode` (`html`/`xml`/`svg`), a relative UTF-8 `file`, `sha256`, and a
+deterministic `seed` or explicit `operations`. It fetches nothing:
 
 ```sh
 node --expose-gc bench/check-corpus.mjs \
-  --manifest=./build/corpus/manifest.json --out=./build/corpus/report.json
+  --manifest=./corpus/manifest.json --out=./reports/corpus.json
 ```
 
-Developer backend/heap settings apply as described in [setup](prototype.md).
-The report preserves phase hashes, mismatches, exceptions and lifecycle counters;
-any mismatch or exception returns exit status 2. The 96-case follow-up has
-**92 exact matches and four explicit malformed-input rejections** on native,
-all three Wasm heap modes and the portable browser entry under Node. Native
-sanitizer checks cover the same inputs. Direct-mode replays are checked separately.
-Private downloaded inputs and reports are not shipped with the package.
-
-The corpus exposed structural selectors counting non-element siblings and
-template queries discarding explicit roots across fragment boundaries. Reduced
-tests reproduce both defects before their fixes. Until-traversal tests also
-preserve repeated stop-callback visits and indices, filter the visit stream
-before deduplication/sorting, and return the original selection from `end()`.
-
-The two historical optimization trials qualified up to 1,865 cases on Node 22/24:
-native 1,806 pass / 59 skip, pooled Wasm 1,814 / 51, with no unexpected failures.
-Native ASan/UBSan/leak checks, owned-output allocation failures, 200 seeded cases
-per backend, browser normal/fallback checks, types, both 193-case consumer
-snapshots and all four authored memory budgets pass. Custom-corpus lifecycle
-runs remain separate and disable those authored budgets. The experiments were
-not promoted; their [timing outcomes](history/performance-review.md#broader-corpus-and-historical-lead-trials)
-do not establish performance acceptance. The corrected baseline is preserved
-with focused checks after restoring its runtime code.
-
-The restored reference also matches all eight original workload outputs against
-Cheerio on native, pooled Wasm and the browser entry under Node. After two
-inconclusive timing prerequisites, a fresh [reserved-window confirmation](history/performance-review.md#reserved-window-confirmation)
-attempts all twenty panels and still lacks full performance acceptance. Its
-untimed follow-up verifies exact before/candidate outputs on the two failed
-workloads; this is not a new full correctness matrix. Successful correctness
-checks do not satisfy the timing gate or establish browser-engine coverage.
-
-The later selected runtime keeps the HTML span writer only for Wasm and restores
-the preceding native writer and standard XML-name comparison. Its 1,866-case
-matrix passes on Node 22 and 24: native **1,807 pass /59 skip**, pooled Wasm
-**1,815 /51**. The additional case versus the earlier 1,865-case checkpoint
-checks transitive benchmark-control isolation. Native ASan/UBSan/leak and owned
-output-failure checks, both 193-case consumer snapshots on both backends,
-200 seeded cases per backend, browser normal/fallback and type checks pass.
-The broader corpus again has 92 exact matches and four explicit malformed
-rejections across native, all Wasm heap modes and the portable entry.
-All four authored memory budgets pass; separate custom-corpus lifecycle checks
-continue to disable those fixed budgets. The retained Wasm writer's body is
-unchanged from its preceding native sanitizer qualification; the current native
-sanitizer run exercises the restored native path. These correctness results do
-not supply performance acceptance. The separate [writer timing check](history/performance-review.md#selected-writer-on-the-broader-corpus)
-completes its seeded-input panel; real-page timing remains incomplete after a
-resource stop.
+Backend/heap settings follow [setup](prototype.md). Mismatches/exceptions return
+exit 2; reports retain phase hashes and lifecycle counters. The 96-input follow-up
+has **92 exact matches and four explicit malformed-input rejections** on native,
+all Wasm heaps and the portable entry under Node, with native sanitizer checks.
+Direct-mode replays are checked separately. Reduced tests retain structural
+sibling counting, explicit template-root and until-callback fixes exposed by
+these inputs. [Performance outcomes](history/performance-review.md) remain separate.
 
 ## Seeded fuzzing
 
@@ -208,11 +153,9 @@ CI keeps the existing 200-case native/Wasm fuzz checks and adds 64 cases to the
 existing sanitizer job. Failing runs upload their reproducer directory; no new
 runner job or benchmark is added.
 
-[GitHub CI](releasing.md) also runs release-policy and artifact-integrity tests,
-including simulated npm failures that must produce no publication. Those tests
-use a local fake npm executable and require no credentials or registry access.
-Mock CLI and synthetic CI subprocesses do not inherit `LD_PRELOAD`: they load no
-native addon, and sanitizer reports from their Node runtime can overflow captured
-output on deliberate failures. Native DOM, lifecycle and worker tests retain
-ASan/UBSan and leak detection. Owned-buffer fault checks run even if the preceding
-suite fails, provided the sanitizer build succeeded.
+[GitHub CI](releasing.md) also checks release policy and artifact integrity,
+using a fake npm executable to verify publication failures without credentials or
+registry access. Mock CLI/synthetic subprocesses omit `LD_PRELOAD` because they
+load no addon; native DOM, lifecycle and worker checks retain sanitizers and leak
+detection. Owned-buffer checks run even if the preceding suite fails, provided
+the sanitizer build succeeded.
