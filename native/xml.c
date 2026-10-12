@@ -405,6 +405,19 @@ static lxb_status_t gd_xml_escape(gd_document *doc, const lxb_char_t *s, size_t 
     return gd_write(s + run, n - run, &doc->output);
 }
 
+/* Disabling entity encoding preserves text verbatim, but attribute quotes
+ * still delimit the value. Match Cheerio's quote-only attribute escaping. */
+static lxb_status_t gd_xml_raw_attribute(gd_document *doc, const lxb_char_t *s, size_t n) {
+    size_t start = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (s[i] != '"') continue;
+        if ((i > start && gd_write(s + start, i - start, &doc->output) != LXB_STATUS_OK) ||
+            gd_write((const lxb_char_t *) "&quot;", 6, &doc->output) != LXB_STATUS_OK) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+        start = i + 1;
+    }
+    return n > start ? gd_write(s + start, n - start, &doc->output) : LXB_STATUS_OK;
+}
+
 lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned flags) {
     GD_PROFILE_SCOPE(GP_XML_SERIALIZE);
     lxb_dom_node_t *node = root;
@@ -418,7 +431,12 @@ lxb_status_t gd_xml_serialize(gd_document *doc, lxb_dom_node_t *root, unsigned f
                 XML_WRITE(" ", 1); XML_WRITE(name, length);
                 {
                     XML_WRITE("=\"", 2);
-                    if (attr->value && gd_xml_escape(doc, attr->value->data, attr->value->length, flags) != LXB_STATUS_OK) return LXB_STATUS_ERROR;
+                    if (attr->value) {
+                        lxb_status_t status = flags & XML_RAW
+                            ? gd_xml_raw_attribute(doc, attr->value->data, attr->value->length)
+                            : gd_xml_escape(doc, attr->value->data, attr->value->length, flags);
+                        if (status != LXB_STATUS_OK) return status;
+                    }
                     XML_WRITE("\"", 1);
                 }
             }

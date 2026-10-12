@@ -1,6 +1,7 @@
 /* Deterministic failures in owned buffer growth, not upstream allocator fuzzing. */
 #include "kernel.h"
 #include "memory.h"
+#include "xml.h"
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -141,7 +142,59 @@ static void sweep_attribute_json(int xml) {
     assert(0 && "Attribute JSON growth sweep did not reach success");
 }
 
+static void sweep_xml_markup(int xml, int raw) {
+    char source[32768], expected[65536];
+    size_t n = 0;
+    source[n++] = '<';
+    memset(source + n, 'n', 1024); n += 1024;
+    source[n++] = ' ';
+    memset(source + n, 'a', 1024); n += 1024;
+    memcpy(source + n, "='", 2); n += 2;
+    for (int i = 0; i < 300; i++) {
+        const char span[] = "plain&amp;&quot;&lt;&gt;$\xc3\xa9";
+        memcpy(source + n, span, sizeof(span) - 1); n += sizeof(span) - 1;
+    }
+    const char ending[] = "'><empty></empty></";
+    memcpy(source + n, ending, sizeof(ending) - 1); n += sizeof(ending) - 1;
+    memset(source + n, 'n', 1024); n += 1024;
+    source[n++] = '>'; source[n] = 0;
+    const uint32_t root = 1;
+    const uint32_t operation = READ_XML_OPTIONS | ((raw ? XML_RAW | XML_PAIRED : 0) << 8);
+    gd_document *reference = gk_new();
+    assert(reference);
+    input(reference, source);
+    assert(xml ? gk_parse_xml(reference, XML_DECODE) : gk_parse(reference, 1, 0));
+    const gd_result *result = gk_read(reference, operation, &root, 1);
+    assert(result && result->length < sizeof(expected));
+    size_t length = result->length;
+    memcpy(expected, result->data, length);
+    gk_delete(reference);
+    for (long failure = 0; failure < 64; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(xml ? gk_parse_xml(doc, XML_DECODE) : gk_parse(doc, 1, 0));
+        gd_test_fail_after(failure);
+        result = gk_read(doc, operation, &root, 1);
+        int success = result != NULL;
+        if (!success) assert(!strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY"));
+        gd_test_fail_after(-1);
+        result = gk_read(doc, operation, &root, 1);
+        assert(result && result->length == length && !memcmp(result->data, expected, length));
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 1);
+            fprintf(stderr, "XML markup growth xml=%d raw=%d: %ld failure sites recovered\n", xml, raw, failure);
+            return;
+        }
+    }
+    assert(0 && "XML markup growth sweep did not reach success");
+}
+
 int main(void) {
+    for (int xml = 0; xml < 2; xml++) for (int raw = 0; raw < 2; raw++) sweep_xml_markup(xml, raw);
     sweep_attribute_json(0);
     sweep_attribute_json(1);
     for (int xml = 0; xml < 2; xml++) for (int query = 0; query < 2; query++) sweep_growth(xml, query);

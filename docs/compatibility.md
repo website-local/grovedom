@@ -47,8 +47,10 @@ XML options include `decodeEntities`, `lowerCaseTags`,
 `xmlMode`, `recognizeSelfClosing` and `recognizeCDATA`, within the documented
 XML mode. XML is non-validating, does not fetch external resources, and does not
 expand DTD entities. Per-call serializer options cover the implemented XML
-serialization controls. See [the declarations](../src/index.d.ts) for exact
-method signatures; they intentionally expose a partial Cheerio surface.
+serialization controls. With `encodeEntities: false`, text is emitted verbatim;
+double quotes in attribute values still become `&quot;`. See
+[the declarations](../src/index.d.ts) for exact method signatures; they
+intentionally expose a partial Cheerio surface.
 
 ## Lifetime and boundaries
 

@@ -59,9 +59,11 @@ described in [setup](prototype.md). Keep raw reports and local paths outside Git
 Foreign-content regressions compare Cheerio's HTML and XML modes across namespace
 collisions, attribute removal/reinsertion, cloning, renaming and serialization.
 Ancestor-selector tests check backtracking through nested list pseudo-classes;
-XML serializer tests cover entities and doctype identifiers. Dependency-patch
-tests reject modified inputs, patches and cached trees, and ensure preparation
-does not modify the supplied upstream source.
+XML serializer tests cover entities, doctype identifiers and quote framing when
+entity encoding is disabled. Long names and values cross output-buffer boundaries
+while checking per-call options, selection output and retained strings in both
+execution modes. Dependency-patch tests reject modified inputs, patches and
+cached trees, and ensure preparation does not modify the supplied upstream source.
 
 The [source-driven audit](source-audit.md) adds callback/coercion, lazy data,
 class spacing, form/link pseudo, traversal ordering, fragment-root, doctype and
@@ -77,8 +79,17 @@ Native ASan/UBSan with leak detection passes the full suite. Owned-buffer failur
 checks recreate the document for every allocation countdown, exercising later
 node/result/serialization/Unicode growth failures after earlier allocations
 succeed. Four HTML/XML query/serialization sweeps cover 28 failed growth requests,
-then verify retry, a second live owner and disposal. This does not test every
-upstream allocation or establish universal out-of-memory recovery.
+then verify retry, a second live owner and disposal. Four additional XML-output
+sweeps cover 14 failed growth requests across HTML/XML owners with encoded/raw
+attribute values, checking exact retry output and complete disposal. This does
+not test every upstream allocation or establish universal out-of-memory recovery.
+
+The raw-attribute quote correction passes a 1,870-case suite on Node 22/24:
+native has 1,811 passes and 59 exclusions, pooled Wasm 1,819 and 51. Native
+sanitizers, other Wasm heaps, workers, portable browser checks, types, both
+193-case consumer snapshots, the broader corpus, seeded fuzzing and all four
+120-cycle authored memory budgets also pass. These correctness and resource
+checks do not establish an elapsed performance improvement.
 
 Saved-input checks cover 174 inputs; all 193 pipeline cases match each preserved
 installed/development consumer snapshot on native and Wasm. The snapshots are
