@@ -1,6 +1,8 @@
 # Readiness and next work
 
-Experimental 0.1.0 is published; 0.1.1 is in development. Pooled Wasm on Node is
+Experimental 0.1.0 is published; 0.1.1 is prepared as a
+[non-breaking patch](../CHANGELOG.md), pending hosted release verification.
+Pooled Wasm on Node is
 primary, native is separate and the browser entry uses the same Wasm binary with
 async initialization. [Compatibility](compatibility.md) defines supported,
 best-effort and unsupported behavior; [testing](testing.md) records qualification.

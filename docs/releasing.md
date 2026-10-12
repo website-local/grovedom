@@ -66,6 +66,19 @@ Published **0.1.0** remains immutable. Both source manifests and the root lockfi
 now target **0.1.1** for the next release; that version is not yet published.
 Future releases require updating all three files together.
 
+The next release is a **non-breaking 0.1.1 patch**. Public exports, declarations,
+initialization, runtime requirements and ownership rules match 0.1.0; observable
+differences correct documented behavior. The [changelog](../CHANGELOG.md) lists
+those corrections and the performance limits. During 0.1 development, deliberate
+incompatible API changes require 0.2.0. Release preflight requires a nonempty,
+unique changelog entry matching the committed version.
+
+Offline installation checks verify hashes, package versions and the source commit
+before invoking npm. The installed Node, browser and native entries then run the
+same public-contract cases as the source suite, including XML, callbacks, retained
+handles and disposal. Caller-managed workers import the installed packages while
+parent documents stay live. These checks use no Cheerio or runtime dependencies.
+
 ## First npm publish
 
 npm has no **Create package** button. A successful first `npm publish` creates

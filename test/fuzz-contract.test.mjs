@@ -64,3 +64,19 @@ test('independent fuzz tree checks reject cycles and nonreciprocal links', () =>
   child.prev = child; assert.throws(() => checkLinks([root]), /Previous sibling link/); child.prev = null;
   root.parent = child; assert.throws(() => checkLinks([root]), /Cycle in parent links/);
 });
+
+test('automatic malformed scheduling and explicit overrides preserve safety coverage', () => {
+  const automatic = generator(42, { malformed: null });
+  const repeated = generator(42, { malformed: null });
+  const clean = generator(42, { malformed: false });
+  const malformed = generator(42, { malformed: true });
+  const safety = [];
+  for (let i = 0; i < 27; i++) {
+    const item = automatic(i);
+    assert.deepEqual(item, repeated(i));
+    assert.equal(clean(i).malformed, false);
+    assert.equal(malformed(i).malformed, true);
+    if (item.malformed) safety.push([i, item.xml]);
+  }
+  assert.deepEqual(safety, [[8, false], [17, true], [26, false]]);
+});

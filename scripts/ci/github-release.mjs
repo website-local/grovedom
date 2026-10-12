@@ -13,7 +13,7 @@ await verifyReleaseTarget(release, tag, manifest.commit);
 if (!release) {
   // gh keeps the new release ID, uploads into a draft, then publishes it. Do not
   // rediscover a fresh draft through tag/list endpoints that may not expose it.
-  const notes = `Experimental GroveDOM release.\n\nThe main package uses Wasm on Node and shares its binary with the best-effort browser entry. The optional native package requires Linux x64 with glibc 2.35 or later.\n\nnpm selection for this run: ${process.env.NPM_PACKAGES}. See [release and installation instructions](https://github.com/website-local/grovedom/blob/${manifest.commit}/docs/releasing.md).\n`;
+  const notes = `Experimental GroveDOM release.\n\nSee the reviewed [changes and compatibility notes](https://github.com/website-local/grovedom/blob/${manifest.commit}/CHANGELOG.md).\n\nThe main package uses Wasm on Node and shares its binary with the best-effort browser entry. The optional native package requires Linux x64 with glibc 2.35 or later.\n\nnpm selection for this run: ${process.env.NPM_PACKAGES}. See [release and installation instructions](https://github.com/website-local/grovedom/blob/${manifest.commit}/docs/releasing.md).\n`;
   const notesFile = join(process.env.RUNNER_TEMP, 'release-notes.md');
   writeFileSync(notesFile, notes);
   gh(['release', 'create', tag, ...names.map(name => join(root, name)),

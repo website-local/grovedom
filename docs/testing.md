@@ -21,21 +21,36 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The selected raw-XML quote correction passes the 1,870-case suite on Node 22/24:
-native **1,811 pass /59 exclusions**, pooled Wasm **1,819 /51**. Native
-ASan/UBSan with leak detection, other Wasm heaps, workers, portable browser
-normal/fallback checks, types, seeded fuzzing, both 193-case consumer snapshots,
-the broader corpus and all four 120-cycle authored memory budgets also pass.
-Custom-corpus lifecycle checks are separate and disable those fixed budgets.
+The 0.1.1 release preparation passes the **1,897-case suite** on the selected
+runtime, including the XML attribute-selector regressions and 24 new package,
+release-policy and fuzz-scheduling cases:
 
-Three additional XML attribute-selector cases pass separately on the selected
-native/pool runtime on Node 22/24 and native sanitizers. They cover nested
-predicates, escaped/case-sensitive names, operators/modifiers, callback order,
-mutation visibility and retained snapshots. The expanded owned-buffer test
-checks XML Unicode comparison failure, successful retry and complete disposal.
-These tests extend the 1,870-case checkpoint without a runtime change; the
-unselected atom candidate's separate full 1,873-case matrix is not substituted
-for that selected-runtime qualification.
+| Backend | Node versions | Pass / exclusions |
+|---|---|---:|
+| Native | 22, 24 | 1,838 /59 |
+| Pooled Wasm | 22, 24 | 1,846 /51 |
+| Global Wasm | 22 | 1,842 /55 |
+| Per-document Wasm | 22 | 1,843 /54 |
+
+Native ASan/UBSan with leak detection passes the same suite without findings.
+Types, offline package installations on Node 22/24, 200 seeded cases each on
+native/pool and 64 sanitizer fuzz cases also pass. Portable browser normal and
+fallback checks each pass 810 cases with 35 exclusions. Local checks do not cover
+exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md) remains
+required before publication. Actual browser-engine testing remains pending.
+
+Installed Node, browser and native packages share fourteen public-contract checks
+across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
+large transfers, snapshots, data keys and disposal. Separate checks cover entry
+ownership and concurrent caller-managed workers. The eight stable checks also
+pass against each actual 0.1.0 entry; exports, declarations, initialization and
+package requirements match that release. Corrected bug behavior is listed in the
+[changelog](../CHANGELOG.md).
+
+The runtime is unchanged by release preparation. Earlier consumer snapshots,
+broader-corpus checks and all four 120-cycle authored memory budgets remain
+separate qualification evidence. Custom-corpus lifecycle checks disable those
+fixed budgets.
 
 Saved-input checks cover 174 inputs. All 193 pipeline cases match each preserved
 installed/development consumer snapshot on native/Wasm; these historical snapshots

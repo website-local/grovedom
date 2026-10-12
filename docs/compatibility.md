@@ -48,7 +48,9 @@ XML options include `decodeEntities`, `lowerCaseTags`,
 XML mode. XML is non-validating, does not fetch external resources, and does not
 expand DTD entities. Per-call serializer options cover the implemented XML
 serialization controls. With `encodeEntities: false`, text is emitted verbatim;
-double quotes in attribute values still become `&quot;`. See
+double quotes in attribute values still become `&quot;`. Like Cheerio, an existing
+selection passed to static `html`/`xml` retains its own rendering options; pass
+its `.get()` node array to apply per-call options. See
 [the declarations](../src/index.d.ts) for exact method signatures; they
 intentionally expose a partial Cheerio surface.
 
