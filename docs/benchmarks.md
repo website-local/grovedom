@@ -239,6 +239,16 @@ inputs have promising secondary results, but their p90 interval includes parity
 and the four-test Holm p value is 0.126953125. No primary gain is supported;
 the cache stays private and the selected runtime remains unchanged.
 
+An [XML span follow-up](history/performance-review.md#xml-name-and-attribute-spans)
+completes all 288 processes across twenty-four panels without a resource stop.
+Eighteen practical median screens pass; six have insufficient retained data.
+All aggregate median controls meet 3%, but only fifteen p90 and six p95 controls
+do. Pooled SVG's before/candidate p90 ratio is 1.0490 (0.9865–1.0980), with
+six-test Holm p=0.2197265625. No primary gain qualifies, so the span writer stays
+private. A separate fix for quotes in raw XML attributes is retained after
+correctness and resource qualification. Full-scope performance acceptance
+remains open.
+
 ### Investigation against 0.1.0 (open)
 
 The private query-context candidate removes quadratic root-list scans: the

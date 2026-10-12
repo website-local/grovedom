@@ -38,6 +38,12 @@ best-effort and unsupported behavior; [testing](testing.md) tracks coverage.
   primary gain. Eighteen median screens pass; six remain inconclusive, including
   a pooled real-page resource stop. The cache stays private, and the original
   regression and tail limitations remain open.
+- An [XML span trial](history/performance-review.md#xml-name-and-attribute-spans)
+  completes all twenty-four panels without a resource stop: eighteen median
+  screens pass and six lack sufficient retained data. No primary p90 gain
+  qualifies, so the writer stays private. The separately qualified correction
+  for quotes in raw XML attributes is retained; broader performance acceptance
+  remains open.
 - Hosted build/package checks passed Node 22.0.0 and maintained Node 22/24 on
   Linux, plus pooled Wasm on Node 24 Windows/macOS. Browser engines remain untested.
 
