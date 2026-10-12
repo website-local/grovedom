@@ -19,6 +19,8 @@ migration is required for that contract. Deliberate incompatible changes during
   or stack growth in long positional selector chains.
 - Verify tarball bytes, versions and commit identity before offline installation
   tests; exercise the installed public APIs, XML, callbacks, disposal and workers.
+- Reject invalid benchmark timings and ambiguous case lists; add deterministic
+  workload, lifecycle, direct-mode corpus and comparison-statistics regressions.
 
 These fixes can change results that depended on earlier bugs. In particular,
 attribute callbacks returning undefined now store the string "undefined" like

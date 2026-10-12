@@ -53,8 +53,10 @@ separate heaps and a byte-identical copy of the **complete JavaScript module
 graph**, avoiding shared helper feedback vectors. Copying and initialization occur
 outside timing; GC and compilation caches can still affect this process.
 
-Keep every raw/incomplete block. Filter complete blocks only when independent
-probe max/min exceeds 1.5. Report within-block paired medians and order breakdowns;
+Keep every raw/incomplete block. A complete block enters the filtered result only
+with positive finite probe readings and independent probe max/min at most 1.5.
+Empty or ambiguously labelled case lists and nonpositive/nonfinite sample durations
+fail explicitly. Report within-block paired medians and order breakdowns;
 require three complete blocks per pair/case, with retained counts and controls
 visible. No control normalization or speed threshold applies to hosted CI.
 Reports include package versions, Wasm hashes and the resolved lockfile.

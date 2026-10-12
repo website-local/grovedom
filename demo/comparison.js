@@ -37,6 +37,10 @@ export async function compare(variants, { durationMs, now = () => performance.no
   if (variants.length < 2 || new Set(variants.map(v => v.name)).size !== variants.length)
     throw new Error('At least two uniquely named variants required');
   if (![warmups, iterations].every(n => Number.isSafeInteger(n) && n > 0)) throw new Error('Positive counts required');
+  if (!Array.isArray(selectedCases) || !selectedCases.length ||
+      selectedCases.some(c => typeof c?.id !== 'string' || !c.id.trim()) ||
+      new Set(selectedCases.map(c => c.id)).size !== selectedCases.length)
+    throw new Error('Nonempty cases with unique, nonempty IDs required');
   const start = now(), deadline = start + durationMs;
   const inputs = selectedCases.map(c => ({ ...c, source: caseSource(c) }));
   for (const input of inputs) {
@@ -69,7 +73,9 @@ export async function compare(variants, { durationMs, now = () => performance.no
           const outputs = [];
           const begin = now();
           for (let i = 0; i < iterations; i++) outputs.push(caseReplay(pair[index].load, panel.input.source, panel.input));
-          milliseconds[index].push((now() - begin) / iterations);
+          const elapsed = (now() - begin) / iterations;
+          if (!Number.isFinite(elapsed) || elapsed <= 0) throw new Error('Positive finite sample duration required');
+          milliseconds[index].push(elapsed);
           if (outputs.some(output => output !== panel.input.expected))
             throw new Error(`${pair[index].name}: ${panel.input.id} output changed during timing`);
           probes.push(probe());
@@ -78,7 +84,8 @@ export async function compare(variants, { durationMs, now = () => performance.no
       block.complete = milliseconds.every(values => values.length === 4);
       if (block.complete) {
         block.probeSpread = Math.max(...probes) / Math.min(...probes);
-        block.accepted = Number.isFinite(block.probeSpread) && block.probeSpread <= 1.5;
+        block.accepted = probes.every(value => Number.isFinite(value) && value > 0) &&
+          Number.isFinite(block.probeSpread) && block.probeSpread <= 1.5;
         const sum = values => values.reduce((a, b) => a + b, 0);
         block.speedup = sum(milliseconds[1]) / sum(milliseconds[0]);
       }

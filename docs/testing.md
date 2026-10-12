@@ -21,16 +21,16 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 release preparation passes the **1,897-case suite** on the selected
-runtime, including the XML attribute-selector regressions and 24 new package,
-release-policy and fuzz-scheduling cases:
+The 0.1.1 release preparation passes the **1,975-case suite** on the selected
+runtime, including XML attribute-selector, package-contract, benchmark,
+release-policy and fuzz-scheduling regressions:
 
 | Backend | Node versions | Pass / exclusions |
 |---|---|---:|
-| Native | 22, 24 | 1,838 /59 |
-| Pooled Wasm | 22, 24 | 1,846 /51 |
-| Global Wasm | 22 | 1,842 /55 |
-| Per-document Wasm | 22 | 1,843 /54 |
+| Native | 22, 24 | 1,916 /59 |
+| Pooled Wasm | 22, 24 | 1,924 /51 |
+| Global Wasm | 22 | 1,920 /55 |
+| Per-document Wasm | 22 | 1,921 /54 |
 
 Native ASan/UBSan with leak detection passes the same suite without findings.
 Types, offline package installations on Node 22/24, 200 seeded cases each on
@@ -47,7 +47,14 @@ pass against each actual 0.1.0 entry; exports, declarations, initialization and
 package requirements match that release. Corrected bug behavior is listed in the
 [changelog](../CHANGELOG.md).
 
-The runtime is unchanged by release preparation. Earlier consumer snapshots,
+The four shared HTML/XML/SVG benchmark workloads and dense/sparse selector cases
+also run in buffered/direct modes, checking exact outputs, repeated disposal and
+independent live owners. All 48 generated inputs run in both modes. Fake-clock
+tests cover ratio direction, control handling, whole-block filtering, interrupted
+blocks, invalid measurements and cleanup after output changes or exceptions;
+unit tests impose no elapsed-time or speedup threshold.
+
+The library runtime is unchanged by release preparation. Earlier consumer snapshots,
 broader-corpus checks and all four 120-cycle authored memory budgets remain
 separate qualification evidence. Custom-corpus lifecycle checks disable those
 fixed budgets.

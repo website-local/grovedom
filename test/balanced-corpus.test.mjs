@@ -7,13 +7,13 @@ import { balancedFixture } from '../bench/balanced-fixtures.mjs';
 import { replayCorpus } from '../bench/corpus-workload.mjs';
 import { checkLinks } from './fuzz/execute.mjs';
 
-for (let ordinal = 0; ordinal < 48; ordinal++) {
+for (const execution of ['buffered', 'direct']) for (let ordinal = 0; ordinal < 48; ordinal++) {
   const item = balancedFixture(ordinal);
   if (item.malformed && item.mode !== 'html') {
-    test(`${item.id}: malformed input preserves lifecycle safety`, () => {
+    test(`${item.id}, ${execution}: malformed input preserves lifecycle safety`, () => {
       let $;
       try {
-        try { $ = load(item.source, { xml: true }); }
+        try { $ = load(item.source, { xml: true, execution }); }
         catch (error) { assert(error instanceof Error); }
         if ($) checkLinks([$.root()[0]]);
       } finally { $?.dispose(); }
@@ -21,8 +21,8 @@ for (let ordinal = 0; ordinal < 48; ordinal++) {
       assert.equal(kernel.stats().liveBytes, 0);
     });
   } else {
-    test(`${item.id}: queries, snapshots, callbacks and edits match Cheerio`, () => {
-      assert.deepEqual(replayCorpus(load, item), replayCorpus(cheerio, item));
+    test(`${item.id}, ${execution}: queries, snapshots, callbacks and edits match Cheerio`, () => {
+      assert.deepEqual(replayCorpus(load, item, { execution }), replayCorpus(cheerio, item, { execution }));
       assert.equal(kernel.stats().liveDocuments, 0);
       assert.equal(kernel.stats().liveBytes, 0);
     });
