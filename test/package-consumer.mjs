@@ -14,7 +14,7 @@ const entries = [['grovedom', node], ['grovedom/browser', browser]];
 if (target === 'both') entries.push(['grovedom-native', await import('grovedom-native')]);
 for (const [name, api] of entries) {
   assert.deepEqual(Object.keys(api).sort(), ['contains', 'init', 'load', 'merge']);
-  assert.equal(checkPackage(api), 14, name);
+  assert.equal(checkPackage(api), 22, name);
 }
 // Independently initialized entries must reject handles from other entries.
 const owners = entries.map(([, api]) => api.load('<p>owned</p>'));
@@ -31,7 +31,7 @@ try {
     worker.once('error', error => { clearTimeout(timer); reject(error); });
     worker.once('exit', code => {
       clearTimeout(timer);
-      if (code || result !== 14) reject(new Error(`Installed worker ${name}: exit=${code}, cases=${result}`));
+      if (code || result !== 22) reject(new Error(`Installed worker ${name}: exit=${code}, cases=${result}`));
       else resolve();
     });
   }))));

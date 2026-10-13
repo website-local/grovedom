@@ -6,6 +6,8 @@ const explicitReady: Promise<void> = initExplicit({ wasm: new ArrayBuffer(0) });
 const predicate: FilterFunction<NodeHandle> = function (_index, node) { return this === node; };
 const $ = load(new Uint8Array());
 const text: string = $('p').filter(predicate).text();
+const flat: { values: (1 | null)[] } = $.extract({ values: [{ selector: 'p', value: () => [1, null] as const }] });
+const nested: { values: number[][] } = $.extract({ values: [{ selector: 'p', value: () => [[1]] }] });
 $.dispose();
 // @ts-expect-error The browser condition exposes asynchronous initialization.
 const synchronous: void = init();

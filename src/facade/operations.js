@@ -87,6 +87,11 @@ export function createOperations(kernel) {
         }
         return kernel.read(state.owner, operation, nodes, name);
     }
+    function escaped(selector, index) {
+        let start = index;
+        while (start > 0 && selector[start - 1] === '\\') start--;
+        return (index - start) % 2 !== 0;
+    }
     function query(state, selector, roots, match = false) {
         if (typeof selector !== 'string')
             unsupported('Only string CSS selectors are supported here.');
@@ -96,7 +101,9 @@ export function createOperations(kernel) {
         if (selector.includes(':')) {
             const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
             const suffix = positional.exec(selector);
-            if (suffix) {
+            if (suffix && !escaped(selector, suffix.index)) {
+                if (selectorBoundary(selector, ',') < selector.length)
+                    unsupported('Positional selector lists are not supported.');
                 const filters = [suffix];
                 let end = suffix.index;
                 // Consume each suffix once, backwards. Recursing over the full
@@ -104,7 +111,7 @@ export function createOperations(kernel) {
                 // JS stack on long, otherwise valid positional chains.
                 while (end) {
                     const colon = selector.lastIndexOf(':', end - 1);
-                    if (colon < 0) break;
+                    if (colon < 0 || escaped(selector, colon)) break;
                     const next = positional.exec(selector.slice(colon, end));
                     if (!next) break;
                     filters.push(next);

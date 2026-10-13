@@ -85,8 +85,10 @@ satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
 node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
 
-Trailing positional chains are supported, with some negative-index behavior
-remaining best-effort. For example, GroveDOM's `filter(':lt(-1)')` excludes the
+Trailing positional chains are supported; escaped colons in identifiers remain
+literal. Positional selector lists such as `p, p:first` are unsupported and fail
+explicitly, instead of applying the final filter to the entire union. Some
+negative-index behavior remains best-effort. For example, GroveDOM's `filter(':lt(-1)')` excludes the
 last element, while the current Cheerio reference retains the whole selection.
 The regex hardening preserves this existing distinction.
 
@@ -97,9 +99,25 @@ Cheerio, including differences from browser CSS. Select parsing uses targeted
 parse5-compatible insertion modes; other parser-version recovery is best-effort.
 Clones share a hidden container but keep consistent native prev/next links,
 unlike Cheerio's cloned-root links. First-child tests on multiple cloned roots
-can therefore differ. Fragment `:root` follows Cheerio. HTML callbacks and
-whole-class toggles remain GroveDOM conveniences; form array setters now follow
-the covered Cheerio behavior. See the audit for exact limits.
+can therefore differ. Existing-node `replaceWith` moves the same nodes through
+multiple targets. Self-replacement keeps neighboring nodes intact; repeated
+references in insertion arrays retain one physical node. GroveDOM does not copy
+Cheerio's inconsistent links or neighboring-node deletion in those cases.
+Fragment `:root` follows Cheerio. HTML/value callbacks, whole-class toggles and
+derived property setters remain GroveDOM conveniences. Raw NodeHandle property
+getters on text/comments are also an extension. Declared relation aliases return
+the same node identities as the handles. Direct property writes to read-only
+node types/relations fail explicitly; unrestricted domhandler writes remain
+unsupported.
+
+Property and CSS maps apply keys separately to each element, preserving getter
+and callback observations. Ordinary property callback results stringify even when
+null or undefined; boolean properties keep presence semantics. Ordinary value
+setters dispatch from the first selected node, and XML empty `multiple=""` uses
+Cheerio's falsey getter behavior. Array extraction flattens callback arrays once,
+preserves their null/undefined entries and omits scalar null/undefined results.
+The TypeScript inference reflects this correction from 0.1.0. See the
+[changelog](../CHANGELOG.md) for observable fixes and the audit for exact limits.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

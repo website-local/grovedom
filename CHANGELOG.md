@@ -2,11 +2,12 @@
 
 ## 0.1.1 (unreleased)
 
-**Non-breaking patch for the supported 0.1.0 API.** Import paths, exported
-functions, TypeScript signatures, initialization options, Node requirements,
-platform support and document ownership rules are unchanged. No application
-migration is required for that contract. Deliberate incompatible changes during
-0.1 development will use 0.2.0 rather than a patch version.
+**Compatibility bug-fix release for the documented 0.1.0 surface.** Import paths,
+exported functions, initialization options, Node requirements, platform support
+and document ownership rules are unchanged. Corrected results and extraction
+type inference can require adjustments in code that relied on earlier bugs;
+the changes are listed below. Deliberate incompatible API changes during 0.1
+development will use 0.2.0 rather than a patch version.
 
 ### Fixes
 
@@ -17,16 +18,32 @@ migration is required for that contract. Deliberate incompatible changes during
   documented Cheerio behavior.
 - Keep double quotes escaped in raw XML attributes and avoid excessive rescanning
   or stack growth in long positional selector chains.
+- Preserve property/CSS map observations in element/key order, raw property
+  callback values, node-based `find().end()` context and existing-node identity
+  across multiple `replaceWith` targets.
+- Implement the declared property relation aliases and reject direct writes to
+  read-only node types/relations instead of silently creating attributes.
+- Flatten array-extraction callback results by one level, including inherited
+  enumerable descriptors; correct the corresponding TypeScript result inference.
+- Align ordinary form-value setters and XML `multiple` truthiness with Cheerio;
+  distinguish escaped identifier colons from positional filters and explicitly
+  reject unsupported positional selector lists.
 - Verify tarball bytes, versions and commit identity before offline installation
   tests; exercise the installed public APIs, XML, callbacks, disposal and workers.
+- Check older Pages releases with their tagged test fixtures, keeping historical
+  expectations separate from corrections in newer packages.
 - Reject invalid benchmark timings and ambiguous case lists; add deterministic
   workload, lifecycle, direct-mode corpus and comparison-statistics regressions.
 
 These fixes can change results that depended on earlier bugs. In particular,
-attribute callbacks returning undefined now store the string "undefined" like
-Cheerio; data attributes are cached per requested key, and explicit data keys
-retain their spelling. Raw XML attributes escape quotes even when entity encoding
-is disabled. See the
+attribute and ordinary property callbacks returning undefined now store the string
+"undefined" like Cheerio; ordinary null properties stringify to "null". Data
+attributes are cached per requested key, and explicit data keys retain their
+spelling. Array extraction turns a callback result `[1, 2]` into two list entries
+instead of one nested array; null/undefined inside returned arrays are retained,
+while scalar null/undefined results are omitted. Its inferred list type follows
+that behavior. Raw XML attributes escape quotes even when entity encoding is
+disabled. See the
 [compatibility guide](docs/compatibility.md) for remaining differences.
 
 ### Performance

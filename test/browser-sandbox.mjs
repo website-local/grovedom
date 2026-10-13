@@ -1,11 +1,16 @@
 // Run with --experimental-vm-modules. This validates the portable ESM graph,
 // not a claim of testing a separate browser engine.
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { SourceTextModule, createContext } from 'node:vm';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 // Optional packaged input validates the exact files assembled for Pages.
 const packageRoot = process.argv[2] && resolve(process.argv[2]);
+// An older Pages release must use its own fixed expectations and regressions.
+assert(!process.argv[3] || packageRoot, 'A historical test directory requires a packaged input');
+const suiteURL = process.argv[3] ? pathToFileURL(resolve(process.argv[3], 'browser-sandbox.mjs')) : import.meta.url;
 const packageURL = 'https://example.test/grovedom/grovedom/';
 const fetched = [];
 async function readResource(url) {
@@ -51,18 +56,26 @@ try {
   assert.equal($('p').text(), '\ufeffupdated');
   assert.equal($('a').length, 1);
 } finally { $.dispose(); }
+
 console.log(`Portable browser module graph passed without Node globals (${modules.size} ESM modules).`);
 
-const conformance = await moduleFor(new URL('./web-platform/browser-runner.mjs', import.meta.url).href);
+const releaseContract = new URL('./browser-release-contract.mjs', suiteURL);
+if (existsSync(releaseContract)) {
+  const { checkBrowserRelease } = await import(releaseContract.href);
+  checkBrowserRelease(entry.namespace);
+} else assert(process.argv[3], 'The current release contract must be present');
+
+const conformance = await moduleFor(new URL('./web-platform/browser-runner.mjs', suiteURL).href);
 await conformance.evaluate();
-const fixture = await readFile(new URL('./web-platform/selectors.html', import.meta.url), 'utf8');
-const readData = async name => JSON.parse(await readFile(new URL('./web-platform/' + name, import.meta.url), 'utf8'));
+const fixture = await readFile(new URL('./web-platform/selectors.html', suiteURL), 'utf8');
+const readData = async name => JSON.parse(await readFile(new URL('./web-platform/' + name, suiteURL), 'utf8'));
 const failures = [];
+const selectors = await readData('selectors.json'), escapes = await readData('escapes.json');
 const counts = conformance.namespace.runBrowserCases(entry.namespace.load, fixture,
-  await readData('selectors.json'), await readData('escapes.json'), result => {
+  selectors, escapes, result => {
     if (result.status === 'fail') failures.push(result);
   });
 assert.deepEqual(failures, []);
 assert(counts.pass > 800, 'The browser standards suite must actually execute.');
-assert.equal(counts.todo, 0);
+assert.equal(counts.todo, escapes.filter(row => row.todo && !row.skip).length);
 console.log('Portable browser correctness: ' + JSON.stringify(counts));

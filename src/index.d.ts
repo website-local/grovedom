@@ -52,7 +52,8 @@ export type ClassValue = string | string[];
 export interface ExtractDescriptor { selector: string; value?: string | ExtractMap | ((node: NodeHandle, key: string, values: Record<string, unknown>) => unknown); }
 export type ExtractValue = string | ExtractDescriptor | [string | ExtractDescriptor];
 export interface ExtractMap { [key: string]: ExtractValue; }
-type Extracted<V> = V extends [infer E] ? NonNullable<Extracted<E>>[] : V extends string ? string | undefined : V extends { value: infer R } ? R extends (...args: never[]) => infer T ? T | undefined : R extends ExtractMap ? ExtractedMap<R> | undefined : unknown : string | undefined;
+type ExtractedListItem<T> = T extends readonly unknown[] ? T[number] : NonNullable<T>;
+type Extracted<V> = V extends [infer E] ? ExtractedListItem<Extracted<E>>[] : V extends string ? string | undefined : V extends { value: infer R } ? R extends (...args: never[]) => infer T ? T | undefined : R extends ExtractMap ? ExtractedMap<R> | undefined : unknown : string | undefined;
 export type ExtractedMap<M extends ExtractMap> = { [K in keyof M]: Extracted<M[K]> };
 
 export interface MappedCollection<T> extends Iterable<T> {

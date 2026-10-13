@@ -66,12 +66,13 @@ Published **0.1.0** remains immutable. Both source manifests and the root lockfi
 now target **0.1.1** for the next release; that version is not yet published.
 Future releases require updating all three files together.
 
-The next release is a **non-breaking 0.1.1 patch**. Public exports, declarations,
-initialization, runtime requirements and ownership rules match 0.1.0; observable
-differences correct documented behavior. The [changelog](../CHANGELOG.md) lists
-those corrections and the performance limits. During 0.1 development, deliberate
-incompatible API changes require 0.2.0. Release preflight requires a nonempty,
-unique changelog entry matching the committed version.
+The next release is a **0.1.1 compatibility bug-fix patch**. Public exports,
+initialization, runtime requirements and ownership rules match 0.1.0. Observable
+corrections include array extraction and its TypeScript result inference; code
+that relied on those earlier results may need adjustment. The
+[changelog](../CHANGELOG.md) lists the corrections and performance limits. During
+0.1 development, deliberate incompatible API changes require 0.2.0. Release
+preflight requires a nonempty, unique changelog entry matching the committed version.
 
 Offline installation checks verify hashes, package versions and the source commit
 before invoking npm. The installed Node, browser and native entries then run the
@@ -187,6 +188,9 @@ repository's `/grovedom/` path and custom domains. Only the demo and Wasm packag
 are uploaded, including their licenses. No compiler, npm install, native rebuild
 or benchmark runs in this workflow. Normal/fallback portable checks exercise the
 packaged browser graph before deployment; actual browser engines remain best-effort.
+These checks load the selected tag's test fixtures and any release-specific
+portable regressions, so an older release is checked against its own documented
+expectations. Resolved historical expected failures still require review.
 
 Deployments are serialized without cancelling an active deployment. The selected
 release replaces the site, so manual selection of an older tag intentionally

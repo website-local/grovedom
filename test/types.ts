@@ -31,6 +31,10 @@ const names: (string | undefined)[] = $('p').map((i, node) => node.name).get();
 $('p').map((i, node) => node).attr('title', 'mapped');
 const extracted: { labels: string[] } = $.extract({ labels: ['p'] });
 const scores: { scores: number[] } = $.extract({ scores: [{ selector: 'p', value: node => $(node).text().length }] });
+const flatValues: { values: (number | null | undefined)[] } = $.extract({ values: [{ selector: 'p', value: () => [1, null, undefined] }] });
+const nestedValues: { values: number[][] } = $.extract({ values: [{ selector: 'p', value: () => [[1]] }] });
+const singleArray: { values: number[] | undefined } = $.extract({ values: { selector: 'p', value: () => [1] } });
+const tupleValues: { values: (1 | null)[] } = $.extract({ values: [{ selector: 'p', value: () => [1, null] as const }] });
 $('input').val('x').data('saved', true).css('color', 'red');
 // @ts-expect-error Handles are not mutable domhandler trees.
 if (first) first.parent = null;

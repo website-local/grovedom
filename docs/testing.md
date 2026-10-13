@@ -21,31 +21,37 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 release preparation passes the **1,975-case suite** on the selected
-runtime, including XML attribute-selector, package-contract, benchmark,
-release-policy and fuzz-scheduling regressions:
+The 0.1.1 release review passes the **2,061-case suite** on the selected runtime,
+including 86 additional source/package cases for callback order, extraction,
+replacement identity, property aliases, forms and selector guards:
 
 | Backend | Node versions | Pass / exclusions |
 |---|---|---:|
-| Native | 22, 24 | 1,916 /59 |
-| Pooled Wasm | 22, 24 | 1,924 /51 |
-| Global Wasm | 22 | 1,920 /55 |
-| Per-document Wasm | 22 | 1,921 /54 |
+| Native | 22, 24 | 2,002 /59 |
+| Pooled Wasm | 22, 24 | 2,010 /51 |
+| Global Wasm | 22 | 2,006 /55 |
+| Per-document Wasm | 22 | 2,007 /54 |
 
-Native ASan/UBSan with leak detection passes the same suite without findings.
-Types, offline package installations on Node 22/24, 200 seeded cases each on
-native/pool and 64 sanitizer fuzz cases also pass. Portable browser normal and
-fallback checks each pass 810 cases with 35 exclusions. Local checks do not cover
-exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md) remains
-required before publication. Actual browser-engine testing remains pending.
+Fresh native/Wasm builds and the rebuilt native ASan/UBSan binary pass their
+applicable checks, with leak detection and no sanitizer findings. Owned-buffer
+failure recovery, types, offline package installations on Node 22/24, 1,000 seeded
+cases each on native/pool and 64 sanitizer fuzz cases also pass. All four authored
+120-cycle memory budgets pass separately from custom-corpus diagnostics.
+Portable browser normal/fallback checks each pass 810 cases with 35 exclusions,
+plus the release corrections in HTML/XML and buffered/direct modes. Local checks
+do not cover exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md)
+remains required before publication. Actual browser-engine testing remains pending.
 
-Installed Node, browser and native packages share fourteen public-contract checks
+Installed Node, browser and native packages share twenty-two public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
 large transfers, snapshots, data keys and disposal. Separate checks cover entry
 ownership and concurrent caller-managed workers. The eight stable checks also
-pass against each actual 0.1.0 entry; exports, declarations, initialization and
-package requirements match that release. Corrected bug behavior is listed in the
-[changelog](../CHANGELOG.md).
+pass against each actual 0.1.0 entry on Node 22/24; all 63 extracted package files
+match the hashed original tarballs. Exports, initialization and package requirements
+match that release. Extraction result inference and other corrected behavior are
+listed in the [changelog](../CHANGELOG.md). The original 1,611-case DOM-suite
+replay and its nine classified expectation changes are recorded in the
+[source audit](source-audit.md#comparison-with-published-010).
 
 The four shared HTML/XML/SVG benchmark workloads and dense/sparse selector cases
 also run in buffered/direct modes, checking exact outputs, repeated disposal and
@@ -54,10 +60,9 @@ tests cover ratio direction, control handling, whole-block filtering, interrupte
 blocks, invalid measurements and cleanup after output changes or exceptions;
 unit tests impose no elapsed-time or speedup threshold.
 
-The library runtime is unchanged by release preparation. Earlier consumer snapshots,
-broader-corpus checks and all four 120-cycle authored memory budgets remain
-separate qualification evidence. Custom-corpus lifecycle checks disable those
-fixed budgets.
+The release review changes the runtime paths listed in the source audit. Earlier
+consumer snapshots and broader-corpus checks remain separate qualification
+evidence. Custom-corpus lifecycle checks disable the authored memory budgets.
 
 Saved-input checks cover 174 inputs. All 193 pipeline cases match each preserved
 installed/development consumer snapshot on native/Wasm; these historical snapshots
@@ -90,6 +95,12 @@ GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.
 These checks run under Node without Node globals in the browser module context.
 They do not establish Chromium, Firefox or WebKit support; those remain
 best-effort until the page is executed in actual engines.
+
+For a historical Pages package, the optional arguments are `PACKAGE_ROOT TEST_ROOT`.
+The workflow supplies the selected release's `test` directory, preserving its
+own fixtures and known-failure guards. Published 0.1.0 reproduces 814 passes,
+32 exclusions and two documented expected failures; applying today's fixtures
+to that older binary would misclassify its known Unicode limitation.
 
 ## Additional checks
 

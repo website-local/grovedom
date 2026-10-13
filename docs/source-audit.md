@@ -77,6 +77,36 @@ serialization. One reference-only selector error remains outside comparisons.
 A separate 588-case select recovery probe matches Cheerio on both backends.
 These are diagnostic comparisons, not distinct defect counts or full coverage.
 
+## Comparison with published 0.1.0
+
+The release review also compares the actual 0.1.0 packages with Cheerio 1.2.0 and
+the candidate. [Release regressions](../test/release-parity.test.mjs) cover HTML/XML
+and buffered/direct execution, with installed-package and portable-entry checks.
+
+| Area | Corrected behavior |
+|---|---|
+| Node-input `find` | `end()` returns the searching selection |
+| Properties | Element-only callbacks keep original indices; ordinary values stringify; tag-name and URL callbacks read stored values |
+| Raw relation properties | Declared `firstChild`/`lastChild`/sibling aliases return node identities; read-only type/relation writes fail explicitly |
+| Property/CSS maps | Getter, callback and partial-effect order is per element, then per key; CSS map callbacks receive key indices |
+| Extraction | Inherited enumerable descriptors participate; array callback results flatten one level with corresponding type inference |
+| Existing-node replacement | Reuse the supplied node identity through multiple targets without implicit clones |
+| Forms | Ordinary setters dispatch from the first node; null input values and XML empty `multiple` follow Cheerio |
+| Positional suffixes | Escaped colons remain identifiers; unsupported selector lists fail explicitly |
+
+The 30 targeted diagnostic scenarios improve from 13 to 27 exact matches. All
+newly corrected differences were also present in published 0.1.0. The three
+remaining scenarios concern raw property getters on mixed nodes, duplicate
+physical insertion references and unsupported positional lists. These scenarios
+are additional checks, not a complete compatibility measure.
+
+Replaying the original 0.1.0 DOM tests against the candidate runs 1,611 cases per
+backend. Nine old assertions differ: one jQuery whitespace case and six WPT
+contexts now intentionally follow Cheerio, and two old expected-failure guards
+detect Unicode identifiers that have been fixed. The original assertions and
+results were retained; the current suite makes the seven policy exclusions
+explicit and tests the corrected behavior separately.
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across
@@ -89,6 +119,9 @@ operators, flags and document modes; they are not independent defect counts.
 | Literal NBSP identifier | css-what rejects that spelling | Accepted as a WPT extension; escaped spellings work in both |
 | `.html(callback)`, `.toggleClass()` / boolean argument | Not equivalent callback/toggle operations in Cheerio 1.2.0 | Retained GroveDOM conveniences; avoid for exact parity |
 | Raw attribute snapshot prototype | domhandler null-prototype object | GroveDOM ordinary-object snapshot; stored values/serialization match |
+| Self-replacement and repeated insertion references | Can delete a preceding neighbor or duplicate one physical node in child arrays | Preserves unaffected neighbors, one physical node and reciprocal links |
+| Generic raw properties on text/comments | Ordinary property getter is element-only | Existing NodeHandle fields remain readable as a GroveDOM extension |
+| Derived property setters and `.val(callback)` | Not equivalent DOM setter/callback operations | Retained GroveDOM conveniences; arbitrary domhandler tree writes are unsupported |
 
 Parser recovery beyond the targeted select modes and the other documented
 unsupported APIs remain best-effort. These changes do not claim complete

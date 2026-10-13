@@ -1,8 +1,37 @@
 import { alive, unsupported, empty, boolAttributes } from './common.js';
 import { parseStyle } from './style.js';
+const readOnlyProperties = new Set(['type', 'nodeType', 'children', 'childNodes', 'parent', 'parentNode',
+    'next', 'prev', 'nextSibling', 'previousSibling', 'firstChild', 'lastChild']);
+const rawProperties = new Set(['name', 'data', 'attribs', ...readOnlyProperties]);
 // Methods keep private branding and selection snapshots. Helpers are bound once.
 export function createSelection(context) {
     const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
+    function setProperty(source, name, value) {
+        const { state, ids } = entry(source);
+        if (name === 'namespace')
+            unsupported('Changing node namespaces is not supported.');
+        if (readOnlyProperties.has(name))
+            unsupported('Direct changes to node types or relations are not supported; use DOM mutation methods.');
+        if (name === 'attribs')
+            return source.each(function () { const one = state.api(this); one.removeAttr(Object.keys(one.attr() ?? {}).join(' ')); if (value) one.attr(value); });
+        if (name === 'tagName' || name === 'nodeName' || name === 'name') {
+            edit(state, 11, ids, empty, String(value));
+            return source;
+        }
+        if (name === 'innerHTML') return source.html(value);
+        if (name === 'textContent' || name === 'innerText') return source.text(value);
+        // Ordinary properties use string values, including null/undefined from
+        // callbacks. Boolean properties retain presence semantics.
+        return source.attr(name, !state.xml && boolAttributes.has(name.toLowerCase()) ? value ? '' : null
+            : value == null || typeof value === 'function' ? String(value) : value);
+    }
+    function setStyle(state, node, name, value, index) {
+        const one = state.api(node), style = parseStyle(one.attr('style'));
+        const next = typeof value === 'function' ? value.call(node, index, style[name]) : value;
+        if (next === '') delete style[name];
+        else if (next != null) style[name] = String(next);
+        one.attr('style', Object.entries(style).map(([key, val]) => `${key}: ${val};`).join(' '));
+    }
     class Selection {
         #state;
         constructor(state) { this.#state = state; }
@@ -52,7 +81,9 @@ export function createSelection(context) {
                 return selection(state, empty, this);
             if (typeof selector !== 'string') {
                 const roots = this.toArray();
-                return state.api(selector).filter((i, node) => roots.some(root => state.api.contains(root, node)));
+                const result = state.api(selector).filter((i, node) => roots.some(root => state.api.contains(root, node)));
+                entry(result).previous = this;
+                return result;
             }
             return selection(state, query(state, selector, ids), this);
         }
@@ -323,27 +354,26 @@ export function createSelection(context) {
         prop(name, value) {
             const { state, ids } = entry(this);
             if (name && typeof name === 'object') {
-                for (const [key, val] of Object.entries(name))
-                    this.prop(key, val);
-                return this;
+                return this.each(function () {
+                    if (this.nodeType !== 1) return;
+                    const one = state.api(this);
+                    for (const key of Object.keys(name)) setProperty(one, key, name[key]);
+                });
             }
             if (value !== undefined) {
                 if (typeof value === 'function')
-                    return this.each(function (i, node) { const one = state.api(node); one.prop(name, value.call(node, i, one.prop(name))); });
-                if (name === 'namespace')
-                    unsupported('Changing node namespaces is not supported.');
-                if (name === 'attribs')
-                    return this.each(function () { const one = state.api(this); one.removeAttr(Object.keys(one.attr() ?? {}).join(' ')); if (value)
-                        one.attr(value); });
-                if (name === 'tagName' || name === 'nodeName' || name === 'name') {
-                    edit(state, 11, ids, empty, String(value));
-                    return this;
-                }
-                if (name === 'innerHTML')
-                    return this.html(value);
-                if (name === 'textContent' || name === 'innerText')
-                    return this.text(value);
-                return this.attr(name, !state.xml && boolAttributes.has(name.toLowerCase()) ? value ? '' : null : value);
+                    return this.each(function (i, node) {
+                        if (node.nodeType !== 1) return;
+                        const one = state.api(node);
+                        // Cheerio callbacks read raw properties/attributes, not
+                        // formatted tag names, resolved URLs or parsed styles.
+                        // GroveDOM's derived setters retain their callback values.
+                        const old = name === 'tagName' ? node.name
+                            : rawProperties.has(name) || ['nodeName', 'innerHTML', 'textContent', 'innerText'].includes(name)
+                                || (!state.xml && boolAttributes.has(name.toLowerCase())) ? one.prop(name) : one.attr(name);
+                        setProperty(one, name, value.call(node, i, old));
+                    });
+                return setProperty(this, name, value);
             }
             if (!ids.length || typeof name !== 'string')
                 return undefined;
@@ -364,7 +394,7 @@ export function createSelection(context) {
             }
             if (!state.xml && boolAttributes.has(name.toLowerCase()))
                 return this.attr(name) !== undefined;
-            if (['name', 'type', 'children', 'childNodes', 'parent', 'parentNode', 'next', 'prev', 'data', 'attribs', 'nodeType'].includes(name))
+            if (rawProperties.has(name))
                 return this[0][name];
             const result = this.attr(name);
             if (result !== undefined && (name === 'href' || name === 'src') && state.baseURI) {
@@ -380,13 +410,15 @@ export function createSelection(context) {
         }
         css(name, value) {
             const { state } = entry(this);
+            if (name && typeof name === 'object' && !Array.isArray(name)) {
+                return this.each(function () {
+                    if (this.nodeType !== 1) return;
+                    const keys = Object.keys(name);
+                    for (let i = 0; i < keys.length; i++) setStyle(state, this, keys[i], name[keys[i]], i);
+                });
+            }
             if (!this.length)
                 return value === undefined ? undefined : this;
-            if (name && typeof name === 'object' && !Array.isArray(name)) {
-                for (const [key, val] of Object.entries(name))
-                    this.css(key, val);
-                return this;
-            }
             if (value === undefined) {
                 if (this[0].nodeType !== 1) return undefined;
                 const style = parseStyle(this.attr('style'));
@@ -394,13 +426,7 @@ export function createSelection(context) {
             }
             return this.each(function (i, node) {
                 if (node.nodeType !== 1) return;
-                const one = state.api(node), style = parseStyle(one.attr('style'));
-                const next = typeof value === 'function' ? value.call(node, i, style[name]) : value;
-                if (next === '')
-                    delete style[name];
-                else if (next != null)
-                    style[name] = String(next);
-                one.attr('style', Object.entries(style).map(([key, val]) => `${key}: ${val};`).join(' '));
+                setStyle(state, node, name, value, i);
             });
         }
         data(name, value) { return data(this, name, value); }
@@ -415,24 +441,24 @@ export function createSelection(context) {
                     return one.text();
                 if (name === 'select') {
                     const selected = one.find('option:selected');
-                    if (one.attr('multiple') !== undefined)
+                    if (one.attr('multiple'))
                         return selected.map(function () { return state.api(this).text(); }).get();
                     return selected.attr('value');
                 }
                 return ['input', 'button', 'option'].includes(name) ? one.attr('value') : undefined;
             }
-            return this.each(function (i, node) {
-                const one = state.api(node), next = typeof value === 'function' ? value.call(node, i, one.val()) : value;
-                if (node.name === 'textarea')
-                    one.text(next == null ? '' : next);
-                else if (node.name === 'select') {
-                    if (Array.isArray(next) && one.attr('multiple') === undefined) return;
-                    const values = (Array.isArray(next) ? next : [next]).map(String);
-                    one.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
-                }
-                else
-                    one.attr('value', next == null ? '' : String(next));
-            });
+            if (typeof value === 'function')
+                return this.each(function (i, node) { const one = state.api(node); one.val(value.call(node, i, one.val())); });
+            if (!this.length || this[0].nodeType !== 1) return this;
+            const name = this[0].name;
+            if (name === 'textarea') return this.text(value);
+            if (name === 'select') {
+                if (Array.isArray(value) && this.attr('multiple') === undefined) return this;
+                const values = (Array.isArray(value) ? value : [value]).map(String);
+                this.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
+                return this;
+            }
+            return ['input', 'button', 'option'].includes(name) ? this.attr('value', value) : undefined;
         }
         serializeArray() {
             const { state } = entry(this), fields = [], result = [];
@@ -450,15 +476,19 @@ export function createSelection(context) {
         serialize() { return this.serializeArray().map(({ name, value }) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`).join('&').replace(/%20/g, '+'); }
         extract(map) {
             const { state } = entry(this), result = {};
-            for (const [key, item] of Object.entries(map)) {
+            for (const key in map) {
+                const item = map[key];
                 const array = Array.isArray(item), descriptor = array ? item[0] : item;
                 const config = typeof descriptor === 'string' ? { selector: descriptor, value: 'textContent' } : descriptor;
                 const selected = this.find(config.selector), output = [];
                 (array ? selected : selected.first()).each(function (i, node) {
                     const value = config.value ?? 'textContent';
-                    output.push(typeof value === 'function' ? value(node, key, result) : typeof value === 'object' ? state.api(node).extract(value) : state.api(node).prop(value));
+                    const extracted = typeof value === 'function' ? value(node, key, result) : typeof value === 'object' ? state.api(node).extract(value) : state.api(node).prop(value);
+                    if (array && Array.isArray(extracted)) {
+                        for (const item of extracted) output.push(item);
+                    } else if (!array || extracted != null) output.push(extracted);
                 });
-                result[key] = array ? output.filter(value => value != null) : output[0];
+                result[key] = array ? output : output[0];
             }
             return result;
         }

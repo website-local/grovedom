@@ -21,6 +21,9 @@ for (const open of [load, loadNative, loadBrowser]) {
   const text: string = $(selector).filter(predicate).text();
   const html: string = $.html(serialization);
   const combined: ArrayLike<number> | undefined = $.merge({ 0: 1, length: 1 }, [2]);
+  const flat: { values: (number | null | undefined)[] } = $.extract({ values: [{ selector: 'p', value: () => [1, null, undefined] }] });
+  const nested: { values: number[][] } = $.extract({ values: [{ selector: 'p', value: () => [[1]] }] });
+  const single: { values: number[] | undefined } = $.extract({ values: { selector: 'p', value: () => [1] } });
   $.dispose();
 }
 const combined: ArrayLike<number> | undefined = merge([1], [2]);

@@ -152,6 +152,91 @@ export const packageCases = [
       } finally { $.dispose(); }
     },
   },
+  {
+    name: 'property and style maps preserve element/key observations', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<main>text<p title="a"></p><!--gap--><p title="b"></p></main>', { execution }, false);
+      try {
+        const seen = [], selected = $('p');
+        $('main').contents().prop('title', function (i, old) { seen.push([i, old]); return undefined; });
+        assert.deepEqual(seen, [[1, 'a'], [3, 'b']]);
+        assert.deepEqual(selected.get().map(node => node.attribs.title), ['undefined', 'undefined']);
+        seen.length = 0;
+        selected.prop({
+          get title() { seen.push(selected.get().map(node => node.attribs.title)); return null; },
+          get lang() { seen.push(selected.get().map(node => node.attribs.title)); return 'en'; },
+        });
+        assert.deepEqual(seen, [['undefined', 'undefined'], ['null', 'undefined'], ['null', 'undefined'], ['null', 'null']]);
+        seen.length = 0;
+        selected.css({
+          color(i, old) { seen.push([i, old, this === selected[0]]); return 'red'; },
+          display(i, old) { seen.push([i, old, this === selected[0]]); return 'block'; },
+        });
+        assert.deepEqual(seen, [[0, undefined, true], [1, undefined, true], [0, undefined, false], [1, undefined, false]]);
+        assert.equal(selected.last().attr('style'), 'color: red; display: block;');
+        const missing = $('missing');
+        assert.equal(missing.css({ color: 'red' }), missing);
+      } finally { $.dispose(); }
+    },
+  },
+  {
+    name: 'extraction arrays, node find context and escaped identifiers', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<main><p id="item:first">A</p><p>B</p></main>', { execution }, false);
+      try {
+        const roots = $('main'), selected = $('p');
+        assert.equal(roots.find(selected).end(), roots);
+        assert.equal($('#item\\:first:first')[0], selected[0]);
+        assert.throws(() => $('main, p:first'), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+        const descriptor = Object.assign(Object.create({ first: 'p' }), {
+          values: [{ selector: 'p', value: node => [$(node).text(), [1], null, undefined] }],
+          omitted: [{ selector: 'p', value: () => undefined }],
+        });
+        assert.deepEqual($.extract(descriptor), { values: ['A', [1], null, undefined, 'B', [1], null, undefined], omitted: [], first: 'A' });
+      } finally { $.dispose(); }
+    },
+  },
+  {
+    name: 'existing-node replacement preserves one physical identity', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<main>text<p>A</p><p>B</p></main>', { execution }, false);
+      try {
+        const targets = $('p'), replacement = $('<i>new</i>'), text = $('main').contents()[0];
+        targets.replaceWith(replacement);
+        assert.deepEqual($('main').contents().get(), [text, replacement[0]]);
+        assert.equal(replacement[0].prev, text);
+        assert.equal(text.next, replacement[0]);
+        assert.equal(replacement.prop('previousSibling'), text);
+        assert.equal(replacement.prop('firstChild'), replacement[0].firstChild);
+        assert.throws(() => replacement.prop('parent', null), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+        assert.equal(replacement.attr('parent'), undefined);
+        assert.equal(targets[0].parent, null);
+        assert.equal(targets[1].parent, null);
+        assert.equal($.html(), '<main>text<i>new</i></main>');
+      } finally { $.dispose(); }
+    },
+  },
+  {
+    name: 'value setters use the first node and XML multiple truthiness', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<main>text<input value="old"/><textarea>old</textarea></main>' +
+        '<select multiple=""><option value="a" selected="">A</option><option value="b" selected="">B</option></select>', { xml: true, execution });
+      try {
+        const contents = $('main').contents();
+        assert.equal(contents.val('ignored'), contents);
+        assert.equal($('input').val(), 'old');
+        $('input,textarea').val('new');
+        assert.equal($('textarea').attr('value'), 'new');
+        assert.equal($('textarea').text(), 'old');
+        $('input').val(null);
+        assert.equal($('input').attr('value'), undefined);
+        assert.equal($('main').val('ignored'), undefined);
+        assert.equal($('select').val(), 'a');
+        $('select').attr('multiple', 'multiple');
+        assert.deepEqual($('select').val(), ['A', 'B']);
+      } finally { $.dispose(); }
+    },
+  },
 ];
 
 export function checkPackage(api, { corrected = true } = {}) {

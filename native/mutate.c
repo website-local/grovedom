@@ -166,7 +166,9 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
             if (operation <= 7 || operation >= 14) {
                 for (size_t j = 0; j < other_count; j++) {
                     lxb_dom_node_t *child = doc->nodes[other[j]].node;
-                    if (operation >= 14 || i + 1 < count) child = gd_clone(doc, child);
+                    /* replaceWith reuses supplied nodes at each destination;
+                     * ordinary multi-target insertion still clones them. */
+                    if (operation >= 14 || (operation != 7 && i + 1 < count)) child = gd_clone(doc, child);
                     if (!child || !gd_insert(doc, target, child, position, &anchor, collect)) goto failed;
                 }
                 if (operation == 7) {
