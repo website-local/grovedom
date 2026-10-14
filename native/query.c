@@ -7,11 +7,14 @@ static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
 
 static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index, int cross_fragments) {
     for (size_t i = 0; i < index; i++) if (ids[i] == ids[index]) return 1;
-    for (lxb_dom_node_t *parent = doc->nodes[ids[index]].node->parent; parent; parent = parent->parent) {
+    for (lxb_dom_node_t *child = doc->nodes[ids[index]].node, *parent = child->parent; parent; child = parent, parent = parent->parent) {
         /* An element-only find does not enter template contents. A containing
          * root beyond that boundary cannot cover an explicit root inside it. */
         if (!cross_fragments && parent->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) break;
-        for (size_t i = 0; i < count; i++) if (parent == doc->nodes[ids[i]].node) return 1;
+        /* find starts at element children. A template root has a fragment
+         * child, so it cannot cover an explicitly supplied inner context. */
+        if (child->type == LXB_DOM_NODE_TYPE_ELEMENT)
+            for (size_t i = 0; i < count; i++) if (parent == doc->nodes[ids[i]].node) return 1;
     }
     return 0;
 }
@@ -39,8 +42,8 @@ static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lx
 }
 
 static lxb_status_t gd_find_compatibility(gd_document *doc, lxb_dom_node_t *root, lxb_css_selector_list_t *plan, int cross_fragments) {
-    /* Cheerio queries start at element children. Only global/non-element
-     * scopes cross fragments; element-only scopes stop at those boundaries. */
+    /* Cheerio queries start at element children. Multiple scoped roots can
+     * authorize different sides of a fragment during the same preorder walk. */
     for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
         if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
         lxb_dom_node_t *node = start;
@@ -214,11 +217,12 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         lxb_dom_node_t *root = doc->nodes[ids[i]].node;
         scoped = root->type == LXB_DOM_NODE_TYPE_ELEMENT && root->parent && root->parent->type == LXB_DOM_NODE_TYPE_ELEMENT;
     }
+    int template_scopes = doc->templates && scoped && count > 1;
     doc->selector_context = (gd_selector_context) {0};
     lxb_css_selector_list_t *plan = NULL;
     lxb_tag_id_t simple_tag = 0;
     int possible;
-    if (gd_selector_plain_tag(doc->input.data, doc->input.length)) {
+    if (!template_scopes && gd_selector_plain_tag(doc->input.data, doc->input.length)) {
         if (doc->xml) {
             if (!gd_xml_tag_id(doc, doc->input.data, doc->input.length, &simple_tag)) return gd_failed();
         } else simple_tag = lxb_tag_id_by_name(doc->html->dom_document.tags, doc->input.data, doc->input.length);
@@ -227,7 +231,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         plan = gd_plan_get(doc);
         if (!plan) return gd_failed();
         doc->selector_custom = (doc->selector_flags & GD_SELECTOR_CUSTOM) || (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE)) ||
-            (scoped && (doc->selector_flags & GD_SELECTOR_ANCESTRY));
+            (scoped && (doc->selector_flags & GD_SELECTOR_ANCESTRY)) || template_scopes;
         if (doc->selector_custom) doc->selector_guard = NULL;
         possible = gd_selector_guard_prepare(doc, !match && count == 1 && ids[0] == 1);
         if (doc->error_code) return gd_failed();
@@ -235,10 +239,10 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     }
     gd_results_reset(doc);
     if (!possible) return gd_result_set(doc, match == GD_QUERY_ANY ? GD_NUMBER : GD_IDS, doc->results, 0, 0);
-    /* Cheerio omits its implicit scope when any context lacks an element
-     * parent. That search also traverses template contents, even for a mixed
-     * list of ordinary element and template-content roots. */
-    int cross_fragments = doc->templates && !match && !scoped;
+    /* Scoped template roots share one preorder traversal, but the custom
+     * matcher still requires an authorizing context inside each fragment.
+     * Unscoped queries traverse fragments without that ancestry restriction. */
+    int cross_fragments = doc->templates && !match && (!scoped || template_scopes);
     if (scoped) doc->selector_context = count == 1 ?
         (gd_selector_context) { .node = doc->nodes[ids[0]].node } : (gd_selector_context) { .ids = ids, .count = count };
     int indexed_roots = !match && count > 1 && !doc->templates && count <= UINT32_MAX;

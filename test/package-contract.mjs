@@ -237,6 +237,45 @@ export const packageCases = [
       } finally { $.dispose(); }
     },
   },
+  {
+    name: 'callback occurrences, extraction descriptors and form type case', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main><p>A</p><p>B</p><form><input name="upper" type="FILE" value="kept"/>' +
+          '<input name="lower" type="file" value="omitted"/></form></main>', { xml, execution });
+        try {
+          const selected = $('p'), repeated = $([selected[0], selected[0], selected[1]]);
+          const result = repeated.not(index => index === 0);
+          assert.deepEqual(result.get(), selected.get());
+          assert.equal(result.end(), repeated);
+          let reads = 0;
+          const values = $.extract({ items: [{
+            selector: 'p', get value() { reads++; return node => $(node).text(); },
+          }] });
+          assert.deepEqual(values, { items: ['A', 'B'] });
+          assert.equal(reads, 1);
+          $.extract({ missing: { selector: 'missing', get value() { reads++; return 'textContent'; } } });
+          assert.equal(reads, 2);
+          assert.deepEqual($('form').serializeArray(), xml ? [{ name: 'upper', value: 'kept' }] : []);
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'template scope unions preserve preorder and fragment parents', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<main><section id="outer"><template id="t"><div><section id="inner">' +
+        '<b id="inside"></b></section></div></template><b id="after"></b></section></main>', { execution });
+      try {
+        const outer = $('#outer')[0], inner = $('#inner')[0], template = $('#t')[0];
+        for (const contexts of [[outer, inner], [inner, outer, inner], [template, inner]]) {
+          const found = $(contexts).find('b').get().map(node => node.attribs.id);
+          assert.deepEqual(found, contexts[0] === template ? ['inside'] : ['inside', 'after']);
+        }
+        assert.equal(inner.parent.parent.parent, template);
+      } finally { $.dispose(); }
+    },
+  },
 ];
 
 export function checkPackage(api, { corrected = true } = {}) {

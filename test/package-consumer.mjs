@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { Worker } from 'node:worker_threads';
-import { checkPackage } from './package-contract.mjs';
+import { checkPackage, packageCases } from './package-contract.mjs';
 
 const target = process.argv[2];
 assert(['wasm', 'both'].includes(target));
+const expectedCases = packageCases.length * 2;
 const node = await import('grovedom');
 const browser = await import('grovedom/browser');
 assert.throws(() => browser.load('<p/>'), /Await/);
@@ -14,7 +15,7 @@ const entries = [['grovedom', node], ['grovedom/browser', browser]];
 if (target === 'both') entries.push(['grovedom-native', await import('grovedom-native')]);
 for (const [name, api] of entries) {
   assert.deepEqual(Object.keys(api).sort(), ['contains', 'init', 'load', 'merge']);
-  assert.equal(checkPackage(api), 22, name);
+  assert.equal(checkPackage(api), expectedCases, name);
 }
 // Independently initialized entries must reject handles from other entries.
 const owners = entries.map(([, api]) => api.load('<p>owned</p>'));
@@ -31,7 +32,7 @@ try {
     worker.once('error', error => { clearTimeout(timer); reject(error); });
     worker.once('exit', code => {
       clearTimeout(timer);
-      if (code || result !== 22) reject(new Error(`Installed worker ${name}: exit=${code}, cases=${result}`));
+      if (code || result !== expectedCases) reject(new Error(`Installed worker ${name}: exit=${code}, cases=${result}`));
       else resolve();
     });
   }))));

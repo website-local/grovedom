@@ -32,4 +32,26 @@ for (const execution of ['buffered', 'direct']) {
     };
     assert.deepEqual(trace(load), trace(cheerio));
   });
+
+  test('template root combinations preserve matches and preorder, ' + execution, () => {
+    const source = '<main id="main"><section id="s"><template id="t"><div id="div">' +
+      '<section id="inner"><b id="a"></b><template id="nested"><b id="b"></b></template>' +
+      '</section></div></template><b id="c"></b></section><b id="d"></b></main>';
+    const $ = load(source, { execution }), reference = cheerio(source);
+    const roots = api => Object.fromEntries([
+      ['root', api.root()[0]],
+      ...['main', 's', 't', 'div', 'inner', 'a', 'nested', 'b', 'c', 'd'].map(id => [id, api('#' + id)[0]]),
+      ['fragment', api('#t').contents()[0]], ['nestedFragment', api('#nested').contents()[0]],
+    ]);
+    const selectors = ['b', '[id]', '*', ':not(.missing)', 'section b',
+      'b:not(main b)', ':has(> b) b', ':is(b,section)', 'b + template', 'section > b'];
+    try {
+      const actual = roots($), expected = roots(reference), names = Object.keys(actual);
+      for (const a of names) for (const b of names) for (const selector of selectors) {
+        const read = (api, nodes) => api([nodes[a], nodes[b], nodes[a]]).find(selector).get().map(node => node.attribs.id);
+        assert.deepEqual(read($, actual), read(reference, expected), a + ', ' + b + ': ' + selector);
+      }
+      assert.equal($.html(), reference.html(), 'Queries must leave the connected tree unchanged');
+    } finally { $.dispose(); }
+  });
 }

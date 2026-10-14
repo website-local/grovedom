@@ -28,6 +28,10 @@ development will use 0.2.0 rather than a patch version.
 - Align ordinary form-value setters and XML `multiple` truthiness with Cheerio;
   distinguish escaped identifier colons from positional filters and explicitly
   reject unsupported positional selector lists.
+- Preserve individual duplicate occurrences in `not(callback)`, capture extraction
+  descriptor getters before querying, and respect case-sensitive XML form types.
+- Preserve match order and scope across overlapping template query roots, including
+  explicit content roots and allocation-failure recovery.
 - Verify tarball bytes, versions and commit identity before offline installation
   tests; exercise the installed public APIs, XML, callbacks, disposal and workers.
 - Check older Pages releases with their tagged test fixtures, keeping historical

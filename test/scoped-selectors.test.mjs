@@ -47,4 +47,50 @@ for (const xml of [false, true]) {
     assert.deepEqual(trace(load), trace(cheerio));
     assert.deepEqual(trace(load)[1][0], ['a', 'b']);
   });
+  test(`wide context snapshots survive duplicate roots, queries and reparenting, xml=${xml}`, () => {
+    const trace = loader => {
+      const $ = loader('<main>' + Array.from({ length: 160 }, (_, i) =>
+        `<section id="s${i}"><div><b id="b${i}"></b></div></section>`).join('') + '</main>', xml ? { xml: true } : {});
+      try {
+        const sections = $('section').get().reverse();
+        const roots = $([...sections, ...sections.slice(0, 4)]);
+        const before = roots.find('b');
+        const result = [ids($, before), ids($, roots.find('[id]')), ids($, roots.find('missing'))];
+        // Selection identity and supplied root order remain independent of the
+        // kernel's temporary result marks and later parent/child relationships.
+        $('#s0').append($('#s159'));
+        result.push(ids($, roots.find('b')), ids($, roots.find('div > b')),
+          ids($, roots.find('section b')), ids($, roots.find(':has(> b) b')),
+          ids($, roots.find('b:not(main b)')),
+          ids($, before), ids($, roots.filter('section')),
+          ids($, roots.find('b')), ids($, roots));
+        const detached = $('#s80').remove();
+        result.push(ids($, roots.find('b')), ids($, $([detached[0], $('main')[0], detached[0]]).find('b')));
+        return result;
+      } finally { $.dispose?.(); }
+    };
+    assert.deepEqual(trace(load), trace(cheerio));
+  });
+}
+
+for (const execution of ['buffered', 'direct']) {
+  test('template queries preserve the union of scopes and root order, ' + execution, () => {
+    const markup = '<main><section id="s"><template id="t"><div><section id="inner"><b id="a"></b><template><b id="b"></b></template></section></div></template><b id="c"></b></section><b id="d"></b></main>';
+    const $ = load(markup, { execution }), reference = cheerio(markup);
+    const contexts = api => {
+      const main = api('main')[0], section = api('#s')[0], inner = api('#inner')[0], fragment = api('#t').contents()[0];
+      return [[fragment, main, fragment], [main, fragment, main], [fragment, section, fragment],
+        [inner, section, inner], [section, inner], [api('#t')[0], inner], [inner, api('#t')[0]],
+        [inner, api('#d')[0], inner]];
+    };
+    try {
+      const actual = contexts($), expected = contexts(reference);
+      for (let index = 0; index < actual.length; index++)
+        for (const selector of ['b', '[id]', ':not(.missing)', 'section b', 'b:not(main b)', ':has(> b) b', 'b', '[id]'])
+          assert.deepEqual(ids($, $(actual[index]).find(selector)),
+            ids(reference, reference(expected[index]).find(selector)), 'context ' + index + ': ' + selector);
+      assert.deepEqual(ids($, $([$('#s')[0], $('#inner')[0]]).find('b')), ['a', 'c']);
+      assert.equal($('#inner')[0].parent.parent.parent, $('#t')[0], 'Query must restore fragment parent links');
+    } finally { $.dispose(); }
+  });
 }

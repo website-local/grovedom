@@ -84,6 +84,10 @@ contexts and nested selector predicates. Ancestors outside the context cannot
 satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
 node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
+Multiple query roots spanning template contents retain Cheerio's match order and
+scope. A template element alone does not cover an explicitly supplied inner root.
+`not(callback)` filters each occurrence independently when a selection contains
+the same node more than once, preserving the original callback indices.
 
 Trailing positional chains are supported; escaped colons in identifiers remain
 literal. Positional selector lists such as `p, p:first` are unsupported and fail
@@ -118,6 +122,10 @@ Cheerio's falsey getter behavior. Array extraction flattens callback arrays once
 preserves their null/undefined entries and omits scalar null/undefined results.
 The TypeScript inference reflects this correction from 0.1.0. See the
 [changelog](../CHANGELOG.md) for observable fixes and the audit for exact limits.
+
+Extraction reads each descriptor's selector and value once before querying,
+including when no node matches; callbacks retain that chosen value for the call.
+Form serialization matches type names without case in HTML and exactly in XML.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

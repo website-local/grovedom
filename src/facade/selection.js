@@ -251,6 +251,8 @@ export function createSelection(context) {
             return selection(state, inputIds(state, result), this);
         }
         not(selector) {
+            if (typeof selector === 'function')
+                return this.filter(function (i, node) { return !selector.call(this, i, node); });
             const { state, ids } = entry(this), excluded = new Set(entry(this.filter(selector)).ids);
             return selection(state, ids.filter(id => !excluded.has(id)), this);
         }
@@ -462,10 +464,12 @@ export function createSelection(context) {
         }
         serializeArray() {
             const { state } = entry(this), fields = [], result = [];
+            const excluded = state.xml ? /^(?:submit|button|image|reset|file)$/ : /^(?:submit|button|image|reset|file)$/i;
+            const checkable = state.xml ? /^(?:checkbox|radio)$/ : /^(?:checkbox|radio)$/i;
             this.each(function () { const one = state.api(this); fields.push(...(this.name === 'form' ? one.find('input,select,textarea,keygen').get() : one.get())); });
             for (const node of fields) {
                 const field = state.api(node), name = field.attr('name'), type = field.attr('type') ?? '';
-                if (!name || field.attr('disabled') !== undefined || !['input', 'select', 'textarea', 'keygen'].includes(node.name) || /^(?:submit|button|image|reset|file)$/i.test(type) || (/^(?:checkbox|radio)$/i.test(type) && field.attr('checked') === undefined))
+                if (!name || field.attr('disabled') !== undefined || !['input', 'select', 'textarea', 'keygen'].includes(node.name) || excluded.test(type) || (checkable.test(type) && field.attr('checked') === undefined))
                     continue;
                 const value = field.val() ?? '';
                 for (const item of Array.isArray(value) ? value : [value])
@@ -480,9 +484,11 @@ export function createSelection(context) {
                 const item = map[key];
                 const array = Array.isArray(item), descriptor = array ? item[0] : item;
                 const config = typeof descriptor === 'string' ? { selector: descriptor, value: 'textContent' } : descriptor;
-                const selected = this.find(config.selector), output = [];
+                // Descriptor getters run once, before selection, even with no
+                // matches. Callbacks may change the descriptor for a later extract.
+                const selector = config.selector, value = config.value ?? 'textContent';
+                const selected = this.find(selector), output = [];
                 (array ? selected : selected.first()).each(function (i, node) {
-                    const value = config.value ?? 'textContent';
                     const extracted = typeof value === 'function' ? value(node, key, result) : typeof value === 'object' ? state.api(node).extract(value) : state.api(node).prop(value);
                     if (array && Array.isArray(extracted)) {
                         for (const item of extracted) output.push(item);

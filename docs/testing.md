@@ -21,16 +21,16 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 release review passes the **2,061-case suite** on the selected runtime,
-including 86 additional source/package cases for callback order, extraction,
-replacement identity, property aliases, forms and selector guards:
+The 0.1.1 release review and edge-case follow-up pass the **2,113-case suite**.
+The follow-up adds 52 cases for duplicate callbacks, descriptor getter order,
+XML forms, template scope unions and attribute/text snapshots:
 
 | Backend | Node versions | Pass / exclusions |
 |---|---|---:|
-| Native | 22, 24 | 2,002 /59 |
-| Pooled Wasm | 22, 24 | 2,010 /51 |
-| Global Wasm | 22 | 2,006 /55 |
-| Per-document Wasm | 22 | 2,007 /54 |
+| Native | 22, 24 | 2,054 /59 |
+| Pooled Wasm | 22, 24 | 2,062 /51 |
+| Global Wasm | 22 | 2,058 /55 |
+| Per-document Wasm | 22 | 2,059 /54 |
 
 Fresh native/Wasm builds and the rebuilt native ASan/UBSan binary pass their
 applicable checks, with leak detection and no sanitizer findings. Owned-buffer
@@ -42,7 +42,7 @@ plus the release corrections in HTML/XML and buffered/direct modes. Local checks
 do not cover exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md)
 remains required before publication. Actual browser-engine testing remains pending.
 
-Installed Node, browser and native packages share twenty-two public-contract checks
+Installed Node, browser and native packages share twenty-six public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
 large transfers, snapshots, data keys and disposal. Separate checks cover entry
 ownership and concurrent caller-managed workers. The eight stable checks also
@@ -115,7 +115,10 @@ check successful outputs and tree/ownership invariants.
 Owned-buffer fault tests recreate the document for every allocation countdown,
 then verify retry, other live owners and disposal. HTML/XML query/serialization
 sweeps cover 28 failed growth requests; XML-output sweeps cover 14 more in
-encoded/raw modes. They do not cover every upstream allocation or prove universal
+encoded/raw modes. Multi-root queries recover from twelve failed growth requests
+across HTML/XML and plain/scoped selectors; template scope unions cover two more.
+Generation rollover and fragment-parent restoration are checked on retries.
+These checks do not cover every upstream allocation or prove universal
 out-of-memory recovery. Dependency tests reject modified inputs, patches and
 cached trees without modifying the supplied upstream source.
 

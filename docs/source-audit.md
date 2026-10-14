@@ -107,6 +107,30 @@ detect Unicode identifiers that have been fixed. The original assertions and
 results were retained; the current suite makes the seven policy exclusions
 explicit and tests the corrected behavior separately.
 
+## Edge-case coverage
+
+The [callback edge cases](../test/callback-edge-cases.test.mjs) and
+[template-root combinations](../test/template-query-roots.test.mjs) cover four
+additional differences found after the release review:
+
+| Area | Previous difference | Corrected behavior |
+|---|---|---|
+| `not(callback)` | Rejecting one occurrence removed every copy of that node | Each occurrence keeps its callback index and independent result |
+| Extraction descriptors | Value getters ran for every match and never for empty results | Selector/value getters run once before querying; iteration keeps the captured value |
+| XML form types | Case-insensitive type matching omitted uppercase controls | XML matches exact type names; HTML retains case-insensitive matching |
+| Template query roots | Overlapping scopes could omit or reorder matches | Preorder traversal checks the union of scopes and preserves explicit inner roots |
+
+The callback/form diagnostic has 72 comparisons across HTML/XML and both execution
+modes. Template tests cover 3,380 root/selector combinations with duplicates,
+fragment roots, nested templates and repeated queries. Fixed expectations also
+exercise the four corrections through public package and portable-entry contracts.
+
+[Attribute snapshots](../test/attribute-snapshots.test.mjs) and
+[text snapshots](../test/text-snapshots.test.mjs) add large values, unusual own
+property names, interleaved documents, mixed nodes, CDATA and retained detached
+text. Owned-buffer fault checks cover query-generation rollover, multi-root
+growth retries and fragment-parent restoration after failed template queries.
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across

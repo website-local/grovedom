@@ -1,5 +1,6 @@
 /* Deterministic failures in owned buffer growth, not upstream allocator fuzzing. */
 #include "kernel.h"
+#include "document.h"
 #include "memory.h"
 #include "xml.h"
 #include <assert.h>
@@ -102,6 +103,86 @@ static uint32_t selected_id(gd_document *doc, const char *selector) {
     return *(const uint32_t *) result->data;
 }
 
+static void query_mark_wrap(void) {
+    for (int xml = 0; xml < 2; xml++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, "<main><section id='left'><b id='a'></b></section><section id='right'><b id='b'></b></section></main>");
+        assert(xml ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+        uint32_t main = selected_id(doc, "main"), left = selected_id(doc, "#left"), right = selected_id(doc, "#right");
+        uint32_t a = selected_id(doc, "#a"), b = selected_id(doc, "#b");
+        const uint32_t contexts[][3] = { {right, left, right}, {right, main, left}, {main, right, main} };
+        const uint32_t starts[] = { UINT32_MAX - 3, UINT32_MAX - 2, UINT32_MAX - 1, UINT32_MAX, 0 };
+        for (size_t i = 0; i < sizeof(starts) / sizeof(*starts); i++) {
+            doc->mark = starts[i];
+            for (size_t id = 1; id <= doc->node_count; id++) {
+                doc->nodes[id].mark = starts[i];
+                doc->nodes[id].order = UINT32_MAX;
+            }
+            for (size_t j = 0; j < sizeof(contexts) / sizeof(*contexts); j++) {
+                for (int scoped = 0; scoped < 2; scoped++) {
+                    input(doc, scoped ? "section b" : "b");
+                    const gd_result *result = gk_query(doc, contexts[j], 3, 0);
+                    assert(result && result->kind == GD_IDS && result->length == 2);
+                    const uint32_t *ids = result->data;
+                    assert(ids[0] == (j ? a : b) && ids[1] == (j ? b : a));
+                }
+            }
+        }
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+    }
+}
+
+static void sweep_context_growth(int xml, int scoped) {
+    char source[10000];
+    strcpy(source, "<main>");
+    for (int i = 0; i < 60; i++) strcat(source, "<section><b></b><b></b><b></b><b></b></section>");
+    strcat(source, "</main>");
+    for (long failure = 0; failure < 32; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(xml ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+        const uint32_t root = 1;
+        input(doc, "section");
+        const gd_result *selected = gk_query(doc, &root, 1, 0);
+        assert(selected && selected->length == 60);
+        uint32_t contexts[61];
+        for (size_t i = 0; i < 60; i++) contexts[i] = ((const uint32_t *) selected->data)[59 - i];
+        contexts[60] = contexts[0];
+        input(doc, scoped ? "section b" : "b");
+        doc->mark = UINT32_MAX - 1;
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_query(doc, contexts, 61, 0);
+        int success = result != NULL;
+        if (!success) {
+            const char *code = gk_error_code(doc);
+            assert(code && (!strcmp(code, "ERR_GROVEDOM_MEMORY") || !strcmp(code, "ERR_GROVEDOM_SELECTOR")));
+        }
+        gd_test_fail_after(-1);
+        // Partial collection may have grown IDs/results and overwritten marks.
+        // Retry also wraps the result generation and must preserve root order.
+        result = gk_query(doc, contexts, 61, 0);
+        assert(result && result->kind == GD_IDS && result->length == 240);
+        const uint32_t *ids = result->data;
+        for (size_t i = 0; i < result->length; i++) {
+            assert(doc->nodes[ids[i]].node->parent == doc->nodes[contexts[i / 4]].node);
+            if (i % 4) assert(doc->nodes[ids[i - 1]].node->next == doc->nodes[ids[i]].node);
+        }
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 1);
+            fprintf(stderr, "Context query growth xml=%d scoped=%d: %ld failure sites recovered\n", xml, scoped, failure);
+            return;
+        }
+    }
+    assert(0 && "Context query growth sweep did not reach success");
+}
+
 static void sweep_attribute_json(int xml) {
     char source[10000], expected[10000];
     const char *prefix = "<i data-x='", *suffix = "'></i>";
@@ -140,6 +221,53 @@ static void sweep_attribute_json(int xml) {
         }
     }
     assert(0 && "Attribute JSON growth sweep did not reach success");
+}
+
+static void sweep_template_context_growth(void) {
+    char source[10000];
+    strcpy(source, "<main><section id='outer'><template id='t'><div><section id='inner'>");
+    for (int i = 0; i < 160; i++) strcat(source, "<b></b>");
+    strcat(source, "</section></div></template><b id='outside'></b></section></main>");
+    for (long failure = 0; failure < 32; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(gk_parse(doc, 1, 0));
+        uint32_t outer = selected_id(doc, "#outer"), inner = selected_id(doc, "#inner");
+        uint32_t template = selected_id(doc, "#t"), outside = selected_id(doc, "#outside");
+        lxb_dom_node_t *fragment = doc->nodes[template].node->first_child;
+        const uint32_t contexts[] = { outer, inner, outer };
+        input(doc, "b");
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_query(doc, contexts, 3, 0);
+        int success = result != NULL;
+        if (!success) {
+            const char *code = gk_error_code(doc);
+            assert(code && (!strcmp(code, "ERR_GROVEDOM_MEMORY") || !strcmp(code, "ERR_GROVEDOM_SELECTOR")));
+        }
+        gd_test_fail_after(-1);
+        assert(fragment->parent == doc->nodes[template].node);
+        result = gk_query(doc, contexts, 3, 0);
+        assert(result && result->kind == GD_IDS && result->length == 161);
+        const uint32_t *ids = result->data;
+        for (size_t i = 0; i < 160; i++)
+            assert(doc->nodes[ids[i]].node->parent == doc->nodes[inner].node);
+        assert(ids[160] == outside);
+        assert(fragment->parent == doc->nodes[template].node);
+        input(doc, "section b");
+        result = gk_query(doc, contexts, 3, 0);
+        assert(result && result->length == 161);
+        assert(fragment->parent == doc->nodes[template].node);
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 1);
+            fprintf(stderr, "Template context query: %ld failure sites recovered\n", failure);
+            return;
+        }
+    }
+    assert(0 && "Template context query sweep did not reach success");
 }
 
 static void sweep_xml_markup(int xml, int raw) {
@@ -194,6 +322,9 @@ static void sweep_xml_markup(int xml, int raw) {
 }
 
 int main(void) {
+    query_mark_wrap();
+    for (int xml = 0; xml < 2; xml++) for (int scoped = 0; scoped < 2; scoped++) sweep_context_growth(xml, scoped);
+    sweep_template_context_growth();
     for (int xml = 0; xml < 2; xml++) for (int raw = 0; raw < 2; raw++) sweep_xml_markup(xml, raw);
     sweep_attribute_json(0);
     sweep_attribute_json(1);
