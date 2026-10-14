@@ -38,6 +38,10 @@ development will use 0.2.0 rather than a patch version.
   expectations separate from corrections in newer packages.
 - Reject invalid benchmark timings and ambiguous case lists; add deterministic
   workload, lifecycle, direct-mode corpus and comparison-statistics regressions.
+- Prevent GitHub publication after cancellation or skipped requested npm jobs;
+  check existing npm tags before publishing and correct resumed draft prerelease
+  status.
+- Fix local demo routing so the printed URL loads its benchmark modules.
 
 These fixes can change results that depended on earlier bugs. In particular,
 attribute and ordinary property callbacks returning undefined now store the string

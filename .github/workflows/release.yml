@@ -19,7 +19,7 @@ on:
         options: [latest, next]
         default: latest
       npm_auth:
-        description: OIDC trusted publisher, or token for the first publish
+        description: OIDC trusted publisher, or token for first publish or dist-tag changes
         type: choice
         options: [oidc, token]
         default: oidc
@@ -119,13 +119,15 @@ jobs:
           NODE_AUTH_TOKEN: ${{ inputs.npm_auth == 'token' && secrets.NPM_TOKEN || '' }}
         run: |
           if [ "$NPM_AUTH" = token ] && [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo 'Set the npm environment secret NPM_TOKEN for the first publish.' >&2
+            echo 'Set the npm environment secret NPM_TOKEN for token authentication.' >&2
             exit 1
           fi
           node scripts/ci/publish.mjs "$RUNNER_TEMP/tarballs"
 
   github:
-    if: always() && needs.artifacts.result == 'success' && (needs.npm.result == 'success' || needs.npm.result == 'skipped')
+    if: >-
+      ${{ !cancelled() && needs.artifacts.result == 'success' &&
+          (needs.npm.result == 'success' || (inputs.npm_packages == 'none' && needs.npm.result == 'skipped')) }}
     needs: [preflight, verify, artifacts, npm]
     runs-on: ubuntu-22.04
     timeout-minutes: 10

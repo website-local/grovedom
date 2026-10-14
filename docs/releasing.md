@@ -124,8 +124,8 @@ GitHub Actions and configure:
 Use the publishing workflow filename, not `verify.yml`. Each package needs its
 own configuration. Future releases select `npm_auth: oidc`; the workflow grants
 `id-token: write` only to the npm job and uses a pinned npm CLI with OIDC support.
-No npm token is needed for that path. Public publishing requests provenance and
-sets the selected dist-tag. See npm's [trusted publisher documentation](https://docs.npmjs.com/trusted-publishers/).
+New versions need no npm token; publishing requests provenance and sets the
+selected dist-tag. See npm's [trusted publisher documentation](https://docs.npmjs.com/trusted-publishers/).
 
 Versions such as `0.1.1-alpha.1` require `npm_tag: next`; they create GitHub
 prereleases. Source manifests remain private even when generated tarballs are
@@ -135,15 +135,21 @@ publishable. Do not run `npm publish` from the source checkout.
 
 `npm-tarballs` contains both packages, `SHA256SUMS` and `release.json` recording
 the source commit and npm integrity values. Publishing consumes those tested
-tarballs without rebuilding or running lifecycle scripts. The GitHub release is
-created only after successful validation and any selected npm publication.
+tarballs without rebuilding or running lifecycle scripts. The GitHub publication
+job requires successful validation, successful requested npm publication, and an
+uncancelled workflow. A skipped npm job qualifies only when `npm_packages: none`
+was selected.
 
 Publishing two packages is not atomic. If one succeeds and the other fails,
 rerun the failed jobs to reuse the same artifacts. An existing npm version is
 accepted only if its integrity matches exactly; different bytes fail rather than
-overwriting or silently skipping. Matching versions get the requested dist-tag.
-An existing Git tag must identify the same commit. npm versions are immutable;
-if source or artifacts need changing, commit a new version instead.
+overwriting or silently skipping. An identical version with the requested tag
+already set needs no registry write. With the pinned npm 11.6.2 CLI, changing an
+existing version's dist-tag requires `npm_auth: token`. The publisher checks this
+before writing any selected package, so an OIDC retry that needs retagging fails
+before publishing its companion package. An existing Git tag must identify the
+same commit. npm versions are immutable; if source or artifacts need changing,
+commit a new version instead.
 
 GitHub publication uses the official [GitHub CLI](https://cli.github.com/manual/gh_release_create)
 already installed on hosted runners. `GH_TOKEN: ${{ github.token }}` authenticates
@@ -156,6 +162,9 @@ ID. It may clean up its temporary draft on failure. Existing drafts and partial
 manual releases are verified before missing assets are uploaded, without
 overwriting existing files. Tag verification resolves lightweight and annotated
 Git tags to the tested commit; `target_commitish` alone can be a branch name.
+Resumed drafts get the prerelease status implied by their version. An already
+published release with inconsistent prerelease status fails verification before
+npm publication.
 
 If npm succeeded but GitHub publication failed, the npm version stays published.
 For a manually completed GitHub release, attach both tested `.tgz` files,

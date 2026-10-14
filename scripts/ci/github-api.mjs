@@ -30,7 +30,11 @@ export async function githubRelease(tag) {
   return null;
 }
 export async function verifyReleaseTarget(release, tag, commit) {
-  if (release) assert.equal(release.tag_name, tag, 'Unexpected release tag');
+  if (release) {
+    assert.equal(release.tag_name, tag, 'Unexpected release tag');
+    if (!release.draft) assert.equal(release.prerelease, tag.includes('-'),
+      'Published release prerelease status differs from its version');
+  }
   const response = await request(`${base}/git/ref/tags/${encodeURIComponent(tag)}`);
   if (response.status === 404) {
     // An unpublished draft may not have a Git tag yet. Pin its future target.

@@ -44,7 +44,8 @@ initialization and warmup share the budget; measurement ends 105 seconds after
 the first step, reserving teardown time. A three-minute timeout handles slow
 infrastructure. Setup exhaustion fails explicitly. The browser demo uses thirty
 seconds excluding download/initialization; actual browser-engine coverage is
-still pending.
+still pending. The demo pins Cheerio's version in its jsDelivr URLs, but CDN
+bundles can resolve transitive dependencies differently from CI's npm install.
 
 Each block keeps both opposite-order halves together. Twenty replay warmups and
 30 independent probe warmups precede measurement; samples time two replays with

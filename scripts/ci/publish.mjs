@@ -21,10 +21,16 @@ function npm(args) {
 // Validate every selected artifact/version before the first irreversible write.
 const selected = names.map(name => {
   const row = manifest.packages.find(value => value.name === name);
-  const result = npm(['view', `${name}@${row.version}`, 'dist.integrity', '--json']);
+  const result = npm(['view', `${name}@${row.version}`, 'dist.integrity', 'dist-tags', '--json']);
   if (result.status === 0) {
-    assert.equal(JSON.parse(result.stdout), row.integrity, `${name}@${row.version} already exists with different bytes`);
-    return { ...row, exists: true };
+    const metadata = JSON.parse(result.stdout);
+    assert.equal(metadata['dist.integrity'], row.integrity, `${name}@${row.version} already exists with different bytes`);
+    const tagged = metadata['dist-tags']?.[options.tag] === row.version;
+    // The pinned npm 11.6.2 exchanges OIDC credentials for publish, not dist-tag.
+    // Detect a required tag change before publishing any other selected package.
+    assert(tagged || options.auth === 'token',
+      `${name}@${row.version} requires a dist-tag change; use token authentication with the pinned npm CLI`);
+    return { ...row, exists: true, tagged };
   }
   let error;
   try { error = JSON.parse(result.stdout).error; } catch { /* Network/auth errors must fail closed. */ }
@@ -32,6 +38,10 @@ const selected = names.map(name => {
   return { ...row, exists: false };
 });
 for (const row of selected) {
+  if (row.tagged) {
+    console.log(`${row.name}@${row.version}: identical version and tag verified`);
+    continue;
+  }
   const result = row.exists
     ? npm(['dist-tag', 'add', `${row.name}@${row.version}`, options.tag])
     : npm(['publish', join(root, row.file), '--ignore-scripts', '--access=public', '--provenance', '--tag', options.tag]);

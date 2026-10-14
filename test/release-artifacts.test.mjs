@@ -37,7 +37,7 @@ test('release artifacts reject changed bytes, commits and paths before publicati
 
 // Execute the actual publisher against a process-local fake npm. No registry,
 // credentials or network access is involved. The publisher runs on Linux in CI.
-for (const scenario of ['new', 'existing', 'mismatch', 'network']) {
+for (const scenario of ['new', 'existing', 'mismatch', 'network', 'retag-token', 'retag-oidc', 'partial-retag-oidc', 'partial-existing']) {
   test(`npm release ${scenario}: checks all versions before any write`, { skip: process.platform === 'win32' }, t => {
     const { root, packages } = fixture(t), bin = join(root, 'bin');
     mkdirSync(bin);
@@ -47,17 +47,25 @@ const fs = require('node:fs');
 const args = process.argv.slice(2), env = process.env;
 fs.appendFileSync(env.MOCK_LOG, JSON.stringify(args) + '\\n');
 if (args[0] === 'view') {
-  if (env.MOCK_SCENARIO === 'new') { console.log(JSON.stringify({error:{code:'E404'}})); process.exit(1); }
-  if (env.MOCK_SCENARIO === 'network') { console.log(JSON.stringify({error:{code:'E503'}})); process.exit(1); }
   const name = args[1].split('@')[0], rows = JSON.parse(fs.readFileSync(env.MOCK_MANIFEST)).packages;
-  console.log(JSON.stringify(env.MOCK_SCENARIO === 'mismatch' && name === 'grovedom-native' ? 'different-integrity' : rows.find(row => row.name === name).integrity));
+  if (env.MOCK_SCENARIO === 'new' || env.MOCK_SCENARIO.startsWith('partial-') && name === 'grovedom') {
+    console.log(JSON.stringify({error:{code:'E404'}})); process.exit(1);
+  }
+  if (env.MOCK_SCENARIO === 'network') { console.log(JSON.stringify({error:{code:'E503'}})); process.exit(1); }
+  const row = rows.find(row => row.name === name);
+  const integrity = env.MOCK_SCENARIO === 'mismatch' && name === 'grovedom-native' ? 'different-integrity' : row.integrity;
+  const tags = { latest: env.MOCK_SCENARIO.includes('retag') ? '0.0.1' : row.version };
+  console.log(JSON.stringify(args.includes('dist-tags') ? { 'dist.integrity': integrity, 'dist-tags': tags } : integrity));
+}
+if (args[0] === 'dist-tag' && env.MOCK_SCENARIO.includes('retag') && env.NPM_AUTH === 'oidc') {
+  console.error('Pinned npm cannot authenticate a dist-tag change with OIDC'); process.exit(1);
 }
 
 `, { mode: 0o755 });
     const log = join(root, 'calls.jsonl');
     const result = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/ci/publish.mjs', import.meta.url)), root], {
       encoding: 'utf8', env: mockProcessEnv({ PATH: bin + delimiter + process.env.PATH,
-        RELEASE_VERSION: version, NPM_TAG: 'latest', NPM_PACKAGES: 'both', NPM_AUTH: 'oidc',
+        RELEASE_VERSION: version, NPM_TAG: 'latest', NPM_PACKAGES: 'both', NPM_AUTH: scenario === 'retag-token' ? 'token' : 'oidc',
         GITHUB_SHA: commit, GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch',
         GITHUB_REPOSITORY: 'website-local/grovedom', MOCK_SCENARIO: scenario,
         MOCK_LOG: log, MOCK_MANIFEST: join(root, 'release.json') }),
@@ -66,14 +74,15 @@ if (args[0] === 'view') {
     assert.equal(result.signal, null, result.stderr);
     const calls = existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map(JSON.parse) : [];
     const writes = calls.filter(row => row[0] !== 'view');
-    if (['mismatch', 'network'].includes(scenario)) {
+    if (['mismatch', 'network', 'retag-oidc', 'partial-retag-oidc'].includes(scenario)) {
       assert.notEqual(result.status, 0); assert.deepEqual(writes, []);
+      if (scenario.includes('retag')) assert.match(result.stderr, /token authentication/i);
     } else {
       assert.equal(result.status, 0, result.stderr);
       assert.deepEqual(calls.slice(0, 2).map(row => row[0]), ['view', 'view']);
-      assert.equal(writes.length, packages.length);
-      assert(writes.every(row => row[0] === (scenario === 'new' ? 'publish' : 'dist-tag')));
-      if (scenario === 'new') assert(writes.every(row => row.includes('--provenance') && row.includes('--ignore-scripts')));
+      assert.equal(writes.length, scenario === 'existing' ? 0 : scenario === 'partial-existing' ? 1 : packages.length);
+      assert(writes.every(row => row[0] === (scenario === 'retag-token' ? 'dist-tag' : 'publish')));
+      if (['new', 'partial-existing'].includes(scenario)) assert(writes.every(row => row.includes('--provenance') && row.includes('--ignore-scripts')));
     }
   });
 }

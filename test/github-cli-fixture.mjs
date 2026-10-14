@@ -25,7 +25,7 @@ if (command === 'create') {
   assert.equal(target, state.commit);
   assert(readFileSync(args[args.indexOf('--notes-file') + 1], 'utf8').includes(state.commit));
   state.calls.push(['create', { target_commitish: target, prerelease: args.includes('--prerelease') }]);
-  state.release = { id: 7, tag_name: tag, target_commitish: target, draft: true, assets: [] };
+  state.release = { id: 7, tag_name: tag, target_commitish: target, draft: true, prerelease: args.includes('--prerelease'), assets: [] };
   if (state.scenario === 'upload-failure' && state.failOnce) {
     // gh attempts to clean up its newly created temporary draft on failure.
     state.failOnce = false;
@@ -49,7 +49,9 @@ if (command === 'create') {
     process.exitCode = 1;
   } else { upload(args.slice(3)); save(); }
 } else if (command === 'edit') {
-  assert.deepEqual(args.slice(3), ['--draft=false']);
+  assert.equal(args[3], '--draft=false');
+  const prerelease = args.find(arg => arg.startsWith('--prerelease='));
+  if (prerelease) state.release.prerelease = prerelease === '--prerelease=true';
   assert.equal(state.release.assets.length, 4, 'Incomplete release');
   state.calls.push(['publish']);
   state.release.draft = false;

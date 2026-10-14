@@ -30,8 +30,9 @@ filtered paired ratios include an identical Wasm instance control (expected near
 1×). Ratios are never normalized by controls. CI also compares
 the latest published GroveDOM and shares a roughly two-minute total job budget
 across setup and all four cases. This demo uses a shorter shared budget and pooled
-Wasm heaps. Browser scheduling, compilation and GC affect results; these are
-diagnostics, not production performance gates. Keep this tab active during the
-comparison.</small>
+Wasm heaps. The CDN bundles can use different transitive dependency versions from
+CI's npm installation. Browser scheduling, compilation and GC affect results;
+these are diagnostics, not production performance gates. Keep this tab active
+during the comparison.</small>
 <script type="module" src="./benchmark.js"></script>
 </html>

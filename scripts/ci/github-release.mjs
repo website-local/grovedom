@@ -23,6 +23,6 @@ if (!release) {
   // Resume an existing draft or incomplete manual release without overwrites.
   const missing = await verifyAssets(release, root, names);
   if (missing.length) gh(['release', 'upload', tag, ...missing.map(name => join(root, name))]);
-  if (release.draft) gh(['release', 'edit', tag, '--draft=false']);
+  if (release.draft) gh(['release', 'edit', tag, '--draft=false', `--prerelease=${version.includes('-')}`]);
 }
 console.log('GitHub release contains the tested artifacts.');

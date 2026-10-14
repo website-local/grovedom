@@ -36,7 +36,8 @@ function fixture(t, scenario, version = '0.1.0') {
     payloads: Object.fromEntries(present.map(name => [name, readFileSync(join(root, name)).toString('base64')])),
     tag: fresh || draft ? null : { type: 'commit', sha: commit },
     release: fresh ? null : { id: 7, tag_name: `v${version}`, target_commitish: scenario === 'branch-target' ? 'main' : commit,
-      draft, assets: present.map(name => ({ name, url: `https://api.github.com/repos/website-local/grovedom/releases/assets/${name}` })) } };
+      draft, prerelease: scenario === 'prerelease-mismatch' ? !version.includes('-') : version.includes('-'),
+      assets: present.map(name => ({ name, url: `https://api.github.com/repos/website-local/grovedom/releases/assets/${name}` })) } };
   if (scenario === 'asset-mismatch') state.payloads[names[0]] = Buffer.from('different').toString('base64');
   if (scenario === 'draft-mismatch') state.release.target_commitish = wrongCommit;
   if (['tag-mismatch', 'tag-only-mismatch'].includes(scenario)) state.tag = { type: 'commit', sha: wrongCommit };
@@ -48,6 +49,7 @@ function fixture(t, scenario, version = '0.1.0') {
   writeFileSync(stateFile, JSON.stringify(state));
   return {
     state: () => JSON.parse(readFileSync(stateFile)),
+    update(change) { const current = JSON.parse(readFileSync(stateFile)); change(current); writeFileSync(stateFile, JSON.stringify(current)); },
     run(script = 'github-release') {
       const result = spawnSync(process.execPath, [
         '--import', pathToFileURL(preload).href,
@@ -90,6 +92,7 @@ const failures = {
   'tag-cycle': /Invalid annotated tag chain/,
   'draft-mismatch': /draft targeting the tested commit/,
   'lookup-failure': /lookup failed: HTTP 503/,
+  'prerelease-mismatch': /Published release prerelease status/,
 };
 for (const [scenario, error] of Object.entries(failures)) {
   for (const script of ['github-release', 'check-release']) {
@@ -138,3 +141,13 @@ test('CLI creation marks prereleases explicitly', { skip: process.platform === '
   assert.equal(result.status, 0, result.stderr);
   assert.equal(f.state().calls[0][1].prerelease, true);
 });
+
+for (const version of ['0.1.0', '0.1.1-alpha.1'])
+  test(`resuming draft ${version} sets the correct prerelease status`, { skip: process.platform === 'win32' }, t => {
+    const f = fixture(t, 'partial', version);
+    f.update(state => { state.release.prerelease = !version.includes('-'); });
+    const result = f.run();
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(f.state().release.draft, false);
+    assert.equal(f.state().release.prerelease, version.includes('-'));
+  });

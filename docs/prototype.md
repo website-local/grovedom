@@ -89,13 +89,15 @@ node scripts/serve-demo.mjs ./build/packages 8080
 ```
 
 Open the printed loopback URL. The demo compares pooled Wasm with Cheerio 1.2.0's
-default and htmlparser2 parsers using the same 120- and 600-article workloads as
-CI. Parsing, queries, callbacks, edits, serialization and disposal share a
-thirty-second browser budget, with balanced ABBA/BAAB pairs and exact output
-checks on every replay. The authored workload is shared with local benchmarks.
+default and htmlparser2 parsers using the same 120- and 600-article, 600-entry XML
+sitemap and 300-group SVG workloads as CI. Parsing, queries, callbacks, edits,
+serialization and disposal share a thirty-second browser budget, with balanced
+ABBA/BAAB pairs and exact output checks on every replay. The authored workload is
+shared with local benchmarks.
 Raw and independent-probe-filtered paired medians include a separate identical
 Wasm instance control. Cheerio loads from versioned jsDelivr ESM
-URLs; CDN loading and Wasm initialization are excluded from browser timing.
+URLs, whose transitive dependency versions can differ from npm's. CDN loading
+and Wasm initialization are excluded from browser timing.
 Loading failures disable the comparison and allow retry by reloading. This does
 not add a package dependency or establish an adoption multiplier.
 
