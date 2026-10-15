@@ -32,6 +32,12 @@ development will use 0.2.0 rather than a patch version.
   descriptor getters before querying, and respect case-sensitive XML form types.
 - Preserve match order and scope across overlapping template query roots, including
   explicit content roots and allocation-failure recovery.
+- Reject CSS block/function nesting above 512 before parsing, preventing native
+  selector-cleanup crashes and preserving the first valid query after rejection.
+- Replace attributes by their exact stored names, including Unicode whitespace;
+  preserve attributes and callback edits when reassigning an element's own live view.
+- Handle child/descendant selector lists in either clause order, retaining document
+  and template roots, disjoint-root order, escaped delimiters and selection snapshots.
 - Verify tarball bytes, versions and commit identity before offline installation
   tests; exercise the installed public APIs, XML, callbacks, disposal and workers.
 - Check older Pages releases with their tagged test fixtures, keeping historical

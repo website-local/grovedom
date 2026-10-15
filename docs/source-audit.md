@@ -131,6 +131,27 @@ property names, interleaved documents, mixed nodes, CDATA and retained detached
 text. Owned-buffer fault checks cover query-generation rollover, multi-root
 growth retries and fragment-parent restoration after failed template queries.
 
+## Selector and attribute hardening
+
+The [selector-safety regressions](../test/selector-safety.test.mjs),
+[attribute replacements](../test/attribute-replacement.test.mjs) and
+[relative lists](../test/relative-lists.test.mjs) retain three findings from the
+readiness review:
+
+| Trigger | Previous failure | Corrected behavior |
+|---|---|---|
+| Deep malformed selector functions | Recursive Lexbor cleanup crashed native processes; Wasm stack errors disrupted the next compound query | Reject nesting above 512 before parsing; retain the separate compatibility matcher guard |
+| Attribute replacement with Unicode whitespace in stored names | Splitting the old names left attributes behind | Delete exact keys; reassigning the element's own live view preserves values and callback edits |
+| Child/descendant selector lists in a different clause order | A later relative clause failed, and splitting could discard document roots | Scan top-level clauses iteratively, retain original roots and use the kernel's traversal order |
+
+Native crash reproducers run in isolated main-thread and caller-managed worker
+processes. Boundary, malformed-string, escape/comment, cache-reset and recovery
+checks cover HTML/XML and both execution modes. A direct kernel regression also
+verifies the bound independently of facade preprocessing. The list cases include
+overlapping/template roots, pending writes, malformed branches and long flat
+lists. Installed packages and portable browser paths repeat the corrected public
+behavior; the [stack diagnostic](stack.md) checks the added parser bound.
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across
@@ -143,6 +164,8 @@ operators, flags and document modes; they are not independent defect counts.
 | Literal NBSP identifier | css-what rejects that spelling | Accepted as a WPT extension; escaped spellings work in both |
 | `.html(callback)`, `.toggleClass()` / boolean argument | Not equivalent callback/toggle operations in Cheerio 1.2.0 | Retained GroveDOM conveniences; avoid for exact parity |
 | Raw attribute snapshot prototype | domhandler null-prototype object | GroveDOM ordinary-object snapshot; stored values/serialization match |
+| Shared `attribs` replacement object | Nodes can share the assigned JavaScript object | Copies values into each node's document storage; external object changes are not DOM mutations |
+| Context-returning `:scope` lists or mixed sibling/absolute lists | Some results depend on the first clause | Best-effort subset; the clause-order fix covers child/descendant lists |
 | Self-replacement and repeated insertion references | Can delete a preceding neighbor or duplicate one physical node in child arrays | Preserves unaffected neighbors, one physical node and reciprocal links |
 | Generic raw properties on text/comments | Ordinary property getter is element-only | Existing NodeHandle fields remain readable as a GroveDOM extension |
 | Derived property setters and `.val(callback)` | Not equivalent DOM setter/callback operations | Retained GroveDOM conveniences; arbitrary domhandler tree writes are unsupported |

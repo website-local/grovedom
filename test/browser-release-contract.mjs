@@ -53,6 +53,25 @@ export function checkBrowserRelease(api) {
           JSON.stringify(['inside', 'after']));
         assert.equal(inner.parent.parent.parent, $('#t')[0]);
       }
+      roots.append('<section id="list"><div><p data-\u00a0="old">nested</p></div>' +
+        '<p data-a\u2003b="old">child</p></section>');
+      const list = $('#list'), retained = list.find('> p, div p'), handles = retained.get();
+      for (const selector of ['> p, div p', 'div p, > p']) {
+        const found = list.find(selector);
+        assert.equal(found.length, 2);
+        assert.equal(found[0], handles[0]);
+        assert.equal(found[1], handles[1]);
+        assert.equal(found.end(), list);
+      }
+      retained.prop('attribs', { title: 'new' });
+      retained.first().prop('attribs', handles[0].attribs);
+      for (const handle of handles)
+        assert.equal(JSON.stringify({ ...handle.attribs }), JSON.stringify({ title: 'new' }));
+      retained.attr('pending', 'kept');
+      assert.throws(() => $(':is('.repeat(513) + 'p' + ')'.repeat(513) + '['),
+        { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+      assert.equal(list.find('p[title="new"][pending="kept"]').length, 2);
+      assert.equal(retained[0], handles[0]);
     } finally { $.dispose(); }
   }
   console.log('Portable release contracts passed in HTML/XML and buffered/direct modes.');

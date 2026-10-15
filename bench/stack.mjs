@@ -45,8 +45,8 @@ try {
       finally { $.dispose(); }
     },
   });
-  for (const depth of [20, 100, 500]) cases.push({ id: `selector-depth-${depth}`, source: '<p>text</p>',
-    run(load, source) { const $ = load(source); try { $(':is('.repeat(depth) + 'p' + ')'.repeat(depth)); } finally { $.dispose(); } },
+  for (const depth of [20, 100, 500, 512]) cases.push({ id: `selector-depth-${depth}`, source: '<p>text</p>',
+    run(load, source) { const $ = load(source); try { assert.equal($(':is('.repeat(depth) + 'p' + ')'.repeat(depth)).text(), 'text'); } finally { $.dispose(); } },
   });
   for (const depth of [1, 20, 63, 64, 100]) cases.push({ id: `compatibility-selector-depth-${depth}`, source: '<template><p>text</p></template>',
     run(load, source) { const $ = load(source); try { $(':is('.repeat(depth) + ':contains(text)' + ')'.repeat(depth)); } finally { $.dispose(); } },
@@ -89,19 +89,19 @@ try {
       finally { $.dispose(); }
     },
   });
-  for (const depth of [100, 2000]) cases.push({ id: `selector-error-recovery-${depth}`, source: '<p>text</p>',
+  for (const depth of [100, 512, 513, 2000, 128000]) cases.push({ id: `selector-error-recovery-${depth}`, source: '<p>text</p>',
     run(load, source) {
       const $ = load(source);
       try {
-        // Exercise tokenizer/error callbacks and nested AST cleanup, then reuse
-        // the document. Error spelling is outside this stack diagnostic.
+        // Exercise bounded parser cleanup and the pre-parse nesting guard.
+        // Each rejection must preserve the first uncached compound query.
         for (const selector of [':is('.repeat(depth) + 'p' + ')'.repeat(depth) + '[',
-          ':not('.repeat(depth) + 'p', ':nth-child(1e999999999999999999999999)']) {
-          try { $(selector); } catch (error) {
-            if (error.code !== 'ERR_GROVEDOM_SELECTOR') throw error;
-          }
+          ':not('.repeat(depth) + 'p']) {
+          assert.throws(() => $(selector), { code: depth > 512 ? 'ERR_GROVEDOM_UNSUPPORTED' : 'ERR_GROVEDOM_SELECTOR' });
+          assert.equal($('p:first-child:not(.missing)').text(), 'text');
         }
-        assert.equal($('p').text(), 'text');
+        assert.throws(() => $(':nth-child(1e999999999999999999999999)'), { code: 'ERR_GROVEDOM_SELECTOR' });
+        assert.equal($('p:last-child:not(.missing)').text(), 'text');
       } finally { $.dispose(); }
     },
   });

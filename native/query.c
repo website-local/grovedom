@@ -150,8 +150,56 @@ static void gd_plans_clean(gd_document *doc) {
     lxb_css_selectors_clean(doc->css->selectors);
 }
 
+static int gd_selector_depth_ok(const unsigned char *text, size_t length) {
+    /* Lexbor may recursively destroy nested functions after a parse error.
+     * Bound syntax before entering it, independently of the matcher guard.
+     * Cached plans and short inputs need no scan. This is a lexical bound, not
+     * validation: mismatched closers must not hide still-open outer blocks. */
+    enum { LIMIT = 512 };
+    if (length <= LIMIT) return 1;
+    unsigned char closing[LIMIT], quote = 0;
+    size_t depth = 0;
+    for (size_t i = 0; i < length; i++) {
+        unsigned char ch = text[i];
+        if (ch == '\\') {
+            if (i + 1 < length) {
+                i++;
+                if (text[i] == '\r' && i + 1 < length && text[i + 1] == '\n') i++;
+            }
+            continue;
+        }
+        if (quote) {
+            if (ch == quote || ch == '\n' || ch == '\r' || ch == '\f') quote = 0;
+            continue;
+        }
+        if (ch == '"' || ch == '\'') { quote = ch; continue; }
+        if (ch == '/' && i + 1 < length && text[i + 1] == '*') {
+            i += 2;
+            while (i + 1 < length && !(text[i] == '*' && text[i + 1] == '/')) i++;
+            if (i + 1 == length) break;
+            i++;
+            continue;
+        }
+        if (ch == '(' || ch == '[' || ch == '{') {
+            if (depth == LIMIT) return 0;
+            closing[depth++] = ch == '(' ? ')' : ch == '[' ? ']' : '}';
+        } else if (depth && ch == closing[depth - 1]) depth--;
+    }
+    return 1;
+}
+
 static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
     GD_PROFILE_SCOPE(GP_PLAN);
+    for (size_t i = 0; i < doc->plan_count; i++) {
+        gd_plan *plan = &doc->plans[i];
+        if (plan->length == doc->input.length &&
+            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); doc->selector_flags = plan->flags; doc->selector_guard = plan->guard; return plan->list; }
+    }
+    GD_PROFILE_ADD(GP_PLAN_MISSES, 1);
+    if (!gd_selector_depth_ok(doc->input.data, doc->input.length)) {
+        gd_set_error(doc, "ERR_GROVEDOM_UNSUPPORTED", "CSS selector nesting exceeds 512");
+        return NULL;
+    }
     if (!doc->css) {
         lxb_css_parser_t *css = lxb_css_parser_create();
         lxb_selectors_t *selectors = lxb_selectors_create();
@@ -164,12 +212,6 @@ static lxb_css_selector_list_t *gd_plan_get(gd_document *doc) {
         lxb_selectors_opt_set(selectors, LXB_SELECTORS_OPT_MATCH_FIRST);
         doc->css = css; doc->selectors = selectors;
     }
-    for (size_t i = 0; i < doc->plan_count; i++) {
-        gd_plan *plan = &doc->plans[i];
-        if (plan->length == doc->input.length &&
-            memcmp(plan->key, doc->input.data, plan->length) == 0) { GD_PROFILE_ADD(GP_PLAN_HITS, 1); doc->selector_flags = plan->flags; doc->selector_guard = plan->guard; return plan->list; }
-    }
-    GD_PROFILE_ADD(GP_PLAN_MISSES, 1);
     if (doc->plan_count == PLAN_COUNT) gd_plans_clean(doc);
     if (!doc->css->memory) {
         doc->css->memory = lxb_css_memory_create();

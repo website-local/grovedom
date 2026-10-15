@@ -13,7 +13,17 @@ export function createSelection(context) {
         if (readOnlyProperties.has(name))
             unsupported('Direct changes to node types or relations are not supported; use DOM mutation methods.');
         if (name === 'attribs')
-            return source.each(function () { const one = state.api(this); one.removeAttr(Object.keys(one.attr() ?? {}).join(' ')); if (value) one.attr(value); });
+            return source.each(function () {
+                const record = nodes.get(this), one = record.ids;
+                // Reassigning the element's own live view is a no-op. Clearing
+                // it first would also erase the replacement's source values.
+                if (value && value === record.attribs) return;
+                // Stored names can contain Unicode whitespace. removeAttr takes
+                // a whitespace-delimited list; replacement deletes exact keys.
+                for (const key of Object.keys(attributes(state, one) ?? {}))
+                    enqueue(state, one, 2, key);
+                if (value) state.api(this).attr(value);
+            });
         if (name === 'tagName' || name === 'nodeName' || name === 'name') {
             edit(state, 11, ids, empty, String(value));
             return source;

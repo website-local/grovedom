@@ -86,6 +86,21 @@ node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
 position and sibling predicates retain the original tree relationships.
 Multiple query roots spanning template contents retain Cheerio's match order and
 scope. A template element alone does not cover an explicitly supplied inner root.
+Lists combining child-relative and ordinary descendant clauses, such as
+`find('> p, div p')` and `find('div p, > p')`, keep that same scope and order.
+Quoted, escaped and nested commas do not split clauses. Relative selectors in
+`filter`/`is`, mixed child/sibling relative lists and positional lists remain
+unsupported. Lists returning the context itself through `:scope`, or combining
+sibling-relative and absolute clauses, remain best-effort; Cheerio also varies
+some of these results according to the first clause.
+
+CSS block/function nesting above **512**, after alias expansion, is rejected
+before the parser runs.
+Strings, comments and escaped delimiters do not contribute to that nesting.
+The separate compatibility matcher retains its **64-level** guard. Rejection
+preserves preceding writes, retained handles and subsequent queries; these
+limits do not promise safety for every possible resource-exhaustion input.
+
 `not(callback)` filters each occurrence independently when a selection contains
 the same node more than once, preserving the original callback indices.
 
@@ -126,6 +141,12 @@ The TypeScript inference reflects this correction from 0.1.0. See the
 Extraction reads each descriptor's selector and value once before querying,
 including when no node matches; callbacks retain that chosen value for the call.
 Form serialization matches type names without case in HTML and exactly in XML.
+
+`prop('attribs', replacement)` removes exact stored names before copying the
+replacement values into the document. Reassigning an element's own live `attribs`
+view preserves its values and callback edits. Replacement objects are not shared
+between elements; later external object changes do not mutate the DOM.
+`removeAttr` retains its separate whitespace-delimited name-list behavior.
 
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier

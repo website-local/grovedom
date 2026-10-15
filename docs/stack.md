@@ -3,13 +3,24 @@
 The default reserves **32 KiB of linear-memory stack** inside the 1 MiB initial
 memory. This does not bound the separate JavaScript/Wasm engine machine stack.
 
-The earlier source/disassembly audit and expanded workload suite observed a
-maximum pointer depth of 6,256 bytes and written watermark of 6,200 bytes, with
-all pointers restored. The 5.2× measured headroom is not a worst-case proof.
-The refactor repeated 96 sentinel runs across 122 compiled write sites and
-observed the same maxima, with every pointer restored.
+The current selector-hardening check ran **88 sentinel trials across 110 compiled
+stack-pointer write sites**. The maximum observed pointer depth was **17,168
+bytes**, and the maximum written watermark was **16,752 bytes**, both in
+compatibility-matcher limit cases. Every stack pointer was restored. The trials
+include accepted 512-level selectors and safe rejection/recovery for malformed
+selectors with 128,000 nested functions; saved-page inputs were not included.
+These are observed workloads, not a worst-case bound or an engine-stack measure.
+
+Earlier source/disassembly and refactor checks observed 6,256 pointer bytes and
+6,200 written bytes, including 96 sentinel runs across 122 compiled write sites.
+Those historical measurements and their 5.2× headroom do not describe the current
+artifact.
+
 Compatibility matching has depth guards; XML/tree walkers are iterative. Some
-upstream selector-AST cleanup still recurses on the engine stack.
+upstream selector-AST cleanup still recurses on the engine stack. A shared-kernel
+lexical guard now rejects CSS block/function nesting above 512 before parsing,
+including malformed input. It ignores strings, comments and escaped delimiters;
+the existing 64-level compatibility matcher guard remains separate.
 
 `bench/stack.mjs` uses a separate stack-export build and instruments all compiled
 stack-pointer assignments with existing LLVM tools. It checks deep trees,

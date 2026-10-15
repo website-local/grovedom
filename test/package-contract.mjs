@@ -276,6 +276,64 @@ export const packageCases = [
       } finally { $.dispose(); }
     },
   },
+  {
+    name: 'selector nesting rejects safely and the first compound query recovers', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main><p class="target">text</p></main>', { xml, execution });
+        try {
+          const retained = $('p'), handle = retained[0];
+          retained.attr('pending', 'kept');
+          assert.throws(() => $(':is('.repeat(513) + 'p' + ')'.repeat(513) + '['),
+            { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+          assert.equal($('p.target[pending="kept"]')[0], handle);
+          assert.equal($(':is('.repeat(512) + 'p' + ')'.repeat(512)).text(), 'text');
+          assert.equal(retained[0], handle);
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'attribute replacement removes exact stored Unicode names', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<p data-\u00a0="old" data-a\u2003b="old">text</p>', { xml, execution });
+        try {
+          const selected = $('p'), handle = selected[0];
+          selected.attr('pending-\ufeff', 'old');
+          assert.equal(selected.prop('attribs', { title: 'new' }), selected);
+          assert.deepEqual({ ...handle.attribs }, { title: 'new' });
+          selected.prop('attribs', handle.attribs);
+          assert.deepEqual({ ...handle.attribs }, { title: 'new' });
+          selected.prop('attribs', {});
+          assert.deepEqual({ ...handle.attribs }, {});
+          assert.equal(selected[0], handle);
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'relative list order retains query roots and snapshot identity', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main><section id="left"><div><p id="a"></p></div><p id="b"></p></section>' +
+          '<section id="right"><div><p id="c"></p></div><p id="d"></p></section></main>', { xml, execution });
+        try {
+          const roots = $([$('#right')[0], $('#left')[0]]);
+          const expected = ['c', 'd', 'a', 'b'].map(id => $('#' + id)[0]);
+          for (const selector of ['> p, div p', 'div p, > p']) {
+            const found = roots.find(selector);
+            assert.deepEqual(found.get(), expected);
+            assert.equal(found.end(), roots);
+            assert.deepEqual($.root().find(selector).get(), [$('#a')[0], $('#c')[0]]);
+          }
+          for (const selector of ['> p, + section', '+ section, > p'])
+            assert.throws(() => roots.find(selector), { code: 'ERR_GROVEDOM_UNSUPPORTED' });
+          assert.equal(roots.find('p[id]').length, 4);
+        } finally { $.dispose(); }
+      }
+    },
+  },
 ];
 
 export function checkPackage(api, { corrected = true } = {}) {

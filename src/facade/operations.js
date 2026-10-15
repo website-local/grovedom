@@ -4,6 +4,7 @@ import { alive, unsupported, empty, boolAttributes } from './common.js';
 // One set of closures per facade; no per-document dispatch object.
 export function createOperations(kernel) {
     const encoder = createEncoder();
+    const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
     function commandViews(state, length, bytes) {
         // Repeated scalar callbacks usually submit the same command/value lengths.
         // Keep one view per buffer, refreshing after growth or a changed used range.
@@ -99,7 +100,6 @@ export function createOperations(kernel) {
         // Keep ordinary CSS on the direct kernel path. These common Cheerio suffixes
         // apply to the matched selection, rather than to sibling position in the DOM.
         if (selector.includes(':')) {
-            const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
             const suffix = positional.exec(selector);
             if (suffix && !escaped(selector, suffix.index)) {
                 if (selectorBoundary(selector, ',') < selector.length)
@@ -140,9 +140,16 @@ export function createOperations(kernel) {
             }
             selector = expanded;
         }
+        // A relative clause can occur anywhere in a list. Only inspect possible
+        // relative lists; ordinary absolute selectors still use one kernel query.
+        if (selector.includes(',') && /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/.test(selector)) {
+            const relative = relativeListQuery(state, selector, roots, match);
+            if (relative !== null)
+                return relative;
+        }
         const first = selector.charCodeAt(0);
-        if (first === 62 || first === 43 || first === 126 || selector.startsWith(':scope') || first <= 32) {
-            const relative = relativeQuery(state, selector.trimStart(), roots, match);
+        if (first === 62 || first === 43 || first === 126 || selector.startsWith(':scope') || first <= 32 || selector.startsWith('/*')) {
+            const relative = relativeQuery(state, selectorStart(selector), roots, match);
             if (relative !== null)
                 return relative;
         }
@@ -156,19 +163,29 @@ export function createOperations(kernel) {
         flush(state);
         return Boolean(kernel.matches(state.owner, selector, ids.length === 1 ? ids[0] : ids));
     }
-    // Scan only the relative-selector path. Brackets, arguments, quotes and CSS
-    // escapes keep embedded combinators from becoming traversal boundaries.
-    function selectorBoundary(selector, separators) {
+    // Brackets, arguments, comments, quotes and CSS escapes keep embedded commas
+    // and combinators from becoming clause or traversal boundaries.
+    function selectorBoundary(selector, separators, start = 0) {
         let depth = 0, quote = '';
-        for (let i = 0; i < selector.length; i++) {
+        for (let i = start; i < selector.length; i++) {
             const char = selector[i];
             if (char === '\\') {
                 i++;
+                let digits = 0;
+                while (digits < 6 && /[0-9a-f]/i.test(selector[i] ?? '')) { i++; digits++; }
+                if (digits && !/[\t\n\f\r ]/.test(selector[i] ?? '')) i--;
+                else if (selector[i] === '\r' && selector[i + 1] === '\n') i++;
                 continue;
             }
             if (quote) {
-                if (char === quote)
+                if (char === quote || char === '\n' || char === '\r' || char === '\f')
                     quote = '';
+                continue;
+            }
+            if (char === '/' && selector[i + 1] === '*') {
+                const end = selector.indexOf('*/', i + 2);
+                if (end < 0) return selector.length;
+                i = end + 1;
                 continue;
             }
             if (char === '"' || char === "'") {
@@ -184,22 +201,58 @@ export function createOperations(kernel) {
         }
         return selector.length;
     }
+    function selectorStart(selector) {
+        selector = selector.replace(/^[\t\n\f\r ]+/, '');
+        while (selector.startsWith('/*')) {
+            const end = selector.indexOf('*/', 2);
+            if (end < 0) break;
+            selector = selector.slice(end + 2).replace(/^[\t\n\f\r ]+/, '');
+        }
+        return selector;
+    }
+    function relativeKind(selector) {
+        return /^[+~]/.test(selector) ? 2 : /^(?:>|:scope\b)/.test(selector) ? 1 : 0;
+    }
+    function relativeListQuery(state, selector, roots, match) {
+        const clauses = [];
+        let kinds = 0, start = 0;
+        for (;;) {
+            const end = selectorBoundary(selector, ',', start);
+            const clause = selectorStart(selector.slice(start, end));
+            clauses.push(clause);
+            kinds |= relativeKind(clause);
+            if (end === selector.length) break;
+            start = end + 1;
+        }
+        if (!kinds || clauses.length === 1) return null;
+        if (match) unsupported('Relative selectors in filter/is are not supported.');
+        if (kinds === 3) unsupported('Mixed child/sibling relative selector lists are not supported.');
+        for (const clause of clauses) {
+            if (!clause.trim()) unsupported('Empty CSS selector list entries are not supported.');
+            const suffix = positional.exec(clause.trimEnd());
+            if (suffix && !escaped(clause, suffix.index))
+                unsupported('Positional selector lists are not supported.');
+        }
+        const found = new Set();
+        // Use the original roots for every clause, including document and
+        // fragment roots. Iteration keeps flat lists off the JS call stack.
+        for (const clause of clauses)
+            for (const id of query(state, clause, roots)) found.add(id);
+        if (!found.size) return empty;
+        if (!(kinds & 2)) {
+            // The kernel owns overlap, template and disjoint-root traversal
+            // order. A global sort would lose the caller's disjoint-root order.
+            const ordered = kernel.query(state.owner, '*', roots, false).filter(id => found.has(id));
+            if (ordered.length === found.size) return ordered;
+        }
+        return edit(state, 13, Uint32Array.from(found));
+    }
     function relativeQuery(state, selector, roots, match) {
         if (!/^(?:[>+~]|:scope\b)/.test(selector))
             return null;
         if (match)
             unsupported('Relative selectors in filter/is are not supported.');
         roots = kernel.query(state.owner, '*', roots, true);
-        const comma = selectorBoundary(selector, ',');
-        if (comma < selector.length) {
-            if (selector[0] !== '+' && selector[0] !== '~' && /^[+~]/.test(selector.slice(comma + 1).trimStart()))
-                unsupported('Mixed child/sibling relative selector lists are not supported.');
-            const left = query(state, selector.slice(0, comma), roots), right = query(state, selector.slice(comma + 1).trimStart(), roots);
-            const both = new Uint32Array(left.length + right.length);
-            both.set(left);
-            both.set(right, left.length);
-            return edit(state, 13, both);
-        }
         let candidates, rest;
         if (selector.startsWith(':scope')) {
             candidates = roots;
