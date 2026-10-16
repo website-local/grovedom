@@ -259,7 +259,7 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
         }
         attr = lxb_dom_attr_interface_create(&doc->html->dom_document);
         if (!attr) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        if ((doc->xml ? gd_xml_attr_name(doc, attr, a, alen, 0) : lxb_dom_attr_set_name(attr, a, alen, false)) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, b, blen) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
+        if ((doc->xml ? gd_xml_attr_name(doc, attr, a, alen, 0) : gd_attribute_set_name(attr, a, alen)) != LXB_STATUS_OK || lxb_dom_attr_set_value(attr, b, blen) != LXB_STATUS_OK) { lxb_dom_attr_interface_destroy(attr); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
         gd_attribute_restore(doc, node, attr);
         return lxb_dom_element_attr_append(lxb_dom_interface_element(node), attr);
     }

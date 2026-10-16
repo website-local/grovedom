@@ -3,6 +3,7 @@
 #include "document.h"
 
 const lxb_char_t *gd_attribute_name(gd_document *doc, lxb_dom_attr_t *attr, size_t *length);
+lxb_status_t gd_attribute_set_name(lxb_dom_attr_t *attr, const lxb_char_t *name, size_t length);
 lxb_dom_attr_t *gd_attribute(gd_document *doc, lxb_dom_node_t *node, const lxb_char_t *name, size_t length);
 lxb_status_t gd_attribute_remove(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr);
 void gd_attribute_restore(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr);

@@ -10,6 +10,7 @@ compatibility-matcher limit cases. Every stack pointer was restored. The trials
 include accepted 512-level selectors and safe rejection/recovery for malformed
 selectors with 128,000 nested functions; saved-page inputs were not included.
 These are observed workloads, not a worst-case bound or an engine-stack measure.
+The attribute/callback follow-up reproduced these counts and maxima.
 
 Earlier source/disassembly and refactor checks observed 6,256 pointer bytes and
 6,200 written bytes, including 96 sentinel runs across 122 compiled write sites.

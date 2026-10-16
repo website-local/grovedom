@@ -28,6 +28,12 @@ export function expandSelector(selector) {
                 quote = '';
             continue;
         }
+        if (ch === '/' && selector[i + 1] === '*') {
+            const end = selector.indexOf('*/', i + 2);
+            if (end === -1) break;
+            i = end + 1;
+            continue;
+        }
         if (ch === '"' || ch === "'") {
             quote = ch;
             continue;

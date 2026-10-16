@@ -28,6 +28,6 @@ for (const name of names) {
   for (const key of ['dependencies', 'peerDependencies', 'optionalDependencies'])
     assert.equal(Object.keys(installed[key] ?? {}).length, 0, `${name} has ${key}`);
 }
-for (const file of ['package-contract.mjs', 'package-consumer.mjs', 'package-consumer-worker.mjs'])
+for (const file of ['package-contract.mjs', 'review-contract.mjs', 'package-consumer.mjs', 'package-consumer-worker.mjs'])
   copyFileSync(new URL(`test/${file}`, source), join(consumer, file));
 execFileSync(process.execPath, ['package-consumer.mjs', target], { cwd: consumer, stdio: 'inherit' });

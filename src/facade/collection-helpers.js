@@ -133,9 +133,10 @@ export function createCollectionHelpers(context) {
         const { state, ids } = entry(source);
         if (!ids.length)
             return source;
-        if (values.length === 1 && typeof values[0] === 'function')
+        if (typeof values[0] === 'function')
             return source.each(function (i, node) {
-                if (node.nodeType !== 1)
+                const type = node.nodeType;
+                if (type !== 1 && (type !== 9 || position >= 2))
                     return;
                 const one = state.api(node);
                 content(one, position, [values[0].call(node, i, one.html())]);

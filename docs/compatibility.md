@@ -148,6 +148,23 @@ view preserves its values and callback edits. Replacement objects are not shared
 between elements; later external object changes do not mutate the DOM.
 `removeAttr` retains its separate whitespace-delimited name-list behavior.
 
+Attribute mutations preserve exact spelling. For example, setting `ID` keeps an
+existing lowercase `id`, and newly assigned SVG `viewBox` retains its case through
+cloning and HTML serialization. HTML selectors continue to use their documented
+case rules; an uppercase `ID` does not become the lowercase ID selector value.
+
+Raw element `data` assignments replace the data store by reference. Once that
+property exists, `prop('data', value)` replaces it too; before then, `prop` uses
+an ordinary `data` attribute. Text/comment `data` writes still edit character data.
+Document and template-content roots accept append/prepend callbacks. When the
+first insertion argument is a callback, later arguments are ignored, matching
+Cheerio's overload. Sibling insertion callbacks on detached elements remain
+best-effort: `before`/`after` can invoke the callback even when no insertion occurs.
+`wrapAll` skips lowercase script/style nodes when selecting
+its wrapper container, including the corresponding XML wrapper-clone behavior.
+CSS comments do not participate in selector alias expansion; quoted operands
+retain their literal contents.
+
 [Integration](integration.md) describes the real consumer replay.
 [Historical inventory](history/compatibility.md) preserves the detailed earlier
 API audit and exclusions; current support status is the table above.

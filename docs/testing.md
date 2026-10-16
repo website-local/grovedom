@@ -21,30 +21,33 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 readiness hardening passes the **2,184-case suite**. Sixty new cases
-cover selector nesting/recovery, exact attribute replacement and relative lists,
-including installed public contracts. Earlier callback, template, snapshot and
-release-workflow regressions remain enabled:
+The 0.1.1 review fixes pass the **2,362-case suite**. The latest 178 cases cover
+exact attribute spelling, root/variadic insertion callbacks, raw data replacement,
+commented aliases and wrapper targets, including installed public contracts.
+Earlier selector-safety, template, snapshot and release-workflow regressions
+remain enabled:
 
 | Backend | Node versions | Pass / exclusions |
 |---|---|---:|
-| Native | 22, 24 | 2,125 /59 |
-| Pooled Wasm | 22, 24 | 2,133 /51 |
-| Global Wasm | 22 | 2,129 /55 |
-| Per-document Wasm | 22 | 2,130 /54 |
+| Native | 22, 24 | 2,303 /59 |
+| Pooled Wasm | 22, 24 | 2,311 /51 |
+| Global Wasm | 22 | 2,307 /55 |
+| Per-document Wasm | 22 | 2,308 /54 |
 
 Fresh native/Wasm builds and the rebuilt native ASan/UBSan binary pass their
 applicable checks, with leak detection and no sanitizer findings. Owned-buffer
 failure recovery, types, offline package installations on Node 22/24, 200 seeded
-cases each on native/pool and 64 sanitizer fuzz cases also pass. The preceding
-release checkpoint's 1,000-case fuzz runs and four authored 120-cycle memory
-budgets remain separate historical qualification, not reruns of this hardening.
+cases each on native/pool and 64 sanitizer fuzz cases also pass. All 74 original
+review comparisons now match Cheerio on the native, three Wasm-heap and portable
+entries. The preceding release checkpoint's 1,000-case fuzz runs and four authored
+120-cycle memory budgets remain separate historical qualification, not reruns of
+this review.
 Portable browser normal/fallback checks each pass 810 cases with 35 exclusions,
 plus the release corrections in HTML/XML and buffered/direct modes. Local checks
 do not cover exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md)
 remains required before publication. Actual browser-engine testing remains pending.
 
-Installed Node, browser and native packages share thirty-two public-contract checks
+Installed Node, browser and native packages share thirty-eight public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
 large transfers, snapshots, data keys and disposal. Separate checks cover entry
 ownership and concurrent caller-managed workers. The eight stable checks also

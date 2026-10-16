@@ -1,8 +1,10 @@
 // Public-API checks shared by source tests and empty, offline package consumers.
 // No diagnostic imports or Cheerio dependency can hide a packaging regression.
 import assert from 'node:assert/strict';
+import { reviewCases } from './review-contract.mjs';
 
 export const packageCases = [
+  ...reviewCases,
   {
     name: 'HTML callbacks, partial effects and selection snapshots',
     run({ load, contains, merge }, execution) {

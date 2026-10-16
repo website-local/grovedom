@@ -30,6 +30,15 @@ export function createSelection(context) {
         }
         if (name === 'innerHTML') return source.html(value);
         if (name === 'textContent' || name === 'innerText') return source.text(value);
+        if (name === 'data')
+            return source.each(function () {
+                if (this.nodeType !== 1) return;
+                const id = nodes.get(this).ids[0];
+                // Cheerio uses an attribute until a raw data property exists.
+                // Replacements keep object identity, including explicit resets.
+                if (state.data.has(id)) state.data.set(id, value);
+                else state.api(this).attr(name, String(value));
+            });
         // Ordinary properties use string values, including null/undefined from
         // callbacks. Boolean properties retain presence semantics.
         return source.attr(name, !state.xml && boolAttributes.has(name.toLowerCase()) ? value ? '' : null
@@ -349,9 +358,22 @@ export function createSelection(context) {
             if (typeof wrapper === 'function')
                 wrapper = wrapper.call(this[0], 0, this[0]);
             const inserted = state.api(wrapper).insertBefore(this.first());
-            let inner = inserted.filter(function () { return this.type === 'tag'; }).last();
-            while (inner.children().length)
-                inner = inner.children().first();
+            let inner = inserted.filter(function () {
+                if (this.nodeType !== 1) return false;
+                const name = this.name;
+                return name !== 'script' && name !== 'style';
+            }).last();
+            while (inner.length) {
+                let next;
+                // Cheerio's wrapper clones give lowercase script/style their
+                // distinct types in both modes. children() yields only elements.
+                for (const child of inner.children()) {
+                    const name = child.name;
+                    if (name !== 'script' && name !== 'style') { next = child; break; }
+                }
+                if (!next) break;
+                inner = state.api(next);
+            }
             if (inner.length)
                 inner.append(this);
             return this;
@@ -406,6 +428,8 @@ export function createSelection(context) {
             }
             if (!state.xml && boolAttributes.has(name.toLowerCase()))
                 return this.attr(name) !== undefined;
+            if (name === 'data' && !state.data.has(ids[0]) && this[0].nodeType === 1)
+                return this.attr(name);
             if (rawProperties.has(name))
                 return this[0][name];
             const result = this.attr(name);

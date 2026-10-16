@@ -38,6 +38,14 @@ development will use 0.2.0 rather than a patch version.
   preserve attributes and callback edits when reassigning an element's own live view.
 - Handle child/descendant selector lists in either clause order, retaining document
   and template roots, disjoint-root order, escaped delimiters and selection snapshots.
+- Preserve newly assigned attribute spelling, including SVG `viewBox` and distinct
+  uppercase/lowercase `id` and `class` keys, through cloning and serialization.
+- Run insertion callbacks on document/template roots and honor callback-first
+  overloads with additional arguments, preserving indices and partial effects.
+- Replace raw element data stores and existing `prop('data')` stores by reference;
+  retain attribute-backed properties before a data store exists.
+- Ignore CSS comments during selector alias expansion and skip script/style
+  containers when choosing `wrapAll` insertion targets.
 - Verify tarball bytes, versions and commit identity before offline installation
   tests; exercise the installed public APIs, XML, callbacks, disposal and workers.
 - Check older Pages releases with their tagged test fixtures, keeping historical

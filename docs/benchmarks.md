@@ -31,6 +31,27 @@ not pass multiplicity correction. The compact [performance review](history/perfo
 preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
 [Correctness qualification](testing.md) is a separate requirement.
 
+## Compatibility review follow-up
+
+The subsequent six-fix review has no conclusive elapsed-time result. Six fixed
+native/pooled-Wasm panels attempted the authored HTML/XML/SVG workloads on Node
+22/24 and a successful API workload on Node 22, with forty warmups, three groups
+of four blocks, two batches of four replays, independent module graphs and two
+identical-code controls. Every panel stopped at its declared host-activity limit.
+Only thirteen of seventy-two planned blocks completed; eleven passed the
+independent probe filter. Partial raw ratios ranged from 0.876 to 1.098, with
+material control drift. These incomplete draft results do not pass a regression
+screen and were not extended.
+
+The final change then removed a draft parent lookup from every sibling insertion
+callback, leaving detached-callback parity explicitly best-effort. In the
+120-element API diagnostic, boundary calls were 1,940 before, 2,181 in that draft
+and 1,941 after removing the lookup. The remaining extra call checks node kind
+when assigning raw character data. The authored HTML120 replay stays at 255 calls.
+These are operation counts, not elapsed speedups; the final adjustment was
+correctness-tested without another timing campaign. Attribute creation preserves
+exact interned names without changing ordinary reads or serialization.
+
 ## Hosted CI and browser demo
 
 CI compares the verified current package, npm latest and pinned Cheerio's default

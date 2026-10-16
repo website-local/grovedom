@@ -18,7 +18,7 @@ export function createDataMethods({ entry, nodes, read, attributes }) {
     function store(state, node) {
         const id = nodes.get(node).ids[0];
         let result = state.data.get(id);
-        if (!result) state.data.set(id, result = {});
+        if (result == null) state.data.set(id, result = {});
         return result;
     }
     function data(source, name, value) {

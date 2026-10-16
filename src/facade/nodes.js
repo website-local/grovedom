@@ -105,7 +105,14 @@ export function createNodes(kernel, operations, selections, selection) {
         childNodes: { get() { return this.children; } },
         firstChild: { get() { return this.children[0] ?? null; } },
         lastChild: { get() { return this.children.at(-1) ?? null; } },
-        data: { get() { const { state, ids } = nodes.get(this); return state.data.get(ids[0]) ?? read(state, ids, 8); }, set(value) { const { state, ids } = nodes.get(this); edit(state, 12, ids, empty, String(value)); } },
+        data: {
+            get() { const { state, ids } = nodes.get(this); const value = state.data.get(ids[0]); return value === undefined ? read(state, ids, 8) : value; },
+            set(value) {
+                const { state, ids } = nodes.get(this);
+                if (read(state, ids, 6) === 1) state.data.set(ids[0], value);
+                else edit(state, 12, ids, empty, String(value));
+            },
+        },
         attribs: { get() {
                 const data = nodes.get(this), { state, ids } = data;
                 if (read(state, ids, 6) !== 1)

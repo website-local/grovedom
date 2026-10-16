@@ -51,6 +51,30 @@ Cheerio. Exclusions do not count as passes.
 
 ## Follow-up gap fixes
 
+The subsequent review adds [attribute-spelling regressions](../test/attribute-spelling.test.mjs)
+and [mutation/selector regressions](../test/review-mutations.test.mjs), with shared
+[installed and portable contracts](../test/review-contract.mjs):
+
+| Area | Previous difference | Current behavior |
+|---|---|---|
+| New HTML attributes | Mixed-case names serialized in lowercase; `ID`/`CLASS` replaced lowercase keys | Exact interned names preserve spelling and distinct lowercase selector roles |
+| Root insertion callbacks | Document and template-content roots were skipped | Append/prepend callbacks receive original indices and current inner markup |
+| Element data replacement | Raw writes were ignored; `prop` could leave a stale store and add an attribute | Existing stores are replaced by reference; fresh `prop` remains attribute-backed |
+| Alias comments | Comment quotes, brackets and pseudo names were treated as syntax | Complete comments are skipped outside quoted operands |
+| `wrapAll` targets | Descent could choose script/style before an ordinary tag | First eligible tag at each level, matching Cheerio's wrapper clones |
+| Variadic callbacks | Extra insertion arguments bypassed callback dispatch and could mutate before throwing | Callback-first dispatch ignores subsequent arguments and preserves partial effects |
+
+Name handling changes only attribute creation; ordinary reads, serialization and
+existing-value updates keep their paths. The JavaScript changes are confined to
+the relevant setters, callback dispatch, uncached alias parsing and wrapping.
+This scope description is not a timing guarantee; [performance evidence](benchmarks.md)
+reports the separate regression screens and their limits.
+
+One additional difference is deferred: `before`/`after` can invoke callbacks on
+parentless elements, while Cheerio skips them. The draft parent check added a
+binding traversal to every sibling insertion callback; the selected change keeps
+the existing behavior instead. This limitation does not affect the six fixes above.
+
 [Gap regressions](../test/compatibility-gaps.test.mjs) cover:
 
 - Unicode insensitive comparisons with css-select's operator-specific rules:

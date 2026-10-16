@@ -39,6 +39,23 @@ const lxb_char_t *gd_attribute_name(gd_document *doc, lxb_dom_attr_t *attr, size
     return lxb_dom_attr_qualified_name(attr, length);
 }
 
+lxb_status_t gd_attribute_set_name(lxb_dom_attr_t *attr, const lxb_char_t *name, size_t length) {
+    lexbor_hash_t *names = attr->node.owner_document->attrs;
+    const lxb_dom_attr_data_t *data = lxb_dom_attr_data_by_qualified_name(names, name, length);
+    if (!data) {
+        lxb_dom_attr_data_t *added = lexbor_hash_insert(names, lexbor_hash_insert_raw, name, length);
+        if (!added) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
+        added->attr_id = (uintptr_t) added;
+        data = added;
+    }
+    /* Cheerio mutations preserve exact keys. Keep static lowercase IDs for
+     * id/class hooks; differently spelled keys get their own interned ID.
+     * Both serializers can then use the stored local name without extra work. */
+    attr->node.local_name = data->attr_id;
+    attr->qualified_name = data->attr_id;
+    return LXB_STATUS_OK;
+}
+
 lxb_dom_attr_t *gd_attribute(gd_document *doc, lxb_dom_node_t *node, const lxb_char_t *name, size_t length) {
     if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return NULL;
     for (lxb_dom_attr_t *attr = lxb_dom_interface_element(node)->first_attr; attr; attr = attr->next) {
