@@ -10,7 +10,7 @@ from JavaScript, with no runtime dependencies or native installation step.
 [Compatibility](docs/compatibility.md) · [Architecture](docs/design.md)
 
 **Experimental:** `0.1.1` is published on npm.
-This release is a [compatibility bug-fix patch](CHANGELOG.md), including
+This release is a [compatibility bug-fix patch](CHANGELOG.md#011), including
 documented result and extraction type-inference corrections.
 GroveDOM implements a substantial subset of Cheerio, not a complete drop-in
 replacement. Check the [compatibility guide](docs/compatibility.md) before migrating.
@@ -161,6 +161,8 @@ and isolated package installations. Production adoption and broader browser
 validation remain [open work](docs/roadmap.md).
 
 ## Development
+
+The `main` branch targets **0.1.2 (unreleased)**.
 
 See [build and package setup](docs/prototype.md) for the pinned Lexbor/WASI inputs
 and required Node, Clang/LLVM, CMake and Ninja tools. After configuring those

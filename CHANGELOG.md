@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 (unreleased)
+
+Development has moved to 0.1.2; the published release remains 0.1.1.
+Changes so far are documentation and release metadata only.
+
+- Record the reported Firefox 150 and Chromium 140 benchmark and selected
+  correctness results, including exclusions and remaining browser coverage gaps.
+- Align release documentation and the manual Pages default with published 0.1.1.
+
 ## 0.1.1
 
 Released 2026-10-17.

@@ -66,14 +66,18 @@ The native manifest restricts OS, CPU and libc. ARM64, musl/Alpine, Windows and
 macOS native builds are not shipped. Use the main Wasm package there. Building
 locally on a newer system does not produce the CI native compatibility baseline.
 Published **0.1.0** and **0.1.1** remain immutable. Both source manifests and the
-root lockfile reflect **0.1.1**. Future releases require updating all three files
-together before dispatching a new release.
+root lockfile now target **0.1.2 (unreleased)**, matching the Release workflow's
+default version and the new changelog entry. CI reads the current version from
+package metadata; its published comparison continues to use npm `latest`.
+The Pages default stays at published **v0.1.1** until another release is available.
+Update both manifests, the lockfile, changelog and Release default together when
+starting the next development version. A version bump does not publish a release.
 
 The **0.1.1 release is a compatibility bug-fix patch**. Public exports,
 initialization, runtime requirements and ownership rules match 0.1.0. Observable
 corrections include array extraction and its TypeScript result inference; code
 that relied on those earlier results may need adjustment. The
-[changelog](../CHANGELOG.md) lists the corrections and performance limits. During
+[changelog](../CHANGELOG.md#011) lists the corrections and performance limits. During
 0.1 development, deliberate incompatible API changes require 0.2.0. Release
 preflight requires a nonempty, unique changelog entry matching the committed version.
 

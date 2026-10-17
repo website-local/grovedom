@@ -1,8 +1,9 @@
 # Readiness and next work
 
 Experimental 0.1.1 is published as a
-[compatibility bug-fix patch](../CHANGELOG.md), with hosted release verification
-complete. Pooled Wasm on Node is primary, native is separate and the browser
+[compatibility bug-fix patch](../CHANGELOG.md#011), with hosted release verification
+complete. Development on `main` targets **0.1.2 (unreleased)**.
+Pooled Wasm on Node is primary, native is separate and the browser
 entry uses the same Wasm binary with async initialization.
 [Compatibility](compatibility.md) defines supported,
 best-effort and unsupported behavior; [testing](testing.md) records qualification.

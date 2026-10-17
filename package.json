@@ -1,6 +1,6 @@
 {
   "name": "grovedom",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "MIT",
   "private": true,
   "description": "Wasm-first Cheerio-shaped HTML/XML DOM with ordered operations",
