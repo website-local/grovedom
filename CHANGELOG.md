@@ -56,6 +56,8 @@ development will use 0.2.0 rather than a patch version.
   check existing npm tags before publishing and correct resumed draft prerelease
   status.
 - Fix local demo routing so the printed URL loads its benchmark modules.
+- Ship separate Wasm and native package READMEs with runnable examples, asset
+  setup, disposal rules, platform requirements and compatibility limits.
 
 These fixes can change results that depended on earlier bugs. In particular,
 attribute and ordinary property callbacks returning undefined now store the string

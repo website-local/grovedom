@@ -1,6 +1,6 @@
 # GroveDOM
 
-**A fast, standalone HTML/XML DOM library with a Cheerio-shaped API.**
+**A standalone HTML/XML DOM library with a Cheerio-shaped API.**
 
 GroveDOM parses, queries, modifies and serializes documents using a C/Lexbor
 kernel compiled to WebAssembly. Use familiar selectors and chainable operations
@@ -18,6 +18,8 @@ replacement. Check the [compatibility guide](docs/compatibility.md) before migra
 ## Getting started
 
 Requires **Node.js 22 or later**. Node 22 and 24 are tested in CI.
+The package provides ES modules; save the example as `example.mjs` and run
+`node example.mjs`, or use a project with `"type": "module"`.
 
 ```sh
 npm install grovedom
@@ -63,8 +65,8 @@ document; garbage collection is only a cleanup fallback.
 - Independent documents in caller-managed Node worker threads.
 - Bundled TypeScript declarations that do not require Cheerio or its types.
 
-The API is partial. Unsupported options and APIs fail explicitly; GroveDOM does
-not silently fall back to Cheerio. Parser recovery and some selector/DOM edge
+The API is partial. Unsupported options are rejected; GroveDOM does not
+silently fall back to Cheerio. Parser recovery and some selector/DOM edge
 cases differ. The [compatibility guide](docs/compatibility.md) describes supported,
 best-effort and unsupported behavior; [tests](docs/testing.md) track selected
 Cheerio, jQuery and Web Platform Test expectations and known exclusions.
@@ -72,7 +74,7 @@ Cheerio, jQuery and Web Platform Test expectations and known exclusions.
 ## Configuration
 
 The Node entry initializes its bundled Wasm automatically on the first DOM call.
-For custom settings, call `init()` first:
+For custom settings, call `init()` before `load`, `contains` or `merge`:
 
 ```js
 import { init } from 'grovedom';
@@ -85,10 +87,12 @@ init({
 });
 ```
 
-These are the default pool limits. `wasm` can be a local path, file URL, byte
-array, ArrayBuffer or compiled `WebAssembly.Module`. Settings become fixed after
-successful initialization. Runtime configuration uses this API, with no
-environment variables or package-metadata checks. See [initialization details](docs/prototype.md#runtime-initialization).
+These limits apply to idle instances and their combined linear memory, not
+active documents or total process memory. `wasm` can be a local path, file URL,
+byte array, ArrayBuffer or compiled `WebAssembly.Module`. A custom binary must
+match its JavaScript build. Settings become fixed after successful initialization;
+repeated calls throw. Runtime configuration uses this API, with no environment
+variables. See [initialization details](docs/prototype.md#runtime-initialization).
 
 ## Browser usage
 
@@ -97,7 +101,7 @@ Browsers use the **same Wasm binary** as Node, with asynchronous initialization:
 ```js
 import { init, load } from 'grovedom/browser';
 
-await init({ wasm: new URL('./assets/grovedom.wasm', import.meta.url) });
+await init({ wasm: '/assets/grovedom.wasm' });
 const $ = load('<p>Hello, browser</p>');
 try {
   console.log($('p').text());
@@ -106,10 +110,12 @@ try {
 }
 ```
 
-With a bundler, copy `grovedom.wasm` from the installed package to the
-URL passed to `init`. For unbundled ESM, serve the package files over HTTP and
+With a bundler, copy `node_modules/grovedom/grovedom.wasm` to a served asset
+directory and pass its deployed URL to `init`; adjust the example URL for
+deployments under a subpath. For unbundled ESM, serve the package files over HTTP and
 import its `src/browser.js`; `await init()` finds the adjacent packaged binary.
-DOM calls remain synchronous after initialization. GroveDOM parses its own
+Await the first initialization; concurrent or repeated browser calls reject.
+DOM calls remain synchronous and occupy the calling thread. GroveDOM parses its own
 documents; it does not manipulate the page's live DOM or execute scripts.
 
 Browser support is **best-effort**. Portable module checks pass, but a tested
@@ -126,23 +132,26 @@ is available after [GitHub Pages deployment](docs/releasing.md#browser-demo-on-g
 
 | Package / entry | Status | Scope |
 |---|---|---|
-| `grovedom` | Primary | Node 22/24 on Linux; Node 24 on macOS and Windows |
+| [grovedom](packages/wasm/README.md) | Primary | Node 22/24 on Linux; Node 24 on macOS and Windows |
 | `grovedom/browser` | Best-effort | Async ESM entry, same Wasm binary |
-| `grovedom-native` | Secondary | Node-API; Linux x64 with glibc 2.35+ |
+| [grovedom-native](packages/native/README.md) | Secondary | Node-API; Linux x64 with glibc 2.35+ |
 
 Install `grovedom-native` separately to use the native backend, then import
 `load` from it instead. Both packages have independent state and handle identity.
 Neither has runtime or peer dependencies; both include standalone TypeScript
 declarations. GroveDOM creates no threads and fetches no document resources.
+The native package has no macOS, Windows, ARM64 or musl/Alpine binary and does
+not automatically fall back to Wasm. Each linked package README includes its
+installation, initialization and lifetime instructions.
 
 ## Performance and validation
 
-Historical deterministic consumer replays measured median speedups of **4.62×
-for pooled Wasm** and **4.92× for native** against Cheerio 1.2.0, including
-bindings and disposal. These are scoped Node measurements, not promises for
-every input or browser. The architectural refactor passed its scoped regression
-screen within a 2% tolerance. [Benchmarks, controls and limits](docs/benchmarks.md)
-document the evidence and short-run protocol.
+Scoped Node measurements show gains on selected workloads, including bindings
+and disposal. **Current full-scope non-regression and production adoption remain
+unverified**, and timing for the latest compatibility fixes was inconclusive.
+[Benchmarks, controls and limits](docs/benchmarks.md) preserve the historical
+results and unsuccessful comparisons. Measure your complete workload against
+the best compatible Cheerio configuration before choosing a backend.
 
 CI covers multiple Node versions and operating systems, selected upstream
 correctness cases, worker/document lifetimes, native sanitizers, seeded fuzzing

@@ -39,6 +39,10 @@ Recheck those notices when changing the build's dependency revisions or librarie
 Neither package has runtime or peer dependencies. Declarations define GroveDOM's
 supported options, callbacks and helpers locally, so TypeScript consumers do not
 need Cheerio. The repository retains Cheerio only for development comparisons.
+The [Wasm package README](../packages/wasm/README.md) and
+[native package README](../packages/native/README.md) are copied unchanged into
+their respective packages. Their documentation links work from npm as well as
+the repository; development setup stays on this page.
 
 Release defaults: O3/ThinLTO, optional source target features off, 1 MiB initial
 Wasm memory, 32 KiB linear stack, 16 KiB transfer scratch. Compiler flags remain
