@@ -68,8 +68,10 @@ backend/heap also skip. Hosted CI passed on Linux with Node 22.0.0 and maintaine
 Node 22/24, plus pooled Wasm on Windows and macOS with Node 24. Packed installs
 are checked on those platforms; the native package remains Linux x64/glibc only.
 Browser graph/portable-path checks run under Node. Reported Firefox 150 and
-Chromium 140 [demo results](benchmarks.md#011-release-measurements) cover the
-authored workloads; the full browser correctness matrix remains pending.
+Chromium 140 [correctness-page runs](testing.md#reported-browser-runs) each pass
+810 cases with 35 documented skips and no failures. Their separate
+[demo results](benchmarks.md#011-release-measurements) cover authored workloads.
+WebKit and broader browser API coverage remain unqualified.
 The [CI release policy](releasing.md) defines the native build baseline and
 platform matrix. Both packages are published at experimental 0.1.1.
 

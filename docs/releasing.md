@@ -23,7 +23,9 @@ not gate releases. Output mismatches, setup failures and insufficient samples
 fail verification. Hosted release verification passed for experimental 0.1.1,
 and both npm packages are published at that version. Reported Firefox 150 and
 Chromium 140 [demo measurements](benchmarks.md#011-release-measurements) supplement
-the portable checks; a full browser correctness matrix remains future work.
+the portable checks. Separate [correctness-page runs](testing.md#reported-browser-runs)
+pass the selected suite in both browsers; WebKit and broader browser API coverage
+remain unqualified.
 
 Verification uses eleven runner jobs: two builds, one sanitizer job, package
 assembly, five OS/Node test groups, one benchmark and the final gate. Linux groups

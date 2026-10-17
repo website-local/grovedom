@@ -118,11 +118,11 @@ Await the first initialization; concurrent or repeated browser calls reject.
 DOM calls remain synchronous and occupy the calling thread. GroveDOM parses its own
 documents; it does not manipulate the page's live DOM or execute scripts.
 
-Browser support is **best-effort**. Portable module checks pass, and reported
-[Firefox 150 and Chromium 140 demo runs](docs/benchmarks.md#011-release-measurements)
-exercise the authored workloads. A full browser correctness matrix, including
-WebKit, is still pending. No SIMD, shared memory, threads or cross-origin
-isolation is required.
+Browser support is **best-effort**. Reported Firefox 150 and Chromium 140
+[correctness-page runs](docs/testing.md#reported-browser-runs) each pass 810 cases
+with 35 documented skips and no failures. WebKit and broader browser API coverage
+remain unqualified. No SIMD, shared memory, threads or cross-origin isolation
+is required.
 
 The [browser benchmark](docs/prototype.md#browser-and-demo) shares the local and CI
 authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0

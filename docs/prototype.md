@@ -86,7 +86,9 @@ The browser entry requires explicit async initialization. It fetches bytes and
 uses `WebAssembly.compile`, without requiring streaming compilation or a specific
 Wasm MIME type. DOM calls are synchronous afterward. Concurrent/repeated init
 calls are rejected; await the original call. URL fetching follows browser CORS
-and CSP rules. This is best-effort support, not a tested browser-version matrix.
+and CSP rules. Support is best-effort: reported Firefox 150 and Chromium 140
+[correctness-page runs](testing.md#reported-browser-runs) pass the selected suite,
+while WebKit and broader browser API coverage remain unqualified.
 
 ```sh
 node scripts/serve-demo.mjs ./build/packages 8080

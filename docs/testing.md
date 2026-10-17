@@ -47,7 +47,9 @@ plus the release corrections in HTML/XML and buffered/direct modes. These local
 checks do not cover exact Node 22.0.0 or Windows/macOS; the separate
 [hosted release matrix](releasing.md) passed for 0.1.1. Reported Firefox 150 and
 Chromium 140 [demo runs](benchmarks.md#011-release-measurements) cover the four
-authored workloads. Full browser-engine correctness qualification remains pending.
+authored workloads. Separate [correctness-page runs](#reported-browser-runs)
+pass the selected suite in both browsers; WebKit and broader browser API
+qualification remain open.
 
 Installed Node, browser and native packages share forty-two public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
@@ -92,6 +94,31 @@ The page reports passes, unexpected failures, exclusions and known failures
 separately. It performs no benchmark or CDN request. A resolved known failure
 requires review rather than silently passing under an old exemption.
 
+### Reported browser runs
+
+The Firefox 150 and Chromium 140 results supplied on 2026-10-17 match the
+0.1.1 correctness suite:
+
+| Browser | Passed | Failed | Skipped | Known failures |
+|---|---:|---:|---:|---:|
+| Firefox 150 | 810 | 0 | 35 | 0 |
+| Chromium 140 | 810 | 0 | 35 | 0 |
+
+These are user-reported executions; browser-run binary hashes were not supplied.
+A static audit confirms that both skip lists match the pinned 0.1.1 manifests.
+The 845 cases comprise 721 selector cases, 68 escape cases and 28 additional DOM
+cases in buffered/direct modes. The 35 skips are 33 documented selector
+scope/compatibility exclusions and two lone-surrogate escape cases, leaving
+810 eligible cases and no known failures.
+
+This qualifies the selected DOM transformations through the browser ESM entry.
+It does not cover the complete public API or all WPT tests. WebKit and broader
+API/fallback coverage on actual browser engines remain unqualified, so browser
+support stays best-effort. Layout, events and script execution are outside the
+GroveDOM contract.
+
+### Portable checks
+
 For a portable module-graph check without a browser engine:
 
 ```sh
@@ -100,10 +127,8 @@ GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.
 ```
 
 These checks run under Node without Node globals in the browser module context.
-The reported Firefox 150 and Chromium 140 runs exercise the separate benchmark
-demo and its output comparisons, not this correctness page. Browser support
-remains best-effort pending the full page's results across engines, including
-WebKit.
+They cover normal and fallback paths separately from the reported browser-page
+runs and the benchmark demo's output comparisons.
 
 For a historical Pages package, the optional arguments are `PACKAGE_ROOT TEST_ROOT`.
 The workflow supplies the selected release's `test` directory, preserving its

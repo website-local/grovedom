@@ -97,7 +97,9 @@ run and from controlled local comparisons.
 All ratios are reference time divided by GroveDOM time; larger values favor
 GroveDOM. Counts show probe-retained / complete blocks. The demo checks output
 equality during replay; these timings do not run the full browser correctness
-suite or establish a production workload distribution.
+suite or establish a production workload distribution. Separate reported
+[correctness-page runs](testing.md#reported-browser-runs) pass the selected suite
+in Firefox 150 and Chromium 140.
 
 ### Release CI
 
@@ -183,7 +185,7 @@ exceeds 3× against Cheerio default. Raw and filtered controls stay within
 The browser reports do not establish matched host conditions, and their
 relative ratios do not measure absolute engine speed. Do not average the two
 browsers or divide their ratios by the controls. Browser-wide 3× performance,
-the full correctness matrix and production adoption remain unverified.
+broader browser API qualification and production adoption remain unverified.
 
 ## Hosted CI and browser demo
 
@@ -197,9 +199,10 @@ The whole CI benchmark job targets two minutes. Setup, artifact installation,
 initialization and warmup share the budget; measurement ends 105 seconds after
 the first step, reserving teardown time. A three-minute timeout handles slow
 infrastructure. Setup exhaustion fails explicitly. The browser demo uses thirty
-seconds excluding download/initialization; actual browser-engine coverage is
-still pending. The demo pins Cheerio's version in its jsDelivr URLs, but CDN
-bundles can resolve transitive dependencies differently from CI's npm install.
+seconds excluding download/initialization; reported runs cover Firefox 150 and
+Chromium 140, with WebKit still unqualified. The demo pins Cheerio's version in
+its jsDelivr URLs, but CDN bundles can resolve transitive dependencies differently
+from CI's npm install.
 
 Each block keeps both opposite-order halves together. Twenty replay warmups and
 30 independent probe warmups precede measurement; samples time two replays with

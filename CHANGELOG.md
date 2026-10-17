@@ -88,10 +88,12 @@ non-regression remain unverified.
 
 Both packages remain experimental. Reported Firefox 150 and Chromium 140
 [demo measurements](docs/benchmarks.md#011-release-measurements) cover the authored
-workloads; a full browser correctness matrix remains pending. Portable browser
-checks run under Node. The native package remains Linux x64 with glibc 2.35 or
-later. Publication uses freshly built artifacts through the existing manual
-release workflow after all verification jobs pass.
+workloads. Separate [correctness-page runs](docs/testing.md#reported-browser-runs)
+each report 810 passes, 35 documented skips and no failures. WebKit and broader
+browser API coverage remain unqualified; portable fallback checks run under Node.
+The native package remains Linux x64 with glibc 2.35 or later. Publication uses
+freshly built artifacts through the existing manual release workflow after all
+verification jobs pass.
 
 ## 0.1.0
 

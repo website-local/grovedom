@@ -23,22 +23,28 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
 - Hosted package checks cover Node 22.0.0 and maintained Node 22/24 on Linux,
   plus pooled Wasm on Node 24 Windows/macOS. Reported Firefox 150 and Chromium 140
   [demo results](benchmarks.md#011-release-measurements) cover four authored
-  workloads; their ratios differ materially. A full browser correctness matrix
-  remains pending, and the package retains its experimental qualification.
+  workloads; their ratios differ materially. Their separate
+  [correctness-page runs](testing.md#reported-browser-runs) each pass 810 cases
+  with 35 documented skips and no failures. WebKit and broader browser API
+  coverage remain unqualified; the package retains its experimental status.
 
 ## Priorities
 
-1. Isolate concrete bottlenecks with fixed comparisons when new performance
+1. Validate the published package on representative production inputs and
+   workload weights with the application owner. Check output, resource lifetimes
+   and complete-workload performance against the fastest compatible Cheerio
+   configuration; saved-output replays do not represent a complete crawl distribution.
+2. Extend browser public-API coverage beyond the selected correctness page and
+   qualify WebKit before broadening browser support. Preserve the documented
+   Firefox/Chromium results and exclusions.
+3. Broaden stateful fuzzing and parser/allocation-failure coverage. Current owned
+   buffer tests do not prove universal upstream OOM recovery.
+4. Isolate concrete bottlenecks with fixed comparisons when new performance
    work is requested. Preserve callbacks, snapshots, handles and unfavorable
    evidence; avoid repeating broad campaigns to chase passing controls.
-2. Broaden stateful fuzzing and parser/allocation-failure coverage. Current owned
-   buffer tests do not prove universal upstream OOM recovery.
-3. Validate production inputs and workload weights with the application owner;
-   saved-output replays do not represent a complete crawl distribution.
-4. Run compatibility/demo cases in Chromium, Firefox and WebKit before promoting
-   browser support. Add native platforms when their demand justifies maintenance.
 5. Use the [manual release workflow](releasing.md) for future tested artifacts
    and provenance; maintain npm trusted publishing or the configured token path.
+   Add native platforms when their demand justifies maintenance.
 
 Keep [dependency patches](../native/patches/README.md) minimal and regression-tested.
 New schedulers, JITs or backend frameworks are not justified by current evidence.

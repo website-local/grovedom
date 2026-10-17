@@ -155,8 +155,10 @@ synchronous afterward and operate on GroveDOM's own documents, without
 executing scripts or changing the page's live DOM.
 
 The browser uses the same Wasm binary as Node. It requires no SIMD, shared
-memory or cross-origin isolation. Support is **best-effort**: portable checks
-run under Node, and a Chromium/Firefox/WebKit version matrix remains pending.
+memory or cross-origin isolation. Support is **best-effort**: reported Firefox 150
+and Chromium 140 [correctness-page runs](https://github.com/website-local/grovedom/blob/main/docs/testing.md#reported-browser-runs)
+each pass 810 cases with 35 documented skips and no failures. WebKit and broader
+browser API coverage remain unqualified; portable fallback checks run under Node.
 
 ## Compatibility and performance
 
