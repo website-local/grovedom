@@ -1,10 +1,10 @@
 # Readiness and next work
 
-Experimental 0.1.0 is published; 0.1.1 is prepared as a
-[compatibility bug-fix patch](../CHANGELOG.md), pending hosted release verification.
-Pooled Wasm on Node is
-primary, native is separate and the browser entry uses the same Wasm binary with
-async initialization. [Compatibility](compatibility.md) defines supported,
+Experimental 0.1.1 is published as a
+[compatibility bug-fix patch](../CHANGELOG.md), with hosted release verification
+complete. Pooled Wasm on Node is primary, native is separate and the browser
+entry uses the same Wasm binary with async initialization.
+[Compatibility](compatibility.md) defines supported,
 best-effort and unsupported behavior; [testing](testing.md) records qualification.
 
 ## Current status
@@ -21,7 +21,10 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
   documented scope. Fixed memory budgets and custom-corpus diagnostics are
   separate; malformed-input exclusions remain explicit.
 - Hosted package checks cover Node 22.0.0 and maintained Node 22/24 on Linux,
-  plus pooled Wasm on Node 24 Windows/macOS. Actual browser engines remain untested.
+  plus pooled Wasm on Node 24 Windows/macOS. Reported Firefox 150 and Chromium 140
+  [demo results](benchmarks.md#011-release-measurements) cover four authored
+  workloads; their ratios differ materially. A full browser correctness matrix
+  remains pending, and the package retains its experimental qualification.
 
 ## Priorities
 
@@ -34,8 +37,8 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
    saved-output replays do not represent a complete crawl distribution.
 4. Run compatibility/demo cases in Chromium, Firefox and WebKit before promoting
    browser support. Add native platforms when their demand justifies maintenance.
-5. Configure npm trusted publishing and use the [manual release workflow](releasing.md)
-   for tested artifacts and provenance.
+5. Use the [manual release workflow](releasing.md) for future tested artifacts
+   and provenance; maintain npm trusted publishing or the configured token path.
 
 Keep [dependency patches](../native/patches/README.md) minimal and regression-tested.
 New schedulers, JITs or backend frameworks are not justified by current evidence.

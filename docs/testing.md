@@ -43,9 +43,11 @@ cases each on native/pool and 64 sanitizer fuzz cases also pass. Four authored
 six-fix review's 74 Cheerio comparisons, and the earlier 1,000-case fuzz runs and
 four 120-cycle memory budgets, remain separate historical qualification.
 Portable browser normal/fallback checks each pass 810 cases with 35 exclusions,
-plus the release corrections in HTML/XML and buffered/direct modes. Local checks
-do not cover exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md)
-remains required before publication. Actual browser-engine testing remains pending.
+plus the release corrections in HTML/XML and buffered/direct modes. These local
+checks do not cover exact Node 22.0.0 or Windows/macOS; the separate
+[hosted release matrix](releasing.md) passed for 0.1.1. Reported Firefox 150 and
+Chromium 140 [demo runs](benchmarks.md#011-release-measurements) cover the four
+authored workloads. Full browser-engine correctness qualification remains pending.
 
 Installed Node, browser and native packages share forty-two public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
@@ -98,8 +100,10 @@ GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.
 ```
 
 These checks run under Node without Node globals in the browser module context.
-They do not establish Chromium, Firefox or WebKit support; those remain
-best-effort until the page is executed in actual engines.
+The reported Firefox 150 and Chromium 140 runs exercise the separate benchmark
+demo and its output comparisons, not this correctness page. Browser support
+remains best-effort pending the full page's results across engines, including
+WebKit.
 
 For a historical Pages package, the optional arguments are `PACKAGE_ROOT TEST_ROOT`.
 The workflow supplies the selected release's `test` directory, preserving its

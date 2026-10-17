@@ -9,8 +9,8 @@ from JavaScript, with no runtime dependencies or native installation step.
 [Getting started](#getting-started) · [Browser usage](#browser-usage) ·
 [Compatibility](docs/compatibility.md) · [Architecture](docs/design.md)
 
-**Experimental:** `0.1.0` is published on npm; `0.1.1` is in development.
-The next release is a [compatibility bug-fix patch](CHANGELOG.md), including
+**Experimental:** `0.1.1` is published on npm.
+This release is a [compatibility bug-fix patch](CHANGELOG.md), including
 documented result and extraction type-inference corrections.
 GroveDOM implements a substantial subset of Cheerio, not a complete drop-in
 replacement. Check the [compatibility guide](docs/compatibility.md) before migrating.
@@ -118,15 +118,17 @@ Await the first initialization; concurrent or repeated browser calls reject.
 DOM calls remain synchronous and occupy the calling thread. GroveDOM parses its own
 documents; it does not manipulate the page's live DOM or execute scripts.
 
-Browser support is **best-effort**. Portable module checks pass, but a tested
-Chromium/Firefox/WebKit version matrix is still pending. No SIMD, shared memory,
-threads or cross-origin isolation is required.
+Browser support is **best-effort**. Portable module checks pass, and reported
+[Firefox 150 and Chromium 140 demo runs](docs/benchmarks.md#011-release-measurements)
+exercise the authored workloads. A full browser correctness matrix, including
+WebKit, is still pending. No SIMD, shared memory, threads or cross-origin
+isolation is required.
 
 The [browser benchmark](docs/prototype.md#browser-and-demo) shares the local and CI
 authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0
 with default and htmlparser2 parsers and an identical-Wasm control, verifying output
 equality on every replay. The [hosted demo](https://website-local.github.io/grovedom/)
-is available after [GitHub Pages deployment](docs/releasing.md#browser-demo-on-github-pages).
+serves 0.1.1 through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages).
 
 ## Packages and platform support
 
@@ -146,9 +148,9 @@ installation, initialization and lifetime instructions.
 
 ## Performance and validation
 
-Scoped Node measurements show gains on selected workloads, including bindings
-and disposal. **Current full-scope non-regression and production adoption remain
-unverified**, and timing for the latest compatibility fixes was inconclusive.
+Scoped Node and browser measurements show gains on selected workloads, including
+bindings and disposal. Reported Firefox and Chromium ratios differ substantially.
+**Current full-scope non-regression and production adoption remain unverified.**
 [Benchmarks, controls and limits](docs/benchmarks.md) preserve the historical
 results and unsuccessful comparisons. Measure your complete workload against
 the best compatible Cheerio configuration before choosing a backend.

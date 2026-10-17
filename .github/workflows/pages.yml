@@ -6,7 +6,7 @@ on:
       tag:
         description: Published release tag to deploy
         required: true
-        default: v0.1.0
+        default: v0.1.1
         type: string
   release:
     types: [published]
@@ -53,7 +53,7 @@ jobs:
           import assert from 'node:assert/strict';
           import { releaseOptions } from './scripts/ci/release-options.mjs';
           const tag = process.env.RELEASE_TAG;
-          assert.equal(tag[0], 'v', 'Use a version tag such as v0.1.0');
+          assert.equal(tag[0], 'v', 'Use a version tag such as v0.1.1');
           releaseOptions(tag.slice(1), 'next', 'none', 'oidc');
           JS
       - name: Check out the released demo

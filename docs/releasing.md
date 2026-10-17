@@ -20,9 +20,10 @@ type-check scripts support its replacement for the `typescript/bin/tsc` entry.
 Pull requests receive no release credentials; default token permissions are
 read-only. A diagnostic benchmark runs on shared CI hosts; its timing ratios do
 not gate releases. Output mismatches, setup failures and insufficient samples
-fail verification. Hosted CI passed for the initial
-0.1.0 artifacts, and both npm packages match those validated tarballs. Actual
-Chromium/Firefox/WebKit checks remain future work.
+fail verification. Hosted release verification passed for experimental 0.1.1,
+and both npm packages are published at that version. Reported Firefox 150 and
+Chromium 140 [demo measurements](benchmarks.md#011-release-measurements) supplement
+the portable checks; a full browser correctness matrix remains future work.
 
 Verification uses eleven runner jobs: two builds, one sanitizer job, package
 assembly, five OS/Node test groups, one benchmark and the final gate. Linux groups
@@ -62,11 +63,11 @@ assembly mode, checks release artifacts and standalone types, and creates:
 The native manifest restricts OS, CPU and libc. ARM64, musl/Alpine, Windows and
 macOS native builds are not shipped. Use the main Wasm package there. Building
 locally on a newer system does not produce the CI native compatibility baseline.
-Published **0.1.0** remains immutable. Both source manifests and the root lockfile
-now target **0.1.1** for the next release; that version is not yet published.
-Future releases require updating all three files together.
+Published **0.1.0** and **0.1.1** remain immutable. Both source manifests and the
+root lockfile reflect **0.1.1**. Future releases require updating all three files
+together before dispatching a new release.
 
-The next release is a **0.1.1 compatibility bug-fix patch**. Public exports,
+The **0.1.1 release is a compatibility bug-fix patch**. Public exports,
 initialization, runtime requirements and ownership rules match 0.1.0. Observable
 corrections include array extraction and its TypeScript result inference; code
 that relied on those earlier results may need adjustment. The
@@ -180,8 +181,9 @@ No additional token or npm credentials are needed: the official Pages actions
 use `GITHUB_TOKEN` and a deployment OIDC token. The repository's normal Pages
 URL is <https://website-local.github.io/grovedom/>.
 
-Run **Actions → Browser demo → Run workflow** on `main` with a published tag,
-initially `v0.1.0`. The release must contain its original two `.tgz` files,
+Run **Actions → Browser demo → Run workflow** on `main` with a published tag;
+the default is `v0.1.1`, which the hosted demo currently serves. The release must
+contain its original two `.tgz` files,
 `SHA256SUMS` and `release.json`. A newer CI artifact with the same package version
 is not a replacement: commit and checksum verification must match the release.
 
@@ -205,5 +207,5 @@ Deployments are serialized without cancelling an active deployment. The selected
 release replaces the site, so manual selection of an older tag intentionally
 rolls it back. If Pages deployment fails, npm and the GitHub release remain
 published; rerun the failed job or dispatch **Browser demo** for that tag without
-releasing again. Account-side Pages setup and the first hosted deployment remain
-necessary to make the URL live.
+releasing again. The Pages settings above are required when configuring a new
+deployment environment.

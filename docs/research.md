@@ -31,8 +31,10 @@ No SIMD, shared-memory or thread requirement is added. See the
 
 Browser loading uses ordinary fetch plus async compilation and a portable
 TextEncoder/TextDecoder path. Node retains Buffer decoding for performance.
-Browser support remains best-effort until actual engine/version testing; the
-portable module graph check alone cannot establish that matrix.
+Browser support remains best-effort pending a correctness matrix across engine
+versions. Portable module checks and the reported Firefox 150/Chromium 140
+[demo measurements](benchmarks.md#011-release-measurements) cover different scopes;
+the demo results do not qualify the full browser API.
 
 ## Tooling and scope
 

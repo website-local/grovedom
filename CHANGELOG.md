@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.1
+
+Released 2026-10-17.
 
 **Compatibility bug-fix release for the documented 0.1.0 surface.** Import paths,
 exported functions, initialization options, Node requirements, platform support
@@ -84,10 +86,12 @@ non-regression remain unverified.
 
 ### Release scope
 
-Both packages remain experimental. Browser-engine testing is still pending;
-portable browser checks run under Node. The native package remains Linux x64 with
-glibc 2.35 or later. Publication uses freshly built artifacts through the existing
-manual release workflow after all verification jobs pass.
+Both packages remain experimental. Reported Firefox 150 and Chromium 140
+[demo measurements](docs/benchmarks.md#011-release-measurements) cover the authored
+workloads; a full browser correctness matrix remains pending. Portable browser
+checks run under Node. The native package remains Linux x64 with glibc 2.35 or
+later. Publication uses freshly built artifacts through the existing manual
+release workflow after all verification jobs pass.
 
 ## 0.1.0
 
