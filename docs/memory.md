@@ -24,6 +24,11 @@ remain retained intentionally. Selector plans have a bounded document cache;
 values and buffers reuse capacity. Repeated renaming can retain empty prior
 interfaces and remains a documented workload limitation.
 
+Relative selector-list ordering does not register unrelated descendants. Its
+reusable ordering scratch scales with the matched set; actual retained selections
+continue to keep their detached nodes valid. Sparse and dense query/empty/refill
+regressions check that unobserved replaced subtrees reuse capacity.
+
 ## Verification scope
 
 Developer diagnostics measure live documents, backing bytes, allocations and
@@ -39,6 +44,10 @@ After the architecture split, four fixed-budget 24-cycle runs passed with zero
 final live/control bytes. These shorter runs do not replace the earlier
 120-cycle evidence. Fresh and trimmed-pool capacity returned to zero; shared
 memory retained its high-water capacity.
+
+The relative-list correction repeats all four 24-cycle authored-budget checks,
+with the custom corpus disabled, and separately checks eight sparse/dense
+query/empty/refill cycles. Both checks preserve intentionally retained handles.
 
 `test/faults.c` injects failures into GroveDOM-owned buffer growth for input,
 transfer, query results and serialization, then checks recovery and idempotent

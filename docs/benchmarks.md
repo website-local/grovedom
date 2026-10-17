@@ -52,6 +52,33 @@ These are operation counts, not elapsed speedups; the final adjustment was
 correctness-tested without another timing campaign. Attribute creation preserves
 exact interned names without changing ordinary reads or serialization.
 
+## Relative-list resource correction
+
+A later readiness review found that ordering a relative selector list queried
+every descendant before filtering the matches in JavaScript. This registered
+unrelated nodes and prevented their removed subtrees from being reclaimed until
+document disposal. Ordering now uses only existing matched IDs: small unions
+compare ancestry, while larger unions walk the tree without exposing more nodes.
+
+With two matches and 20,000 unrelated nested element pairs, total returned IDs
+fall from **40,013 to 12**, with eleven kernel calls in both versions. Eight
+query/empty/refill cycles with 2,000 pairs produce these tracked capacities:
+
+| Backend | Pre-fix candidate | Fixed candidate |
+|---|---:|---:|
+| Native | 10,977,504 bytes | 2,736,592 bytes |
+| Pooled Wasm | 6,010,900 bytes | 1,566,468 bytes |
+
+The fixed runs plateau; outputs match and both versions reach zero tracked live
+bytes after disposal. These are backing-allocation capacities, not RSS or a
+post-disposal leak. Each comparison uses matching JavaScript and C artifacts.
+
+For 120 writes to one raw text handle, caching its immutable kind reduces kernel
+calls from **240 to 121**. Each distinct written handle still needs its first kind
+read: one write to each of 120 handles remains 240 calls. Cache hits flush pending
+writes before coercion. These operation/resource probes make no elapsed-time,
+universal non-regression or adoption claim.
+
 ## Hosted CI and browser demo
 
 CI compares the verified current package, npm latest and pinned Cheerio's default

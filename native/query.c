@@ -27,6 +27,46 @@ static int gd_indexed_covered_root(gd_document *doc, const uint32_t *ids, size_t
     return 0;
 }
 
+size_t gd_query_order(gd_document *doc, const uint32_t *ids, size_t count, uint32_t *output, size_t limit) {
+    if (!limit) return 0;
+    int scoped = gd_query_scoped(doc, ids, count);
+    int template_scopes = doc->templates && scoped && count > 1;
+    int cross_fragments = doc->templates && (!scoped || template_scopes);
+    size_t found = 0;
+    /* Unlike selector matching, this walk never borrows order for candidates,
+     * so indexed root membership is safe even for template scopes. */
+    for (size_t i = count; i-- > 0;) doc->nodes[ids[i]].order = (uint32_t) i;
+    for (size_t i = 0; i < count; i++) {
+        if (count > 1 && (doc->templates ? gd_covered_root(doc, ids, count, i, cross_fragments)
+            : gd_indexed_covered_root(doc, ids, count, i))) continue;
+        lxb_dom_node_t *root = doc->nodes[ids[i]].node;
+        for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
+            if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+            lxb_dom_node_t *node = start;
+            for (;;) {
+                uint32_t id = (uint32_t) (uintptr_t) node->user;
+                if (node->type == LXB_DOM_NODE_TYPE_ELEMENT && id && doc->nodes[id].mark == doc->mark) {
+                    int authorized = !template_scopes;
+                    for (lxb_dom_node_t *parent = node; !authorized && parent && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT; parent = parent->parent)
+                        authorized = gd_query_root_member(doc, ids, count, parent);
+                    if (authorized) {
+                        output[found++] = id;
+                        /* Consume the mark without using a future generation.
+                         * Overlapping walks cannot emit this candidate twice. */
+                        doc->nodes[id].mark = 0;
+                        if (found == limit) return found;
+                    }
+                }
+                if (node->first_child && (cross_fragments || node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) { node = node->first_child; continue; }
+                while (node != start && !node->next) node = node->parent;
+                if (node == start) break;
+                node = node->next;
+            }
+        }
+    }
+    return found;
+}
+
 static lxb_status_t gd_match_template(gd_document *doc, lxb_dom_node_t *node, lxb_dom_node_t *boundary, lxb_css_selector_list_t *plan) {
     /* Selector ancestry stops at the fragment, while raw parent identity stays
      * connected. No JS callback can run during this synchronous kernel call. */
@@ -248,17 +288,22 @@ memory_error:
     return NULL;
 }
 
+int gd_query_scoped(gd_document *doc, const uint32_t *ids, size_t count) {
+    /* Cheerio bounds ordinary find ancestry when every context has an element
+     * parent. Root sibling/position tests still inspect the original tree. */
+    if (!count) return 0;
+    for (size_t i = 0; i < count; i++) {
+        lxb_dom_node_t *root = doc->nodes[ids[i]].node;
+        if (root->type != LXB_DOM_NODE_TYPE_ELEMENT || !root->parent || root->parent->type != LXB_DOM_NODE_TYPE_ELEMENT) return 0;
+    }
+    return 1;
+}
+
 const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, int match) {
     GD_PROFILE_SCOPE(GP_QUERY);
     if (!gd_begin(doc)) return NULL;
     if (!gd_valid_ids(doc, ids, count)) return gd_failed();
-    /* Cheerio bounds ordinary find ancestry when every context has an element
-     * parent. Root sibling/position tests still inspect the original tree. */
-    int scoped = !match && count != 0;
-    for (size_t i = 0; scoped && i < count; i++) {
-        lxb_dom_node_t *root = doc->nodes[ids[i]].node;
-        scoped = root->type == LXB_DOM_NODE_TYPE_ELEMENT && root->parent && root->parent->type == LXB_DOM_NODE_TYPE_ELEMENT;
-    }
+    int scoped = !match && gd_query_scoped(doc, ids, count);
     int template_scopes = doc->templates && scoped && count > 1;
     doc->selector_context = (gd_selector_context) {0};
     lxb_css_selector_list_t *plan = NULL;

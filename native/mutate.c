@@ -108,6 +108,64 @@ static lxb_dom_node_t *gd_root(lxb_dom_node_t *node) {
     return node;
 }
 
+static int gd_scope_order_compare(const void *left, const void *right) {
+    uint32_t a = gd_active->nodes[*(const uint32_t *) left].order;
+    uint32_t b = gd_active->nodes[*(const uint32_t *) right].order;
+    return a == b ? gd_order_compare(left, right) : a < b ? -1 : 1;
+}
+
+static int gd_order_scoped(gd_document *doc, const uint32_t *roots, size_t count) {
+    if (doc->result_count < 2) return 1;
+    /* Root indices and candidate ranks can refer to the same node. Keep ranks
+     * in reusable result scratch until all ancestry lookups have finished. */
+    if (count > UINT32_MAX || doc->result_count > SIZE_MAX / 2 ||
+        !gd_reserve((void **) &doc->results, &doc->result_capacity, doc->result_count * 2, sizeof(uint32_t))) {
+        gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Query ordering allocation failed");
+        return -1;
+    }
+    uint32_t *ranks = doc->results + doc->result_count;
+    /* Bound both ancestry and sibling comparisons for deep/wide dense trees.
+     * Preserve the input union in case the find traversal misses a :scope root. */
+    if (doc->result_count > 32) goto walk;
+    for (size_t i = count; i-- > 0;) doc->nodes[roots[i]].order = (uint32_t) i;
+    int scoped = gd_query_scoped(doc, roots, count);
+    int cross_fragments = doc->templates && (!scoped || count > 1);
+    for (size_t i = 0; i < doc->result_count; i++) {
+        lxb_dom_node_t *node = doc->nodes[doc->results[i]].node;
+        uint32_t rank = UINT32_MAX;
+        int same_fragment = 1;
+        int authorized = !scoped || !doc->templates || gd_query_root_member(doc, roots, count, node);
+        if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) return 0;
+        for (lxb_dom_node_t *child = node, *parent = node->parent; parent; child = parent, parent = parent->parent) {
+            if (parent->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) {
+                /* Raw fragments can also be inserted without templates. Keep
+                 * find's covered-root rules when an attached fragment blocks
+                 * traversal from a containing context. */
+                if (!doc->templates && parent->parent) goto walk;
+                same_fragment = 0;
+                if (doc->templates && !cross_fragments) break;
+            }
+            if (!gd_query_root_member(doc, roots, count, parent)) continue;
+            if (same_fragment) authorized = 1;
+            /* The outermost traversable root covers inner contexts regardless
+             * of input order. A direct fragment child is not a find start. */
+            if (child->type == LXB_DOM_NODE_TYPE_ELEMENT)
+                rank = doc->nodes[(uint32_t) (uintptr_t) parent->user].order;
+        }
+        /* Context-returning :scope lists keep the existing global-sort fallback
+         * when any match lies outside the roots' ordinary find traversal. */
+        if (!authorized || rank == UINT32_MAX) return 0;
+        ranks[i] = rank;
+    }
+    for (size_t i = 0; i < doc->result_count; i++) doc->nodes[doc->results[i]].order = ranks[i];
+    qsort(doc->results, doc->result_count, sizeof(uint32_t), gd_scope_order_compare);
+    return 1;
+walk:
+    if (gd_query_order(doc, roots, count, ranks, doc->result_count) != doc->result_count) return 0;
+    memcpy(doc->results, ranks, doc->result_count * sizeof(uint32_t));
+    return 1;
+}
+
 const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *ids, size_t count, const uint32_t *other, size_t other_count) {
     GD_PROFILE_SCOPE(GP_EDIT);
     if (!gd_begin(doc)) return NULL;
@@ -141,20 +199,24 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
             if (gd_collect(node, 0, doc) != LXB_STATUS_OK) goto failed;
         }
         if (operation == 13) {
-            /* Group disconnected roots by first occurrence. A consistent root
-             * rank keeps the comparator transitive; connected nodes use tree
-             * order. No extra allocation or node IDs are needed for sorting. */
-            lxb_dom_node_t *first_root = doc->result_count ? gd_root(doc->nodes[doc->results[0]].node) : NULL;
-            for (size_t i = 0; i < doc->result_count; i++) {
-                gd_node *item = &doc->nodes[doc->results[i]];
-                lxb_dom_node_t *root = gd_root(item->node);
-                item->order = root == first_root ? 0 : (uint32_t) i;
-                if (root != first_root) for (size_t j = 1; j < i; j++) {
-                    gd_node *prior = &doc->nodes[doc->results[j]];
-                    if (gd_root(prior->node) == root) { item->order = prior->order; break; }
+            int scoped_order = other_count ? gd_order_scoped(doc, other, other_count) : 0;
+            if (scoped_order < 0) goto failed;
+            if (!scoped_order) {
+                /* Group disconnected roots by first occurrence. A consistent root
+                 * rank keeps the comparator transitive; connected nodes use tree
+                 * order. No extra allocation or node IDs are needed for sorting. */
+                lxb_dom_node_t *first_root = doc->result_count ? gd_root(doc->nodes[doc->results[0]].node) : NULL;
+                for (size_t i = 0; i < doc->result_count; i++) {
+                    gd_node *item = &doc->nodes[doc->results[i]];
+                    lxb_dom_node_t *root = gd_root(item->node);
+                    item->order = root == first_root ? 0 : (uint32_t) i;
+                    if (root != first_root) for (size_t j = 1; j < i; j++) {
+                        gd_node *prior = &doc->nodes[doc->results[j]];
+                        if (gd_root(prior->node) == root) { item->order = prior->order; break; }
+                    }
                 }
+                qsort(doc->results, doc->result_count, sizeof(uint32_t), gd_order_compare);
             }
-            qsort(doc->results, doc->result_count, sizeof(uint32_t), gd_order_compare);
         }
     } else if ((operation >= 3 && operation <= 10) || operation == 14 || operation == 15) {
         if (operation >= 14) for (size_t j = 0; j < other_count; j++) lxb_dom_node_remove(doc->nodes[other[j]].node);

@@ -120,6 +120,11 @@ static void query_mark_wrap(void) {
                 doc->nodes[id].order = UINT32_MAX;
             }
             for (size_t j = 0; j < sizeof(contexts) / sizeof(*contexts); j++) {
+                const uint32_t unordered[] = {a, b, a};
+                const gd_result *ordered = gk_edit(doc, 13, unordered, 3, contexts[j], 3);
+                assert(ordered && ordered->kind == GD_IDS && ordered->length == 2);
+                const uint32_t *sorted = ordered->data;
+                assert(sorted[0] == (j ? a : b) && sorted[1] == (j ? b : a));
                 for (int scoped = 0; scoped < 2; scoped++) {
                     input(doc, scoped ? "section b" : "b");
                     const gd_result *result = gk_query(doc, contexts[j], 3, 0);
@@ -128,11 +133,68 @@ static void query_mark_wrap(void) {
                     assert(ids[0] == (j ? a : b) && ids[1] == (j ? b : a));
                 }
             }
+            const uint32_t contexts_with_matches[] = {right, main, left};
+            const uint32_t unordered[] = {b, left, a, right};
+            const uint32_t expected[] = {left, a, right, b};
+            const gd_result *ordered = gk_edit(doc, 13, unordered, 4, contexts_with_matches, 3);
+            assert(ordered && ordered->length == 4 && !memcmp(ordered->data, expected, sizeof(expected)));
+            const uint32_t self_contexts[] = {right, left};
+            const uint32_t self_expected[] = {left, right};
+            ordered = gk_edit(doc, 13, self_contexts, 2, self_contexts, 2);
+            assert(ordered && ordered->length == 2 && !memcmp(ordered->data, self_expected, sizeof(self_expected)));
         }
         gk_delete(doc);
         const size_t *stats = gk_stats();
         assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
     }
+}
+
+static void sweep_query_order_growth(int kind) {
+    char source[16000];
+    strcpy(source, "<main><section id='left'>");
+    for (int i = 0; i < 80; i++) strcat(source, "<b></b><aside><i></i></aside>");
+    strcat(source, kind == 2 ? "</section><template><div><section id='right'>" : "</section><section id='right'>");
+    for (int i = 0; i < 80; i++) strcat(source, "<b></b><aside><i></i></aside>");
+    strcat(source, kind == 2 ? "</section></div></template></main>" : "</section></main>");
+    for (long failure = 0; failure < 4; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(kind == 1 ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+        uint32_t main = selected_id(doc, "main"), left = selected_id(doc, "#left"), right = selected_id(doc, "#right");
+        const uint32_t contexts[] = {right, kind == 2 ? main : left, right};
+        input(doc, "b");
+        const gd_result *selected = gk_query(doc, contexts, 3, 0);
+        assert(selected && selected->length == 160);
+        uint32_t expected[160], unordered[161];
+        memcpy(expected, selected->data, sizeof(expected));
+        for (size_t i = 0; i < 160; i++) unordered[i] = expected[159 - i];
+        unordered[160] = unordered[0];
+        size_t exposed = doc->node_count;
+        doc->mark = UINT32_MAX - 1;
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_edit(doc, 13, unordered, 161, contexts, 3);
+        int success = result != NULL;
+        if (!success) assert(!strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY"));
+        gd_test_fail_after(-1);
+        result = gk_edit(doc, 13, unordered, 161, contexts, 3);
+        assert(result && result->kind == GD_IDS && result->length == 160);
+        assert(!memcmp(result->data, expected, sizeof(expected)));
+        assert(doc->node_count == exposed); /* Dense walks must not register aside/i nodes. */
+        input(doc, "b");
+        result = gk_query(doc, contexts, 3, 0);
+        assert(result && result->length == 160 && !memcmp(result->data, expected, sizeof(expected)));
+        assert(doc->node_count == exposed);
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure == 1);
+            fprintf(stderr, "Scoped ordering kind=%d: %ld failure site recovered\n", kind, failure);
+            return;
+        }
+    }
+    assert(0 && "Query ordering growth sweep did not reach success");
 }
 
 static void sweep_context_growth(int xml, int scoped) {
@@ -323,6 +385,7 @@ static void sweep_xml_markup(int xml, int raw) {
 
 int main(void) {
     query_mark_wrap();
+    for (int kind = 0; kind < 3; kind++) sweep_query_order_growth(kind);
     for (int xml = 0; xml < 2; xml++) for (int scoped = 0; scoped < 2; scoped++) sweep_context_growth(xml, scoped);
     sweep_template_context_growth();
     for (int xml = 0; xml < 2; xml++) for (int raw = 0; raw < 2; raw++) sweep_xml_markup(xml, raw);

@@ -21,33 +21,33 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 review fixes pass the **2,362-case suite**. The latest 178 cases cover
-exact attribute spelling, root/variadic insertion callbacks, raw data replacement,
-commented aliases and wrapper targets, including installed public contracts.
-Earlier selector-safety, template, snapshot and release-workflow regressions
-remain enabled:
+The 0.1.1 review fixes pass the **2,394-case suite**. The latest 32 cases cover
+relative-list ordering and retained capacity, dense/deep trees, attached fragments,
+repeated raw data writes, coercion and installed contracts. Identity/order assertions compare each
+handle by reference, including across portable VM contexts. The preceding 178
+attribute, callback, data and wrapper fixes and earlier selector-safety, template,
+snapshot and release-workflow regressions remain enabled:
 
 | Backend | Node versions | Pass / exclusions |
 |---|---|---:|
-| Native | 22, 24 | 2,303 /59 |
-| Pooled Wasm | 22, 24 | 2,311 /51 |
-| Global Wasm | 22 | 2,307 /55 |
-| Per-document Wasm | 22 | 2,308 /54 |
+| Native | 22, 24 | 2,335 /59 |
+| Pooled Wasm | 22, 24 | 2,343 /51 |
+| Global Wasm | 22 | 2,339 /55 |
+| Per-document Wasm | 22 | 2,340 /54 |
 
 Fresh native/Wasm builds and the rebuilt native ASan/UBSan binary pass their
 applicable checks, with leak detection and no sanitizer findings. Owned-buffer
 failure recovery, types, offline package installations on Node 22/24, 200 seeded
-cases each on native/pool and 64 sanitizer fuzz cases also pass. All 74 original
-review comparisons now match Cheerio on the native, three Wasm-heap and portable
-entries. The preceding release checkpoint's 1,000-case fuzz runs and four authored
-120-cycle memory budgets remain separate historical qualification, not reruns of
-this review.
+cases each on native/pool and 64 sanitizer fuzz cases also pass. Four authored
+24-cycle memory-budget checks pass with the custom corpus disabled. The preceding
+six-fix review's 74 Cheerio comparisons, and the earlier 1,000-case fuzz runs and
+four 120-cycle memory budgets, remain separate historical qualification.
 Portable browser normal/fallback checks each pass 810 cases with 35 exclusions,
 plus the release corrections in HTML/XML and buffered/direct modes. Local checks
 do not cover exact Node 22.0.0 or Windows/macOS; the [hosted matrix](releasing.md)
 remains required before publication. Actual browser-engine testing remains pending.
 
-Installed Node, browser and native packages share thirty-eight public-contract checks
+Installed Node, browser and native packages share forty-two public-contract checks
 across buffered/direct execution: callbacks and partial effects, XML/byte inputs,
 large transfers, snapshots, data keys and disposal. Separate checks cover entry
 ownership and concurrent caller-managed workers. The eight stable checks also
@@ -123,6 +123,9 @@ sweeps cover 28 failed growth requests; XML-output sweeps cover 14 more in
 encoded/raw modes. Multi-root queries recover from twelve failed growth requests
 across HTML/XML and plain/scoped selectors; template scope unions cover two more.
 Generation rollover and fragment-parent restoration are checked on retries.
+Scoped-ordering scratch adds three failed-growth recovery checks across HTML,
+XML and templates, verifying that ordering registers no additional nodes and
+leaves subsequent queries usable.
 These checks do not cover every upstream allocation or prove universal
 out-of-memory recovery. Dependency tests reject modified inputs, patches and
 cached trees without modifying the supplied upstream source.

@@ -176,6 +176,14 @@ overlapping/template roots, pending writes, malformed branches and long flat
 lists. Installed packages and portable browser paths repeat the corrected public
 behavior; the [stack diagnostic](stack.md) checks the added parser bound.
 
+The subsequent [resource regressions](../test/review-resources.test.mjs) cover two
+costs introduced by these compatibility fixes. Relative-list ordering now uses
+matched IDs without registering unrelated descendants, preserving reclamation
+after subtree replacement. Repeated raw data assignments reuse immutable node
+kind while retaining the flush before coercion. Dense/deep ordering, overlapping
+and template roots, identity, generation rollover and allocation-failure recovery
+are checked separately from the [operation/resource evidence](benchmarks.md#relative-list-resource-correction).
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across

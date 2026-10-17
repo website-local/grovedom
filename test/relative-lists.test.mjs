@@ -7,6 +7,10 @@ const source = '<main><section id="left"><div><p id="a"></p></div>' +
   '<p id="b" class="mark,one" data-list="a,b"></p></section>' +
   '<section id="right"><div><p id="c"></p></div><p id="d"></p></section></main>';
 const ids = selected => selected.get().map(node => node.attribs.id ?? node.name);
+function sameNodes(actual, expected) {
+  assert.equal(actual.length, expected.length);
+  for (let i = 0; i < expected.length; i++) assert.equal(actual[i], expected[i]);
+}
 
 for (const execution of ['buffered', 'direct']) for (const xml of [false, true]) {
   function parity(name, run) {
@@ -21,7 +25,8 @@ for (const execution of ['buffered', 'direct']) for (const xml of [false, true])
     for (const context of [['#left'], ['#right', '#left'], ['#left', 'main'], ['main', '#left'],
       ['#right', '#right', '#left'], ['root'], ['root', '#left']]) {
       const roots = $(context.map(selector => selector === 'root' ? $.root()[0] : $(selector)[0]));
-      for (const selector of ['> p, div p', 'div p, > p', '> p, div p, > p', 'div p, > p, div p']) {
+      for (const selector of ['> p, div p', 'div p, > p', '> p, div p, > p', 'div p, > p, div p',
+        '> section, p', 'p, > section']) {
         const found = roots.find(selector);
         assert.equal(found.end(), roots);
         result.push(ids(found));
@@ -55,7 +60,7 @@ for (const execution of ['buffered', 'direct']) for (const xml of [false, true])
     const found = roots.find('div p.changed, > p');
     assert.equal(found[0], handles[0]);
     retained.first().remove();
-    assert.deepEqual(retained.get(), handles);
+    sameNodes(retained.get(), handles);
     return [ids(found), ids(retained), ids(roots.find('> p, div p.changed')), $.html()];
   });
 
@@ -79,6 +84,28 @@ for (const execution of ['buffered', 'direct']) for (const xml of [false, true])
   });
 }
 
+for (const execution of ['buffered', 'direct']) for (const xml of [false, true]) {
+  test(`relative lists order wide and overlapping roots without stale ranks (${execution}, xml=${xml})`, () => {
+    const markup = '<main>' + Array.from({ length: 90 }, (_, index) =>
+      `<section id="s${index}"><p id="p${index}"></p><div><b id="b${index}"></b></div></section>`).join('') + '</main>';
+    const $ = load(markup, { execution, xml }), reference = cheerio(markup, { xml });
+    const run = api => {
+      const sections = api('section').get(), reversed = [...sections].reverse();
+      const contexts = [reversed, [...reversed, reversed[0]], [sections[89], api('main')[0], sections[0]],
+        [sections[40], sections[0], sections[89]], [api.root()[0], sections[0]]];
+      const result = [];
+      for (const context of contexts) {
+        const roots = api(context);
+        for (const selector of ['> p, b', 'b, > p', '> section, p, b', 'b, p, > section'])
+          result.push(ids(roots.find(selector)));
+        result.push(ids(roots.find('p, b')), ids(api('section').find('b')));
+      }
+      return result;
+    };
+    try { assert.deepEqual(run($), run(reference)); } finally { $.dispose(); }
+  });
+}
+
 for (const execution of ['buffered', 'direct']) test(`relative lists retain explicit template and document roots (${execution})`, () => {
   const markup = '<main><section id="outer"><template id="t"><div><section id="inner">' +
     '<b id="inside"></b><div><b id="nested"></b></div></section></div></template><b id="after"></b></section></main>';
@@ -96,6 +123,27 @@ for (const execution of ['buffered', 'direct']) test(`relative lists retain expl
   assert.deepEqual(run(load), run(cheerio));
 });
 
+for (const execution of ['buffered', 'direct']) test(`dense relative lists keep template and fragment ordering (${execution})`, () => {
+  const block = prefix => Array.from({ length: 40 }, (_, index) =>
+    `<p id="${prefix}p${index}"></p><div><b id="${prefix}b${index}"></b></div>`).join('');
+  const markup = '<main><section id="outer">' + block('o') + '<template id="t"><div id="inner">' +
+    block('i') + '</div></template></section><section id="right">' + block('r') + '</section></main>';
+  const $ = load(markup, { execution }), reference = cheerio(markup);
+  const run = api => {
+    const outer = api('#outer')[0], inner = api('#inner')[0], right = api('#right')[0], template = api('#t')[0];
+    const result = [];
+    for (const contexts of [[right, outer], [inner, outer, inner], [outer, inner], [inner, template],
+      [template, inner], [template, inner.parent], [inner.parent, right], [api.root()[0], inner]]) {
+      const roots = api(contexts);
+      for (const selector of ['> p, b', 'b, > p', '> div, p', 'p, > div']) result.push(ids(roots.find(selector)));
+      result.push(ids(roots.find('p, b')));
+    }
+    assert.equal(inner.parent.parent, template);
+    return result;
+  };
+  try { assert.deepEqual(run($), run(reference)); } finally { $.dispose(); }
+});
+
 test('long flat relative lists do not grow the JavaScript call stack', () => {
   const $ = load('<main><p id="a"></p><div><p id="b"></p></div></main>');
   try {
@@ -103,3 +151,36 @@ test('long flat relative lists do not grow the JavaScript call stack', () => {
     assert.deepEqual(ids($('main').find(selector)), ['a', 'b']);
   } finally { $.dispose(); }
 });
+
+for (const xml of [false, true]) test(`dense relative lists traverse deep trees iteratively (xml=${xml})`, () => {
+  const $ = load('<main>' + '<div>'.repeat(1200) + '<p></p>' + '</div>'.repeat(1200) + '</main>', { xml });
+  try {
+    const main = $('main'), expected = main.find('div').get();
+    assert.equal(expected.length, 1200);
+    sameNodes(main.find('> div, div').get(), expected);
+    sameNodes(main.find('div, > div').get(), expected);
+    // A context outside find's descendants must retain the entire original union.
+    sameNodes(main.find(':scope, div').get(), [main[0], ...expected]);
+    sameNodes(main.find('div').get(), expected);
+  } finally { $.dispose(); }
+});
+
+for (const xml of [false, true]) for (const execution of ['buffered', 'direct']) {
+  test(`relative lists preserve explicitly attached fragment contexts (xml=${xml}, ${execution})`, () => {
+    const $ = load('<main><section id="left"><p id="l"></p></section><section id="right"><p id="r"></p></section></main>', { xml, execution });
+    try {
+      const left = $('#left'), right = $('#right'), inner = $('<div><p id="i"></p></div>');
+      const fragment = inner[0].parent;
+      right.prepend(fragment);
+      const roots = $([right[0], left[0], inner[0]]);
+      for (const selector of ['> p, p', 'p, > p', '> p, > a']) {
+        assert.deepEqual(ids(roots.find(selector)), ['l', 'i', 'r']);
+        assert.deepEqual(ids($([fragment, left[0]]).find(selector)), selector === '> p, > a' ? ['l'] : ['i', 'l']);
+        assert.deepEqual(ids($([left[0], fragment]).find(selector)), selector === '> p, > a' ? ['l'] : ['l', 'i']);
+      }
+      assert.equal(inner[0].parent, fragment);
+      assert.equal(fragment.parent, right[0]);
+      assert.deepEqual(ids(roots.find('p')), ['r', 'l']);
+    } finally { $.dispose(); }
+  });
+}

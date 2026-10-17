@@ -44,7 +44,8 @@ for (const execution of ['buffered', 'direct']) {
       ['fragment', api('#t').contents()[0]], ['nestedFragment', api('#nested').contents()[0]],
     ]);
     const selectors = ['b', '[id]', '*', ':not(.missing)', 'section b',
-      'b:not(main b)', ':has(> b) b', ':is(b,section)', 'b + template', 'section > b'];
+      'b:not(main b)', ':has(> b) b', ':is(b,section)', 'b + template', 'section > b',
+      '> b, span', 'span, > b', '> [id], b', 'b, > [id]'];
     try {
       const actual = roots($), expected = roots(reference), names = Object.keys(actual);
       for (const a of names) for (const b of names) for (const selector of selectors) {

@@ -239,13 +239,9 @@ export function createOperations(kernel) {
         for (const clause of clauses)
             for (const id of query(state, clause, roots)) found.add(id);
         if (!found.size) return empty;
-        if (!(kinds & 2)) {
-            // The kernel owns overlap, template and disjoint-root traversal
-            // order. A global sort would lose the caller's disjoint-root order.
-            const ordered = kernel.query(state.owner, '*', roots, false).filter(id => found.has(id));
-            if (ordered.length === found.size) return ordered;
-        }
-        return edit(state, 13, Uint32Array.from(found));
+        // Order only the matches. Querying every descendant just to sort them
+        // would expose unrelated handles and retain their removed subtrees.
+        return edit(state, 13, Uint32Array.from(found), kinds & 2 ? empty : roots);
     }
     function relativeQuery(state, selector, roots, match) {
         if (!/^(?:[>+~]|:scope\b)/.test(selector))

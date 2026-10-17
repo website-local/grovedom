@@ -108,8 +108,12 @@ export function createNodes(kernel, operations, selections, selection) {
         data: {
             get() { const { state, ids } = nodes.get(this); const value = state.data.get(ids[0]); return value === undefined ? read(state, ids, 8) : value; },
             set(value) {
-                const { state, ids } = nodes.get(this);
-                if (read(state, ids, 6) === 1) state.data.set(ids[0], value);
+                const record = nodes.get(this), { state, ids } = record;
+                // Kind is immutable, including across element renames. Learn it
+                // only on this path, but preserve the pre-coercion observation.
+                if (record.dataType === undefined) record.dataType = read(state, ids, 6);
+                else flush(state);
+                if (record.dataType === 1) state.data.set(ids[0], value);
                 else edit(state, 12, ids, empty, String(value));
             },
         },
