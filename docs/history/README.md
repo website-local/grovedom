@@ -1,11 +1,15 @@
 # Historical evidence
 
-These are the reviewed documents before the Wasm-first packaging refactor.
-Their commands, defaults and “current” statements describe those checkpoints,
-not today's public API. They preserve controls, failures and source references.
+These documents preserve earlier design decisions and scoped investigation
+results, including later release follow-ups. Commands, defaults and “current”
+statements describe their named checkpoints, not today's public API. Controls,
+failures and source references remain part of the evidence.
 Use [the current README](../../README.md) for setup and support status.
 
 - [Benchmark history](benchmarks.md)
+- [Release optimization follow-ups](release-followups.md)
+- [Isolated performance review](performance-review.md)
+- [Selector experiments](selector-experiments.md)
 - [Memory measurements](memory.md)
 - [Stack audit](stack.md)
 - [Dependency and optimization research](research.md)

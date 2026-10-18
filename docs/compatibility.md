@@ -1,10 +1,9 @@
 # Compatibility status
 
-“Supported” means covered by the implemented API and scoped differential/lifetime
-tests. It does not promise every Cheerio edge case or production readiness.
-“Best-effort” identifies behavior or environments without that full validation.
-Unsupported operations should fail explicitly rather than silently select a
-slower parser or omit required work.
+GroveDOM implements a tested subset of Cheerio. “Supported” means covered by
+scoped behavior and lifetime checks; it does not promise complete parity or
+production readiness. “Best-effort” marks remaining differences or validation
+gaps. Unsupported APIs do not silently fall back to another parser.
 
 | Area | Status | Contract / limits |
 |---|---|---|
@@ -30,145 +29,107 @@ slower parser or omit required work.
 
 ## Options
 
-`load(content, options?, isDocument?)` supports `scriptingEnabled`, `baseURI`,
+`load(content, options?, isDocument?)` accepts `scriptingEnabled`, `baseURI`,
 `execution: 'buffered' | 'direct'`, `xml` and `xmlMode`. Unknown parser options
-are rejected. HTML defaults preserve the audited Cheerio/parse5 contract;
-GroveDOM does not implement an htmlparser2 HTML mode.
+are rejected. HTML uses the audited Cheerio/parse5 defaults; there is no
+htmlparser2 HTML mode. See [the declarations](../src/index.d.ts) for signatures.
 
-HTML-mode SVG/MathML follows **Cheerio's default behavior**, including its
-differences from browsers: adjusted `xlink:href` is exposed as `href`, and
-`[viewBox]` and `foreignObject` do not match camel-case SVG names. Raw names and
-HTML serialization retain their case and namespace metadata. Explicit XML mode
-keeps qualified, case-sensitive names. Foreign `style`/`script` text is escaped
-during HTML serialization, so reparsing does not turn text into markup.
+HTML-mode SVG/MathML follows **Cheerio's default behavior**: adjusted `xlink:href`
+is exposed as `href`, while `[viewBox]` and `foreignObject` do not match camel-case
+SVG names. Raw names and serialization retain case/namespace metadata. Foreign
+`style`/`script` text is escaped so reparsing does not turn it into markup.
+Select parsing has targeted parse5-compatible insertion modes; other parser-version
+recovery is best-effort. Foreign-fragment CDATA follows the tested WPT behavior
+even where Cheerio/parse5 differs.
 
-XML options include `decodeEntities`, `lowerCaseTags`,
-`lowerCaseAttributeNames`, `selfClosingTags`, `emptyAttrs`, `encodeEntities`,
-`xmlMode`, `recognizeSelfClosing` and `recognizeCDATA`, within the documented
-XML mode. XML is non-validating, does not fetch external resources, and does not
-expand DTD entities. Per-call serializer options cover the implemented XML
-serialization controls. With `encodeEntities: false`, text is emitted verbatim;
-double quotes in attribute values still become `&quot;`. Like Cheerio, an existing
-selection passed to static `html`/`xml` retains its own rendering options; pass
-its `.get()` node array to apply per-call options. See
-[the declarations](../src/index.d.ts) for exact method signatures; they
-intentionally expose a partial Cheerio surface.
+XML preserves qualified, case-sensitive names. Its options include
+`decodeEntities`, `lowerCaseTags`, `lowerCaseAttributeNames`, `selfClosingTags`,
+`emptyAttrs`, `encodeEntities`, `xmlMode`, `recognizeSelfClosing` and
+`recognizeCDATA`. It does not validate XML, fetch resources or expand DTD entities.
+With `encodeEntities: false`, text is verbatim but attribute quotes still become
+`&quot;`. Per-call serializer options cover the implemented XML serialization controls.
+Static `html`/`xml` keeps an existing selection's own rendering options; pass its
+`.get()` node array to apply per-call options.
 
 ## Lifetime and boundaries
 
-Selections snapshot membership, callbacks observe preceding writes, and detached
-observed nodes survive until disposal. `$.dispose()` is idempotent, discards
-pending commands, releases document ownership and invalidates handles. Returned
-strings/arrays remain valid. Do not transfer handles across workers or packages.
-GC cleanup is secondary and has no guaranteed deadline.
+Selections snapshot membership; callbacks observe preceding writes. Observed
+detached nodes remain valid until `$.dispose()`, which is idempotent, discards
+pending commands and invalidates handles. Returned strings/arrays remain valid.
+Handles stay within their document, worker and package. GC cleanup has no deadline
+guarantee. See [ownership and memory](memory.md) for pool limits and retained capacity.
 
-Fourteen selected Cheerio/jQuery cases remain excluded; their reasons are in
-[test/upstream/README.md](../test/upstream/README.md). Tests specific to another
-backend/heap also skip. Hosted CI passed on Linux with Node 22.0.0 and maintained
-Node 22/24, plus pooled Wasm on Windows and macOS with Node 24. Packed installs
-are checked on those platforms; the native package remains Linux x64/glibc only.
-Browser graph/portable-path checks run under Node. Reported Firefox 150 and
-Chromium 140 [correctness-page runs](testing.md#reported-browser-runs) each pass
-810 cases with 35 documented skips and no failures. Their separate
-[demo results](benchmarks.md#011-release-measurements) cover authored workloads.
-WebKit and broader browser API coverage remain unqualified.
-The [CI release policy](releasing.md) defines the native build baseline and
-platform matrix. Both packages are published at experimental 0.1.1.
+## Selectors
 
-The [WPT-derived suite](testing.md) adds independent HTML/CSS/DOM expectations.
-Literal U+00A0 and U+2003 identifiers now pass the imported escape cases;
-NBSP acceptance is a best-effort extension beyond css-what. Attribute names containing
-non-ASCII whitespace are supported. Cheerio's `:enabled` can match non-controls,
-and an empty selection's `.html()` returns `null`, unlike jQuery's `undefined`.
-Foreign-fragment CDATA follows the tested browser-standard behavior even where
-Cheerio/parse5 differs. These distinctions are tested, not hidden fallbacks.
+Scoped `.find()` follows Cheerio's ancestry boundary, including overlapping roots
+and nested predicates. Ancestors outside the context cannot satisfy a normal
+selector chain; `.filter()` and `.is()` inspect full ancestry. Browser
+`Element.querySelectorAll()` differs here. Root position and sibling predicates
+retain the original tree relationships; fragment `:root` follows Cheerio.
 
-Scoped `.find()` follows Cheerio's ancestry boundary, including overlapping
-contexts and nested selector predicates. Ancestors outside the context cannot
-satisfy an ordinary selector chain; `.filter()` and `.is()` still inspect the
-node's full ancestry. Browser `Element.querySelectorAll()` differs here. Root
-position and sibling predicates retain the original tree relationships.
-Multiple query roots spanning template contents retain Cheerio's match order and
-scope. A template element alone does not cover an explicitly supplied inner root.
-Lists combining child-relative and ordinary descendant clauses, such as
-`find('> p, div p')` and `find('div p, > p')`, keep that same scope and order.
-Quoted, escaped and nested commas do not split clauses. Relative selectors in
-`filter`/`is`, mixed child/sibling relative lists and positional lists remain
-unsupported. Lists returning the context itself through `:scope`, or combining
-sibling-relative and absolute clauses, remain best-effort; Cheerio also varies
-some of these results according to the first clause.
+Template query unions preserve scope and order. A template element does not cover
+an explicitly supplied inner content root. Child-relative/descendant lists such
+as `find('> p, div p')` and the reverse order share that behavior. Quoted, escaped
+and nested commas do not split clauses; CSS comments do not expand aliases and
+quoted operands remain literal.
+
+| Selector case | Status / difference |
+|---|---|
+| Trailing positional chains | Supported; escaped identifier colons stay literal |
+| Relative selectors in `filter`/`is`, mixed child/sibling lists, positional lists such as `p, p:first` | Unsupported; fail explicitly |
+| Lists returning the context through `:scope`, or mixing sibling-relative and absolute clauses | Best-effort; Cheerio also varies some results by clause order |
+| Negative positional indices | Best-effort; `filter(':lt(-1)')` excludes the last entry, while the current Cheerio reference retains all entries |
+| Unicode comparisons | Baked Unicode 17.0 data with css-select's operator-specific rules |
+| Class/token whitespace and empty operands | Follow Cheerio, including differences from browser CSS |
+| Literal U+00A0/U+2003 identifiers | Imported escape cases pass; NBSP support extends css-what |
+| `:enabled` | Can match non-controls, following Cheerio |
 
 CSS block/function nesting above **512**, after alias expansion, is rejected
-before the parser runs.
-Strings, comments and escaped delimiters do not contribute to that nesting.
-The separate compatibility matcher retains its **64-level** guard. Rejection
-preserves preceding writes, retained handles and subsequent queries; these
-limits do not promise safety for every possible resource-exhaustion input.
+before parsing. Strings, comments and escaped delimiters do not count toward
+that bound. The compatibility matcher has a separate **64-level** guard.
+Rejection preserves preceding writes, handles and subsequent queries; these
+guards are not a universal resource-exhaustion guarantee.
 
-`not(callback)` filters each occurrence independently when a selection contains
-the same node more than once, preserving the original callback indices.
+## Observable API behavior
 
-Trailing positional chains are supported; escaped colons in identifiers remain
-literal. Positional selector lists such as `p, p:first` are unsupported and fail
-explicitly, instead of applying the final filter to the entire union. Some
-negative-index behavior remains best-effort. For example, GroveDOM's `filter(':lt(-1)')` excludes the
-last element, while the current Cheerio reference retains the whole selection.
-The regex hardening preserves this existing distinction.
+The [source audit](source-audit.md) provides reproducers and implementation detail;
+the [0.1.1 changelog](../CHANGELOG.md#011) identifies corrections from 0.1.0.
 
-The [source audit](source-audit.md) records additional fixes and confirmed limits.
-Unicode selector comparisons use baked Unicode 17.0 data and css-select's
-operator-specific rules. Class/token whitespace and empty token operands follow
-Cheerio, including differences from browser CSS. Select parsing uses targeted
-parse5-compatible insertion modes; other parser-version recovery is best-effort.
-Clones share a hidden container but keep consistent native prev/next links,
-unlike Cheerio's cloned-root links. First-child tests on multiple cloned roots
-can therefore differ. Existing-node `replaceWith` moves the same nodes through
-multiple targets. Self-replacement keeps neighboring nodes intact; repeated
-references in insertion arrays retain one physical node. GroveDOM does not copy
-Cheerio's inconsistent links or neighboring-node deletion in those cases.
-Fragment `:root` follows Cheerio. HTML/value callbacks, whole-class toggles and
-derived property setters remain GroveDOM conveniences. Raw NodeHandle property
-getters on text/comments are also an extension. Declared relation aliases return
-the same node identities as the handles. Direct property writes to read-only
-node types/relations fail explicitly; unrestricted domhandler writes remain
-unsupported.
+| Operation | Contract / remaining difference |
+|---|---|
+| `not(callback)` | Evaluates each duplicate occurrence independently with its original index |
+| Property/CSS maps | Visit each element and then its keys, preserving getter/callback observations |
+| Property callback results | Ordinary values stringify, including null/undefined; boolean properties retain presence semantics |
+| `prop('attribs', replacement)` | Copies exact stored names/values; reassigning its own live view preserves values and callback edits. Objects are not shared, so later external changes do not edit the DOM |
+| Attribute names | Preserve exact spelling through cloning/serialization, including SVG `viewBox` and distinct `ID`/`id`. HTML selector case rules still apply; uppercase `ID` is not the lowercase ID value. Non-ASCII whitespace in names is supported |
+| `removeAttr` | Uses a separate whitespace-delimited name-list contract |
+| Element data | Raw `data` assignment replaces the store by reference. `prop('data', value)` replaces an existing store; before one exists, it edits an ordinary attribute |
+| Text/comment data | Raw `data` writes edit character data; raw property getters on these nodes are extensions |
+| Forms | Ordinary setters dispatch from the first selected node; empty XML `multiple=""` has Cheerio's falsey getter behavior. Type matching ignores case in HTML and is exact in XML |
+| Extraction | Reads each descriptor's selector/value once before querying, even without matches. Callback arrays flatten once, keeping null/undefined entries; scalar null/undefined results are omitted. Type inference follows this behavior |
+| Insertion callbacks | Append/prepend accepts document/template-content roots. A callback as the first insertion argument causes later arguments to be ignored |
+| Detached `before`/`after` callbacks | Best-effort: callbacks can run even when no insertion occurs |
+| Existing-node `replaceWith` | Moves the same nodes through targets; self-replacement keeps neighbors intact and repeated insertion references retain one physical node |
+| Clones | Share a hidden container with reciprocal sibling links; first-child tests on multiple cloned roots can differ from Cheerio |
+| `wrapAll` | Skips lowercase script/style nodes when choosing the container, including XML wrapper-clone behavior |
+| Relation aliases | Return the same handle identities; direct writes to read-only node types/relations fail |
+| Convenience behavior | HTML/value callbacks, whole-class toggles and derived property setters extend Cheerio; an empty selection's `.html()` is `null`, unlike jQuery's `undefined` |
 
-Property and CSS maps apply keys separately to each element, preserving getter
-and callback observations. Ordinary property callback results stringify even when
-null or undefined; boolean properties keep presence semantics. Ordinary value
-setters dispatch from the first selected node, and XML empty `multiple=""` uses
-Cheerio's falsey getter behavior. Array extraction flattens callback arrays once,
-preserves their null/undefined entries and omits scalar null/undefined results.
-The TypeScript inference reflects this correction from 0.1.0. See the
-[changelog](../CHANGELOG.md) for observable fixes and the audit for exact limits.
+GroveDOM preserves consistent tree links rather than reproducing Cheerio's
+inconsistent cloned-root links or neighboring-node deletion in self-replacement.
 
-Extraction reads each descriptor's selector and value once before querying,
-including when no node matches; callbacks retain that chosen value for the call.
-Form serialization matches type names without case in HTML and exactly in XML.
+## Qualification
 
-`prop('attribs', replacement)` removes exact stored names before copying the
-replacement values into the document. Reassigning an element's own live `attribs`
-view preserves its values and callback edits. Replacement objects are not shared
-between elements; later external object changes do not mutate the DOM.
-`removeAttr` retains its separate whitespace-delimited name-list behavior.
+Experimental **0.1.1** passed hosted Linux Node 22.0.0/22/24 checks and pooled-Wasm
+Node 24 checks on Windows/macOS, including packed installs. Native remains Linux
+x64/glibc only; [release policy](releasing.md) defines that baseline.
+Reported Firefox 150 and Chromium 140 [correctness-page runs](testing.md#reported-browser-runs)
+each pass 810 cases with 35 skips and no failures. WebKit and broader browser API
+coverage remain unqualified; portable normal/fallback checks run under Node.
 
-Attribute mutations preserve exact spelling. For example, setting `ID` keeps an
-existing lowercase `id`, and newly assigned SVG `viewBox` retains its case through
-cloning and HTML serialization. HTML selectors continue to use their documented
-case rules; an uppercase `ID` does not become the lowercase ID selector value.
-
-Raw element `data` assignments replace the data store by reference. Once that
-property exists, `prop('data', value)` replaces it too; before then, `prop` uses
-an ordinary `data` attribute. Text/comment `data` writes still edit character data.
-Document and template-content roots accept append/prepend callbacks. When the
-first insertion argument is a callback, later arguments are ignored, matching
-Cheerio's overload. Sibling insertion callbacks on detached elements remain
-best-effort: `before`/`after` can invoke the callback even when no insertion occurs.
-`wrapAll` skips lowercase script/style nodes when selecting
-its wrapper container, including the corresponding XML wrapper-clone behavior.
-CSS comments do not participate in selector alias expansion; quoted operands
-retain their literal contents.
-
-[Integration](integration.md) describes the real consumer replay.
-[Historical inventory](history/compatibility.md) preserves the detailed earlier
-API audit and exclusions; current support status is the table above.
+[Fourteen Cheerio/jQuery exclusions](../test/upstream/README.md) and the selected
+[WPT exclusions](../test/web-platform/README.md) have explicit reasons. Tests for
+other backends/heaps also skip. [Testing](testing.md) records the full scoped
+matrix; [integration](integration.md) describes the consumer replay. Correctness
+passes do not establish [performance or production adoption](benchmarks.md).
+[Historical inventory](history/compatibility.md) retains earlier API audits.
