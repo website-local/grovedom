@@ -3,11 +3,15 @@
 ## 0.1.2 (unreleased)
 
 Development has moved to 0.1.2; the published release remains 0.1.1.
-Changes so far are documentation and release metadata only.
 
+- Reject recursive initialization while reading options or starting a browser
+  fetch, preserving the entry's document/handle identity. Failed initialization
+  still permits retry; initialization options and the DOM API are unchanged.
 - Record the reported Firefox 150 and Chromium 140 benchmark and selected
   correctness results, including exclusions and remaining browser coverage gaps.
 - Align release documentation and the manual Pages default with published 0.1.1.
+- Reorganize compatibility limits and performance evidence, preserving historical
+  controls, exclusions and reported release/browser results.
 
 ## 0.1.1
 

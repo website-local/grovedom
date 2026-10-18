@@ -72,8 +72,10 @@ init({ addon: './native/grovedom.node' }); // optional custom location
 Native defaults to its bundled addon. Package entries own independent state and
 handle brands. Configuration cannot change after successful initialization,
 including implicit initialization through `load`, `contains` or `merge`.
-Failed initialization can be retried. No package metadata compatibility check
-is performed: distribute the matching JS and artifact together.
+Recursive initialization from option getters or a browser fetch is rejected;
+the entry is reserved before those callbacks run. Failed initialization releases
+that reservation and can be retried. No package metadata compatibility check is
+performed: distribute the matching JS and artifact together.
 
 ## Browser and demo
 

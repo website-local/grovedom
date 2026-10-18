@@ -5,14 +5,18 @@ import { createFacade } from './facade/document.js';
 import { Buffer } from 'node:buffer';
 import { validateOptions, initializedError } from './initialize.js';
 const require = createRequire(import.meta.url);
-let facade;
+let facade, initializing = false;
 export function init(options = {}) {
-    if (facade)
+    if (facade || initializing)
         throw initializedError();
-    validateOptions(options, ['addon']);
-    const path = options.addon ?? new URL('../grovedom.node', import.meta.url);
-    const kernel = require(path instanceof URL ? fileURLToPath(path) : resolve(path));
-    facade = createFacade(kernel, value => value instanceof Uint8Array ? Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString('utf8') : value);
+    initializing = true;
+    try {
+        validateOptions(options, ['addon']);
+        const path = options.addon ?? new URL('../grovedom.node', import.meta.url);
+        const kernel = require(path instanceof URL ? fileURLToPath(path) : resolve(path));
+        facade = createFacade(kernel, value => value instanceof Uint8Array ? Buffer.from(value.buffer, value.byteOffset, value.byteLength).toString('utf8') : value);
+    }
+    finally { initializing = false; }
 }
 export function load(content, options, isDocument) {
     if (!facade)

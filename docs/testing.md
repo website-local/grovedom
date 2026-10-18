@@ -21,7 +21,38 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
-The 0.1.1 review fixes pass the **2,394-case suite**. The latest 32 cases cover
+### 0.1.2 initialization follow-up
+
+Ten new regressions cover recursive initialization from option getters, option
+enumeration and browser fetch, plus retry after getter failure. Seven reproduce
+the preceding entry-state replacement bug. All thirteen initialization tests
+now pass, including the existing async retry and independent-package checks.
+
+The focused 92-case initialization, ownership, worker, heap and public-contract
+scope passes with these backend exclusions:
+
+| Backend | Node versions | Pass / exclusions |
+|---|---|---:|
+| Native | 22, 24 | 86 /6 |
+| Pooled Wasm | 22, 24 | 92 /0 |
+| Global Wasm | 22 | 88 /4 |
+| Per-document Wasm | 22 | 89 /3 |
+
+The same scope passes native ASan/UBSan with leak detection and no findings,
+reusing the reviewed sanitizer binary because C sources are unchanged. Twenty-one
+release checks and source/package declarations pass. Fresh 0.1.2 tarballs pass
+offline installs, the forty-two public-contract checks per entry and caller-managed
+workers on Node 22/24. Installed initialization/identity checks also pass fourteen
+entry/heap/runtime configurations. Packaged portable normal/fallback checks each
+pass 810 cases with 35 exclusions, plus the release contracts, under Node.
+
+These are scoped local checks. The full DOM matrix below records 0.1.1; hosted
+0.1.2 and actual-browser qualification remain separate. No new performance
+multiplier is inferred from this initialization fix.
+
+### 0.1.1 full matrix
+
+The released 0.1.1 review fixes pass the **2,394-case suite**. Its latest 32 cases cover
 relative-list ordering and retained capacity, dense/deep trees, attached fragments,
 repeated raw data writes, coercion and installed contracts. Identity/order assertions compare each
 handle by reference, including across portable VM contexts. The preceding 178
