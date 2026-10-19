@@ -8,6 +8,7 @@ import { load } from '../diagnostics/index.js';
 import { kernel } from '../diagnostics/kernel.js';
 import { generator, uint32 } from './fuzz/generate.mjs';
 import { execute } from './fuzz/execute.mjs';
+import { exerciseNodeInputs } from './fuzz/node-inputs.mjs';
 
 const directory = process.env.GROVEDOM_FUZZ_DIR;
 assert(process.env.TMPDIR && directory, 'Set disk-backed TMPDIR and GROVEDOM_FUZZ_DIR.');
@@ -19,10 +20,10 @@ assert(malformed === undefined || ['0', '1'].includes(malformed), 'Expected GROV
 const generate = generator(seed, { templates: process.env.GROVEDOM_FUZZ_TEMPLATES === '1',
   malformed: malformed === undefined ? null : malformed === '1' });
 const supplied = process.env.GROVEDOM_FUZZ_CASE_FILE ? JSON.parse(readFileSync(process.env.GROVEDOM_FUZZ_CASE_FILE, 'utf8')) : null;
-if (supplied) assert(supplied.version === undefined || supplied.version === 2, 'Unsupported fuzz case version');
+if (supplied) assert(supplied.version === undefined || [2, 3].includes(supplied.version), 'Unsupported fuzz case version');
 mkdirSync(directory, { recursive: true });
 let completed = 0, rejectedMalformed = 0, executions = 0, safetyCases = 0;
-const coverage = { profiles: {}, actions: {}, matchedActions: {} };
+const coverage = { profiles: {}, actions: {}, matchedActions: {}, nodeInputMethods: {}, nodeInputShapes: {} };
 for (let i = 0; i < (supplied ? 1 : count); i++) {
   const item = supplied ?? generate(i);
   let stage = {};
@@ -48,6 +49,12 @@ for (let i = 0; i < (supplied ? 1 : count); i++) {
         if (!item.malformed || !['ERR_GROVEDOM_PARSE', 'ERR_GROVEDOM_XML', 'ERR_GROVEDOM_SELECTOR', 'ERR_GROVEDOM_UNSUPPORTED'].includes(error.code)) throw error;
         rejectedMalformed++;
       }
+      exerciseNodeInputs(load, item, { execution, progress });
+      for (const op of item.nodeInputs?.operations ?? []) {
+        coverage.nodeInputMethods[op.method] = (coverage.nodeInputMethods[op.method] ?? 0) + 1;
+        const shape = [op.selection ? 'selection' : 'array', op.nodeContext ? 'node' : 'selection', op.empty ? 'empty' : 'matched'].join('/');
+        coverage.nodeInputShapes[shape] = (coverage.nodeInputShapes[shape] ?? 0) + 1;
+      }
       assert.equal(kernel.stats().liveDocuments, 0, 'Fuzz case left a live document');
       assert.equal(kernel.stats().liveBytes, 0, 'Fuzz case left live kernel backing allocations');
       if (item.malformed) {
@@ -71,6 +78,6 @@ for (let i = 0; i < (supplied ? 1 : count); i++) {
     throw new Error(`Fuzz failure at seed ${item.seed ?? seed}, case ${item.index}; reproducer: ${file}`, { cause: error });
   }
 }
-console.log(JSON.stringify({ scope: 'Seeded DOM differential, callback, batching, retained-tree and malformed-input safety checks; no performance claim.',
+console.log(JSON.stringify({ scope: 'Seeded DOM differential, callbacks, batching, retained trees, repeated node inputs, foreign contexts and malformed-input safety checks; no performance claim.',
   seed: supplied?.seed ?? seed, completed, executions, safetyCases, rejectedMalformed, coverage,
   backend: process.env.GROVEDOM_BACKEND ?? 'wasm', heap: process.env.GROVEDOM_WASM_HEAP, kernel: kernel.stats() }));

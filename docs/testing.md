@@ -21,6 +21,43 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
+### 0.1.2 insertion, traversal and ownership review
+
+The four review fixes pass the **2,427-case suite**, including isolated main-thread
+and caller-managed worker checks for the formerly hanging repeated insertion:
+
+| Backend | Node versions | Pass / exclusions |
+|---|---|---:|
+| Native | 22, 24 | 2,368 /59 |
+| Pooled Wasm | 22, 24 | 2,376 /51 |
+| Global Wasm | 22 | 2,372 /55 |
+| Per-document Wasm | 22 | 2,373 /54 |
+
+There are no unexpected failures, cancellations or TODOs. The rebuilt native
+ASan/UBSan suite passes 2,368 cases with 59 exclusions and leak detection; owned
+buffer-failure checks and 64 sanitized fuzz cases also pass. Native and pooled
+Wasm each pass 1,000 seeded cases in both execution modes, including repeated
+node arrays/selections and foreign query contexts. Source and standalone package
+declarations pass.
+
+Fresh local tarballs pass offline Node 22/24 installation, fifty shared public
+contract checks per entry and caller-managed worker checks. Packaged portable
+normal/fallback paths each pass 810 cases with 35 exclusions, plus the release
+contracts, under both Node versions. The original 288 review observations now
+pass across nine configurations; all nine separate traversal reproducers reach
+disposal and exit normally, including the native sanitizer configuration.
+
+All 193 pipeline scenarios match fresh Cheerio output/events on each of two
+preserved consumer snapshots, on native and all three Wasm heaps. Those snapshots
+contain engine versions 0.9.1 and 0.10.0; they do not qualify current production
+inputs or every downloader revision. Four **120-cycle / 2,430-lifetime authored
+memory budgets** also pass with the custom corpus disabled. See
+[memory](memory.md) and the separate [timing results](benchmarks.md#012-insertion-and-ownership-corrections).
+
+These are local checks. Fresh hosted CI for these fixes, exact Node 22.0.0,
+Windows/macOS and actual-browser reruns remain separate release qualification.
+The reported 0.1.1 browser results below are unchanged.
+
 ### 0.1.2 initialization follow-up
 
 Ten new regressions cover recursive initialization from option getters, option
@@ -46,9 +83,9 @@ workers on Node 22/24. Installed initialization/identity checks also pass fourte
 entry/heap/runtime configurations. Packaged portable normal/fallback checks each
 pass 810 cases with 35 exclusions, plus the release contracts, under Node.
 
-These are scoped local checks. The full DOM matrix below records 0.1.1; hosted
-0.1.2 and actual-browser qualification remain separate. No new performance
-multiplier is inferred from this initialization fix.
+These earlier checks cover the initialization change specifically. The full
+0.1.2 matrix above also includes the later insertion/ownership fixes; the matrix
+below records 0.1.1. No performance multiplier is inferred from initialization.
 
 ### 0.1.1 full matrix
 
@@ -234,6 +271,14 @@ Every ninth generated input is corrupted for safety checks; successful parses
 must retain tree invariants, and rejected inputs must leave subsequent documents
 usable. Malformed recovery is not compared with Cheerio.
 
+Version 3 cases also exercise existing-node arrays and selections for all four
+insertion positions, duplicate `contents`/adjacent traversal and foreign
+node/selection query contexts with matched and empty results. All eight input
+shape combinations are scheduled deterministically. These checks use GroveDOM's
+own one-physical-node and ownership contracts because Cheerio permits duplicate
+child references and cross-document adoption. Retained handles are compared by
+strict identity, not deep equality of wrapper objects.
+
 Set `TMPDIR` and `GROVEDOM_FUZZ_DIR` to disk-backed output directories, then run
 `npm run test:fuzz`. Developer options are:
 
@@ -250,7 +295,7 @@ phase/operation, so crashes leave a reproducer. Ordinary failures also save a
 named case and, for differences, full actual/expected observations. Reports
 separate requested actions from those that matched nodes, as well as safety
 cases, accepted/rejected executions and live-document/allocation counts. Older
-unversioned case files remain replayable. These are bounded seeded checks, not
+unversioned and version 2 case files remain replayable. These are bounded seeded checks, not
 coverage-guided fuzzing or proof that arbitrary inputs are safe.
 
 CI keeps the existing 200-case native/Wasm fuzz checks and adds 64 cases to the

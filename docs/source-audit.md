@@ -184,6 +184,25 @@ kind while retaining the flush before coercion. Dense/deep ordering, overlapping
 and template roots, identity, generation rollover and allocation-failure recovery
 are checked separately from the [operation/resource evidence](benchmarks.md#relative-list-resource-correction).
 
+## Insertion, ownership and traversal follow-up
+
+The 0.1.2 review also fixes four combinations missed by the earlier cases.
+[Existing-node regressions](../test/node-inputs.test.mjs) and the shared
+[package/portable contracts](../test/review-contract.mjs) cover:
+
+| Trigger | Previous failure | Corrected behavior |
+|---|---|---|
+| Repeated node in `after()` content | Detached, self-linked node; later traversal could hang | Preserve one physical node and reciprocal links; isolated main/worker traversals terminate |
+| `.add(selector, foreignContext)` | Foreign numeric IDs could select unrelated local nodes | Reject the foreign owner before merging IDs, including empty query results |
+| Duplicate origins in `contents()`, `next()` or `prev()` | Occurrences and callback indices were lost | Preserve occurrences on these axes; other axes retain their deduplication rules |
+| Single-select `.val(null)` | Cleared selection or selected the literal `"null"` option | Object values, including null, preserve single-select state like Cheerio |
+
+The fuzz generator now includes repeated node arrays/selections and foreign
+contexts, with independent tree and ownership checks. Repeated physical nodes
+and cross-document adoption use GroveDOM's documented contract rather than
+copying Cheerio's inconsistent tree references. [Current qualification](testing.md)
+separates the full local matrix from hosted and actual-browser results.
+
 ## Remaining differences
 
 These are confirmed limits. Cartesian probes repeat some differences across

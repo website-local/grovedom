@@ -12,6 +12,10 @@ Experimental 0.1.1 is published. Its [release and browser summaries](#011-releas
 cover Node CI, Firefox 150 and Chromium 140, with material differences between
 the reported browser ratios. The earlier isolated investigation remains below.
 
+The latest 0.1.2 insertion/ownership [review](#012-insertion-and-ownership-corrections)
+has two scoped non-regression passes and fourteen inconclusive timing panels.
+It does not establish full-scope non-regression or a new adoption multiplier.
+
 The completed investigation retains the Wasm HTML opening-tag span writer and
 qualified correctness fixes. Native keeps its previous writer. Isolated Node 24
 comparisons support these workload-specific improvements:
@@ -34,6 +38,70 @@ median passes and seven inconclusive panels; promising pooled seeded tails do
 not pass multiplicity correction. The compact [performance review](history/performance-review.md)
 preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
 [Correctness qualification](testing.md) is a separate requirement.
+
+## 0.1.2 insertion and ownership corrections
+
+This bounded check compares the four correctness fixes with the preceding
+0.1.2 initialization checkpoint. The plan fixes sixteen panels and 228 blocks
+before timing: pooled Wasm on Node 22/24 and native on Node 22 for four authored
+workloads, plus native/pool Node 22 panels for nineteen consumer scenarios and
+forty-four successful seeded inputs. Every panel was attempted once. **82 blocks
+completed, 81 were retained; two panels pass non-regression and fourteen remain
+inconclusive.** No panel is extended or replaced to obtain passing controls.
+
+Each variant runs in a separate process, with only one executing at a time.
+Three process groups rotate/mirror variant order; each group has five blocks
+for authored cases or four for corpus cases. There are twenty replay warmups,
+two batches per sample and four authored replays per batch (one corpus replay).
+The fixed load limit is 15%, with at most three pauses per panel. A complete
+block is filtered only by the independent 1.5 probe ratio. Passing requires
+three complete groups, at least three retained blocks per group and ten overall,
+raw/filtered before/current at least 0.97 and controls within 0.97–1.03.
+
+Ratios below are medians of available group medians. Raw and filtered values
+are identical except where separated by `/`. Partial panels are descriptive;
+their incomplete estimates cannot pass. Counts are **retained / complete /
+planned blocks**. Controls compare two independent copies of the preceding code.
+
+| Backend / Node | Workload | Before / current | Control | Blocks | Result |
+|---|---|---:|---:|---:|---|
+| Pool /22 | HTML120 | 1.0405 | 1.0227 | 15/15/15 | Pass |
+| Pool /22 | HTML600 | 0.9780 | 0.9691 | 15/15/15 | Inconclusive control |
+| Pool /22 | Sitemap600 | 1.0073 | 0.9844 | 15/15/15 | Pass |
+| Pool /22 | SVG300 | 1.0562 | 1.0387 | 15/15/15 | Inconclusive control |
+| Pool /24 | HTML120 | 1.0172 | 0.9277 | 9/9/15 | Incomplete |
+| Pool /24 | HTML600 | 0.9883 /1.0313 | 0.9813 /1.0227 | 1/2/15 | Incomplete |
+| Pool /24 | Sitemap600 | — | — | 0/0/15 | Incomplete |
+| Pool /24 | SVG300 | 1.1357 | 0.9658 | 2/2/15 | Incomplete |
+| Native /22 | HTML120 | 1.0396 | 0.8984 | 1/1/15 | Incomplete |
+| Native /22 | HTML600 | 1.0062 | 1.0305 | 2/2/15 | Incomplete |
+| Native /22 | Sitemap600 | 1.1025 | 1.0160 | 5/5/15 | Incomplete |
+| Native /22 | SVG300 | 0.7515 | 0.6863 | 1/1/15 | Incomplete |
+| Pool /22 | Consumer19 | — | — | 0/0/12 | Incomplete |
+| Pool /22 | Seeded44 | — | — | 0/0/12 | Incomplete |
+| Native /22 | Consumer19 | — | — | 0/0/12 | Incomplete |
+| Native /22 | Seeded44 | — | — | 0/0/12 | Incomplete |
+
+All four completed pooled Node 22 panels also compare Cheerio 1.2.0 default and
+htmlparser2, with exact output agreement checked before timing. Raw/filtered
+Cheerio/current ratios, calculated within each block, are identical here:
+
+| Workload | Cheerio default / current | Cheerio htmlparser2 / current |
+|---|---:|---:|
+| HTML120 | 3.6088 | 2.6884 |
+| HTML600 | 5.1500 | 3.9023 |
+| Sitemap600 | 4.5870 | 4.8607 |
+| SVG300 | 3.1419 | 3.1252 |
+
+The controls above still apply; no normalization is used. Across those four
+panels, recorded batches span 3.26–241.36 ms across all implementations. Consumer
+and seeded inputs differ under htmlparser2, so those planned panels use default
+Cheerio only; neither obtained a timing block. Saved consumer correctness and
+the [memory checks](memory.md) pass separately. Native/pool ordinary-workload
+output hashes, kernel calls, returned IDs and backing-allocation counts are
+unchanged, but that does not establish unchanged JavaScript allocation or elapsed
+cost. This pass supplies no universal speedup, complete-workload 3× gate or
+actual-browser result. Earlier unsuccessful comparisons remain below.
 
 ## Compatibility review follow-up
 
@@ -215,7 +283,8 @@ reclassify earlier results. Hosted diagnostics do not replace fresh-process gate
 Later scoped screens use a **3% tolerance**: baseline/candidate ≥0.97 and controls
 within 0.97–1.03, for both raw and filtered estimates. Earlier closed panels keep
 their declared 2% rules. The short protocol uses the median of three group
-medians, four blocks per group, at least three retained per group and ten overall.
+medians, one block per variant per group, at least three retained per group and
+ten overall. The comparisons above use four or five variants as declared.
 
 The later isolated protocol uses twelve fresh process groups, whole-process
 bootstrap intervals and family-adjusted primary p90 tests. It attempts every

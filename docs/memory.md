@@ -49,6 +49,26 @@ The relative-list correction repeats all four 24-cycle authored-budget checks,
 with the custom corpus disabled, and separately checks eight sparse/dense
 query/empty/refill cycles. Both checks preserve intentionally retained handles.
 
+The 0.1.2 insertion/ownership correction repeats the longer **120-cycle run with
+2,430 document lifetimes** on all four backends, with all fixed budgets and plateau
+assertions passing:
+
+| Backend | Peak tracked backing bytes | Peak Wasm capacity | Final tracked live / control bytes |
+|---|---:|---:|---:|
+| Native | 22,521,160 | — | 0 /0 |
+| Pooled Wasm | 12,849,224 | 23,003,136 | 0 /0 |
+| Global Wasm | 12,849,224 | 14,286,848 | 0 /0 |
+| Per-document Wasm | 12,849,224 | 16,777,216 | 0 /0 |
+
+Fresh and trimmed-pool capacity returns to zero; global memory retains its
+14,286,848-byte high water for reuse. A separate repeated-input probe covers 257
+document lifetimes, 128 retained disposed selections and 6,096 edits per backend.
+Its long-lived insertion loop makes no additional backing-allocation requests
+after warmup, and final tracked live/control bytes are zero after handles are
+released. Before/current output hashes, logical calls, returned ID counts and
+backing-allocation counts match for five ordinary workloads on native and pool.
+These counters do not measure all JavaScript allocations or immediate RSS release.
+
 `test/faults.c` injects failures into GroveDOM-owned buffer growth for input,
 transfer, query results and serialization, then checks recovery and idempotent
 cleanup. It does not inject every upstream Lexbor or host allocation failure.

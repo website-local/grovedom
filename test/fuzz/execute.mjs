@@ -77,7 +77,11 @@ export function execute(factory, item, { execution = 'buffered', links = false, 
         case 'observe': break;
         default: throw new Error('Unknown fuzz operation: ' + op.action);
       }
-      for (let i = 0; i < retained.length; i++) assert.deepEqual(retained[i].get(), identities[i], 'Selection membership changed');
+      for (let i = 0; i < retained.length; i++) {
+        assert.equal(retained[i].length, identities[i].length, 'Selection membership changed');
+        for (let j = 0; j < identities[i].length; j++)
+          assert.equal(retained[i][j], identities[i][j], 'Selection identity changed');
+      }
       observations.push({ length: found.length, selectedLength: selected.length, selected: selected.toString(), text: selected.text(),
         nodes: selected.get().map(node => ({ name: node.name, attrs: { ...node.attribs } })),
         retained: retained.map(s => [s.length, s.text(), s.toString()]),

@@ -10,6 +10,12 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
 
 ## Current status
 
+- The 0.1.2 correctness review fixes repeated-insertion hangs, foreign-owner
+  `.add()` queries, duplicate traversal occurrences and single-select null values.
+  The full local matrix, sanitizer, seeded fuzz, preserved consumer replays,
+  offline packages and four 120-cycle memory budgets pass. Its fixed timing pass
+  has two scoped non-regression passes and fourteen inconclusive panels;
+  [qualification and limits](testing.md) remain explicit.
 - The bounded performance investigation is complete. It retains the Wasm HTML
   span writer, correctness fixes and XML regression tests. Native keeps its
   preceding writer; later isolated experiments supply no supported primary gain.

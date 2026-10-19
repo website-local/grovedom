@@ -4,6 +4,14 @@
 
 Development has moved to 0.1.2; the published release remains 0.1.1.
 
+- Keep repeated existing-node `after()` inputs attached with reciprocal sibling
+  links, preventing subsequent traversal from hanging.
+- Reject foreign-document query contexts in `.add()` before their numeric IDs
+  can select or mutate unrelated local nodes.
+- Preserve duplicate occurrences and callback indices in `contents()`, `next()`
+  and `prev()`, including filtered traversal.
+- Preserve single-select state for `.val(null)` and other object values, matching
+  Cheerio's no-op behavior.
 - Reject recursive initialization while reading options or starting a browser
   fetch, preserving the entry's document/handle identity. Failed initialization
   still permits retry; initialization options and the DOM API are unchanged.

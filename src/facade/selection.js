@@ -112,10 +112,13 @@ export function createSelection(context) {
         _traverse(axis, selector) {
             const { state, ids } = entry(this);
             flush(state);
-            let resultIds = kernel.traverse(state.owner, ids, axis | (selector && ids.length > 1 ? 256 : 0));
+            // Contents and immediate siblings keep each input occurrence.
+            // Other axes deduplicate only after a filter has seen all visits.
+            const unique = axis !== 3 && axis !== 4 && axis !== 5;
+            let resultIds = kernel.traverse(state.owner, ids, axis | (ids.length > 1 && (selector || !unique) ? 256 : 0));
             if (selector) {
                 resultIds = entry(selection(state, resultIds).filter(selector)).ids;
-                if (ids.length > 1) resultIds = Uint32Array.from(new Set(resultIds));
+                if (unique && ids.length > 1) resultIds = Uint32Array.from(new Set(resultIds));
             }
             if ((axis === 8 || axis === 9) && ids.length > 1) {
                 resultIds = edit(state, 13, resultIds);
@@ -277,7 +280,7 @@ export function createSelection(context) {
         }
         has(selector) { const { state } = entry(this); return this.filter(function () { return state.api(this).find(selector).length > 0; }); }
         add(other, context) {
-            const { state, ids } = entry(this), next = entry(state.api(other, context)).ids;
+            const { state, ids } = entry(this), next = inputIds(state, state.api(other, context));
             const joined = new Uint32Array(ids.length + next.length);
             joined.set(ids);
             joined.set(next, ids.length);
@@ -489,7 +492,7 @@ export function createSelection(context) {
             const name = this[0].name;
             if (name === 'textarea') return this.text(value);
             if (name === 'select') {
-                if (Array.isArray(value) && this.attr('multiple') === undefined) return this;
+                if (typeof value === 'object' && this.attr('multiple') === undefined) return this;
                 const values = (Array.isArray(value) ? value : [value]).map(String);
                 this.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
                 return this;

@@ -52,6 +52,13 @@ export function generator(seed, { templates = false, malformed = false } = {}) {
       const at = next(source.length + 1);
       source = source.slice(0, at) + pick(['<', '&', '"', '\u0000', '<!--', '<![CDATA[', '</', '']) + source.slice(at + next(4));
     }
-    return { version: 2, seed, index, xml, profile, templates: hasTemplates, malformed: corrupt, source, selectors, operations };
+    const count = 3 + next(6);
+    const nodeInputs = { count, operations: Array.from({ length: 8 }, (_, step) => {
+      const first = next(count);
+      return { method: ['append', 'prepend', 'before', 'after'][(step + index) % 4],
+        target: next(count), nodes: [first, first, ...Array.from({ length: next(5) }, () => next(count))],
+        selection: Boolean(step & 1), nodeContext: Boolean(step & 2), empty: Boolean(step & 4) };
+    }) };
+    return { version: 3, seed, index, xml, profile, templates: hasTemplates, malformed: corrupt, source, selectors, operations, nodeInputs };
   };
 }

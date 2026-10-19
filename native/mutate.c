@@ -79,6 +79,10 @@ static int gd_insert(gd_document *doc, lxb_dom_node_t *target, lxb_dom_node_t *c
         if (node == child) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Insertion would create a node cycle");
     }
     if (child->type == LXB_DOM_NODE_TYPE_DOCUMENT || (parent->type != LXB_DOM_NODE_TYPE_ELEMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Invalid insertion target");
+    /* A repeated after() input can already be the last inserted child. Keep
+     * its position: detaching it would make the next insert self-referential. */
+    if (position == 3 && child == *anchor)
+        return !collect || gd_collect(child, 0, doc) == LXB_STATUS_OK;
     if (child == *anchor && position == 1) *anchor = child->next;
     lxb_dom_node_remove(child);
     if (position == 0 || (position == 1 && !*anchor)) lxb_dom_node_insert_child(parent, child);

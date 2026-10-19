@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generator, uint32, actions } from './fuzz/generate.mjs';
 import { execute, checkLinks } from './fuzz/execute.mjs';
+import { exerciseNodeInputs } from './fuzz/node-inputs.mjs';
 import { load } from '../diagnostics/index.js';
 import { kernel } from '../diagnostics/kernel.js';
 import { load as reference } from 'cheerio';
@@ -79,4 +80,23 @@ test('automatic malformed scheduling and explicit overrides preserve safety cove
     if (item.malformed) safety.push([i, item.xml]);
   }
   assert.deepEqual(safety, [[8, false], [17, true], [26, false]]);
+});
+
+test('node-input fuzzing covers repeated handles, traversal and foreign contexts', () => {
+  const generate = generator(42), methods = new Set(), shapes = new Set();
+  for (let i = 0; i < 4; i++) {
+    const item = generate(i);
+    item.nodeInputs.operations.unshift({ method: 'after', target: 0, nodes: [1, 1], selection: false, nodeContext: false, empty: false });
+    for (const op of item.nodeInputs.operations) {
+      methods.add(op.method);
+      shapes.add([op.selection, op.nodeContext, op.empty].join('/'));
+    }
+    for (const execution of ['buffered', 'direct'])
+      assert.equal(exerciseNodeInputs(load, item, { execution }), 9);
+  }
+  assert.equal(methods.size, 4);
+  assert.equal(shapes.size, 8);
+  assert.equal(exerciseNodeInputs(load, item), 0);
+  assert.equal(kernel.stats().liveDocuments, 0);
+  assert.equal(kernel.stats().liveBytes, 0);
 });
