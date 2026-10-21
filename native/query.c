@@ -7,6 +7,7 @@ static lxb_dom_node_t *gd_fragment_boundary(lxb_dom_node_t *node) {
 
 static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index, int cross_fragments) {
     for (size_t i = 0; i < index; i++) if (ids[i] == ids[index]) return 1;
+    if (!cross_fragments && doc->nodes[ids[index]].node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) return 0;
     for (lxb_dom_node_t *child = doc->nodes[ids[index]].node, *parent = child->parent; parent; child = parent, parent = parent->parent) {
         /* An element-only find does not enter template contents. A containing
          * root beyond that boundary cannot cover an explicit root inside it. */
@@ -19,10 +20,14 @@ static int gd_covered_root(gd_document *doc, const uint32_t *ids, size_t count, 
     return 0;
 }
 
-static int gd_indexed_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index) {
+static int gd_indexed_covered_root(gd_document *doc, const uint32_t *ids, size_t count, size_t index, int stop_at_fragments) {
     gd_node *root = &doc->nodes[ids[index]];
     if (root->order != index) return 1;
-    for (lxb_dom_node_t *parent = root->node->parent; parent; parent = parent->parent)
+    /* Ordinary find does not enter raw fragments, even when their parents are
+     * linked to the tree. Only ancestors on this side can cover this root. */
+    if (stop_at_fragments && root->node->type == LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) return 0;
+    for (lxb_dom_node_t *parent = root->node->parent;
+         parent && (!stop_at_fragments || parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT); parent = parent->parent)
         if (gd_query_root_member(doc, ids, count, parent)) return 1;
     return 0;
 }
@@ -37,8 +42,10 @@ size_t gd_query_order(gd_document *doc, const uint32_t *ids, size_t count, uint3
      * so indexed root membership is safe even for template scopes. */
     for (size_t i = count; i-- > 0;) doc->nodes[ids[i]].order = (uint32_t) i;
     for (size_t i = 0; i < count; i++) {
+        /* Ordering keeps outer root ranks across attached raw fragments. If
+         * this walk cannot place a marked match, the caller uses tree order. */
         if (count > 1 && (doc->templates ? gd_covered_root(doc, ids, count, i, cross_fragments)
-            : gd_indexed_covered_root(doc, ids, count, i))) continue;
+            : gd_indexed_covered_root(doc, ids, count, i, 0))) continue;
         lxb_dom_node_t *root = doc->nodes[ids[i]].node;
         for (lxb_dom_node_t *start = root->first_child; start; start = start->next) {
             if (start->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
@@ -343,7 +350,7 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
         // Search a containing context once even when a descendant appears
         // earlier. Disjoint contexts still retain caller order, as in Cheerio.
         if (!match && count > 1 && (indexed_roots
-            ? gd_indexed_covered_root(doc, ids, count, i)
+            ? gd_indexed_covered_root(doc, ids, count, i, 1)
             : gd_covered_root(doc, ids, count, i, cross_fragments))) continue;
         lxb_dom_node_t *node = doc->nodes[ids[i]].node;
         if (match && node->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;

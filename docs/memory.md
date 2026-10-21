@@ -29,6 +29,11 @@ reusable ordering scratch scales with the matched set; actual retained selection
 continue to keep their detached nodes valid. Sparse and dense query/empty/refill
 regressions check that unobserved replaced subtrees reuse capacity.
 
+Raw `firstChild` and `lastChild` reads register only the requested child. Retained
+handles keep their own identity through replacement without exposing all siblings.
+Load options and facade construction finish before allocating the kernel owner;
+throwing getters leave no live document, including without finalization support.
+
 ## Verification scope
 
 Developer diagnostics measure live documents, backing bytes, allocations and
@@ -68,6 +73,17 @@ after warmup, and final tracked live/control bytes are zero after handles are
 released. Before/current output hashes, logical calls, returned ID counts and
 backing-allocation counts match for five ordinary workloads on native and pool.
 These counters do not measure all JavaScript allocations or immediate RSS release.
+
+The subsequent fragment/load/child/form fixes repeat all four 120-cycle budgets
+with the same peaks and final zero live/control bytes shown above. A separate
+12-cycle probe replaces 1,024 children each cycle and reads one edge. Each side
+now creates **12 wrappers instead of 12,288**. Native backing capacity plateaus at
+1,671,040 bytes; pooled Wasm plateaus at 1,162,300 bytes for first-child reads and
+1,149,416 for last-child reads. These are document backing bytes, not total process
+memory. Both versions release document backing on disposal; the correction removes
+avoidable retention during the document lifetime. Ordinary output, kernel-call,
+returned-ID and backing-allocation counts match the preceding checkpoint on five
+workloads per native/pool backend.
 
 `test/faults.c` injects failures into GroveDOM-owned buffer growth for input,
 transfer, query results and serialization, then checks recovery and idempotent

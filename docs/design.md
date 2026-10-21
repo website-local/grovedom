@@ -68,6 +68,10 @@ matching JS. There is no protocol version negotiation or plugin framework.
   during a synchronous call. Returned strings and arrays own their data.
 - Disposal discards pending commands and invalidates retained handles. GC cleanup
   is a fallback, not a promptness guarantee.
+- Loading snapshots options and finishes JavaScript construction before creating
+  the kernel owner. Getter or construction failures cannot strand a document.
+- Raw first/last-child reads register only the requested child ID. Reading one
+  edge does not expose every sibling or keep replaced siblings alive.
 - Wasm instances use non-shared memory. Growth detaches old views; bindings refresh
   them before access. Pooled instances are reused only after document cleanup.
 

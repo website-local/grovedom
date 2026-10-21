@@ -8,6 +8,76 @@ function sameNodes(actual, expected) {
 // The same corrections must reach installed packages and the portable facade.
 export const reviewCases = [
   {
+    name: 'ordinary find retains explicit contexts on both sides of a raw fragment', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) for (const template of (xml ? [false] : [false, true])) {
+        const $ = load('<main><b id="outside">out</b></main>' + (template && !xml ? '<template></template>' : ''), { xml, execution });
+        try {
+          const main = $('main')[0], article = $('<article><b id="inside">in</b></article>')[0], fragment = article.parent;
+          $(main).append(fragment);
+          const inside = $(article).find('b')[0], outside = $('#outside')[0];
+          for (const roots of [[main, article], [article, main], [main, fragment, article], [fragment, main, article], [main, fragment, fragment], [$.root()[0], fragment]]) {
+            const selected = $(roots);
+            const expected = roots[0] === article || roots[0] === fragment ? [inside, outside] : [outside, inside];
+            for (const selector of ['b', 'b[id]', ':is(b)', 'b:contains(in)', 'b, b[id]']) {
+              const found = selected.find(selector).get();
+              sameNodes(found, selector === 'b:contains(in)' ? [inside] : expected);
+            }
+          }
+          $(main).empty();
+          assert.equal($(article).find('b')[0], inside);
+          assert.equal(inside.parent, article);
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'raw child edges retain exact mixed-content identity through replacement', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main>first<!--middle--><i>inner</i>last</main>' + (xml ? '' : '<template><b>content</b></template>'), { xml, execution });
+        try {
+          const main = $('main'), node = main[0], first = node.firstChild, last = node.lastChild;
+          assert.equal(first.data, 'first'); assert.equal(last.data, 'last');
+          const children = node.children;
+          assert.equal(first, children[0]); assert.equal(last, children.at(-1));
+          assert.equal(first.firstChild, null); assert.equal(first.lastChild, null);
+          main.html('replacement<!--tail-->');
+          const next = node.firstChild, tail = node.lastChild;
+          assert.equal(next.data, 'replacement'); assert.equal(tail.type, 'comment');
+          assert.equal(main.prop('firstChild'), next); assert.equal(main.prop('lastChild'), tail);
+          assert.equal(first.data, 'first'); assert.equal(last.data, 'last');
+          assert.equal(children[0], first); assert.equal(children.at(-1), last);
+          main.empty(); assert.equal(node.firstChild, null); assert.equal(node.lastChild, null);
+          if (!xml) {
+            const template = $('template')[0], fragment = template.firstChild;
+            assert.equal(fragment, template.lastChild);
+            assert.equal(fragment.type, 'root');
+            assert.equal(fragment.firstChild, fragment.lastChild);
+            assert.equal(fragment.firstChild.name, 'b');
+          }
+          $.dispose();
+          assert.throws(() => node.firstChild, { code: 'ERR_GROVEDOM_DISPOSED' });
+          assert.throws(() => last.lastChild, { code: 'ERR_GROVEDOM_DISPOSED' });
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'form collection preserves repeated forms and field order', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<form><input name="a" value="1"/><textarea name="b">two\nlines</textarea><input name="off" disabled="disabled"/></form><input name="c" value="3"/>', { xml, execution });
+        try {
+          const form = $('form')[0], field = $('input[name="c"]')[0];
+          const values = $([form, field, form]).serializeArray();
+          assert.deepEqual(structuredClone(values), [{ name: 'a', value: '1' }, { name: 'b', value: 'two\r\nlines' }, { name: 'c', value: '3' }, { name: 'a', value: '1' }, { name: 'b', value: 'two\r\nlines' }]);
+          assert.equal($(field).serialize(), 'c=3');
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
     name: 'repeated sibling insertion preserves one physical node and reciprocal links', corrected: true,
     run({ load }, execution) {
       for (const xml of [false, true]) {

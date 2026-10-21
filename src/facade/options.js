@@ -1,9 +1,20 @@
 import { unsupported } from './common.js';
-export function xmlFlags(options) {
-    const value = typeof options.xml === 'object' && options.xml !== null ? options.xml : {};
+const xmlOptionNames = ['decodeEntities', 'lowerCaseTags', 'lowerCaseAttributeNames', 'selfClosingTags', 'emptyAttrs', 'encodeEntities', 'xmlMode', 'recognizeSelfClosing', 'recognizeCDATA'];
+export function snapshotXMLOptions(value) {
+    if (!value || typeof value !== 'object') return undefined;
+    const snapshot = { ...value };
+    // Non-enumerable and inherited flags also affect parsing. Capture them
+    // without adding them to the own enumerable serializer defaults.
+    for (const key of xmlOptionNames) if (!Object.hasOwn(snapshot, key)) {
+        const option = value[key];
+        if (option !== undefined) Object.defineProperty(snapshot, key, { value: option });
+    }
+    return snapshot;
+}
+export function xmlFlags(value = {}) {
     let flags = 1;
     for (const key of Object.keys(value)) {
-        if (!['decodeEntities', 'lowerCaseTags', 'lowerCaseAttributeNames', 'selfClosingTags', 'emptyAttrs', 'encodeEntities', 'xmlMode', 'recognizeSelfClosing', 'recognizeCDATA'].includes(key))
+        if (!xmlOptionNames.includes(key))
             unsupported(`Unsupported XML option: ${key}`);
         if (key !== 'encodeEntities' && typeof value[key] !== 'boolean')
             throw new TypeError(`Expected XML ${key} boolean`);
@@ -53,5 +64,5 @@ export function serializerOptions(state, options) {
     delete flat.xmlMode;
     // Cheerio retains its nested xml options when applying top-level render
     // options. A new xml object (or boolean) replaces that nested precedence.
-    return xmlFlags({ xml: { ...state.serialization, ...flat, ...(options.xml === undefined ? state.serialization : typeof options.xml === 'object' ? options.xml : {}) } }) & 24;
+    return xmlFlags({ ...state.serialization, ...flat, ...(options.xml === undefined ? state.serialization : typeof options.xml === 'object' ? options.xml : {}) }) & 24;
 }

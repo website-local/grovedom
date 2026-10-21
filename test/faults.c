@@ -383,7 +383,55 @@ static void sweep_xml_markup(int xml, int raw) {
     assert(0 && "XML markup growth sweep did not reach success");
 }
 
+static void child_handle_growth(int xml, uint32_t operation) {
+    char source[8192];
+    strcpy(source, "<main>");
+    for (int i = 0; i < 300; i++) strcat(source, "<p>child</p>");
+    strcat(source, "</main>");
+    gd_document *doc = gk_new();
+    assert(doc);
+    input(doc, source);
+    assert(xml ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+    input(doc, "p");
+    const uint32_t root = 1;
+    const gd_result *found = gk_query(doc, &root, 1, 0);
+    assert(found && found->length == 300);
+    uint32_t parents[300];
+    memcpy(parents, found->data, sizeof(parents));
+    int recovered = 0;
+    for (size_t i = 0; i < 300; i++) {
+        size_t before = doc->node_count;
+        int growth = before + 2 > doc->node_capacity;
+        if (growth) gd_test_fail_after(0);
+        const gd_result *child = gk_read(doc, operation, &parents[i], 1);
+        if (growth) {
+            assert(child == NULL);
+            assert(!strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY"));
+            assert(doc->node_count == before);
+            gd_test_fail_after(-1);
+            child = gk_read(doc, operation, &parents[i], 1);
+            recovered++;
+        }
+        assert(child && child->kind == GD_NUMBER && child->number);
+        uint32_t id = child->number;
+        assert(gk_read(doc, operation, &parents[i], 1)->number == id);
+        gd_test_fail_after(0);
+        const gd_result *empty = gk_read(doc, operation, &id, 1);
+        assert(empty && empty->kind == GD_NUMBER && empty->number == 0);
+        gd_test_fail_after(-1);
+    }
+    assert(recovered == 1);
+    gk_delete(doc);
+    const size_t *stats = gk_stats();
+    assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+    fprintf(stderr, "Child handle growth xml=%d operation=%u: %d failure sites recovered\n", xml, operation, recovered);
+}
+
 int main(void) {
+    for (int xml = 0; xml < 2; xml++) {
+        child_handle_growth(xml, READ_FIRST_CHILD);
+        child_handle_growth(xml, READ_LAST_CHILD);
+    }
     query_mark_wrap();
     for (int kind = 0; kind < 3; kind++) sweep_query_order_growth(kind);
     for (int xml = 0; xml < 2; xml++) for (int scoped = 0; scoped < 2; scoped++) sweep_context_growth(xml, scoped);

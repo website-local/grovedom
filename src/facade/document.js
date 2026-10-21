@@ -1,5 +1,5 @@
 import { alive, unsupported, empty } from './common.js';
-import { xmlFlags, serializerOptions } from './options.js';
+import { xmlFlags, snapshotXMLOptions, serializerOptions } from './options.js';
 import { createOperations } from './operations.js';
 import { createNodes } from './nodes.js';
 import { createSelection } from './selection.js';
@@ -65,22 +65,25 @@ export function createFacade(kernel, decodeInput) {
         for (const key of Object.keys(options))
             if (!['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xmlMode'].includes(key))
                 unsupported(`Unsupported parser option: ${key}`);
-        if (options.scriptingEnabled !== undefined && typeof options.scriptingEnabled !== 'boolean')
+        const scriptingEnabled = options.scriptingEnabled;
+        if (scriptingEnabled !== undefined && typeof scriptingEnabled !== 'boolean')
             throw new TypeError('Expected scriptingEnabled boolean');
         if (typeof isDocument !== 'boolean')
             throw new TypeError('Expected isDocument boolean');
-        if (options.execution !== undefined && !['buffered', 'direct'].includes(options.execution))
+        const execution = options.execution;
+        if (execution !== undefined && !['buffered', 'direct'].includes(execution))
             throw new TypeError('Expected buffered or direct execution');
-        if (options.xmlMode !== undefined && typeof options.xmlMode !== 'boolean')
+        const xmlMode = options.xmlMode;
+        if (xmlMode !== undefined && typeof xmlMode !== 'boolean')
             throw new TypeError('Expected xmlMode boolean');
-        if (options.xml !== undefined && typeof options.xml !== 'boolean' && (!options.xml || typeof options.xml !== 'object' || Array.isArray(options.xml)))
+        const xmlOption = options.xml;
+        if (xmlOption !== undefined && typeof xmlOption !== 'boolean' && (!xmlOption || typeof xmlOption !== 'object' || Array.isArray(xmlOption)))
             throw new TypeError('Expected xml boolean or options');
-        const xml = Boolean(options.xml || options.xmlMode);
+        const xml = Boolean(xmlOption || xmlMode), serialization = snapshotXMLOptions(xmlOption);
+        const flags = xml ? xmlFlags(serialization) : 0, baseURI = options.baseURI;
         const state = {
-            owner: xml ? kernel.createXML(content, xmlFlags(options)) : kernel.create(content, options.scriptingEnabled ?? true, !isDocument),
-            xml,
-            serialization: typeof options.xml === 'object' ? { ...options.xml } : undefined,
-            closed: false, direct: options.execution === 'direct', wrappers: new Map(), data: new Map(), baseURI: options.baseURI,
+            owner: null, xml, serialization,
+            closed: false, direct: execution === 'direct', wrappers: new Map(), data: new Map(), baseURI,
             words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
             usedWords: null, usedPayload: null, callbackIds: null,
         };
@@ -172,6 +175,9 @@ export function createFacade(kernel, decodeInput) {
             state.data.clear();
             state.selectorAliases?.clear();
         };
+        // Finish all JavaScript construction before allocating an owner. A
+        // throwing getter or construction failure cannot strand a document.
+        state.owner = xml ? kernel.createXML(content, flags) : kernel.create(content, scriptingEnabled ?? true, !isDocument);
         return $;
     }
     function contains(container, contained) {

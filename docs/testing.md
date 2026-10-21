@@ -21,6 +21,43 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
+### 0.1.2 fragment, load, child and form fixes
+
+The follow-up fixes ordinary queries across attached raw fragments, failed-load
+ownership, excessive sibling retention from raw child reads, and form collection's
+argument-count limit. The full **2,441-case suite** passes:
+
+| Backend | Node versions | Pass / exclusions |
+|---|---|---:|
+| Native | 22, 24 | 2,382 /59 |
+| Pooled Wasm | 22, 24 | 2,390 /51 |
+| Global Wasm | 22 | 2,386 /55 |
+| Per-document Wasm | 22 | 2,387 /54 |
+
+Fourteen added cases cover option getters and construction exceptions, inherited
+XML flags, reentrant loading, fragment-root unions, exact child identity through
+replacement, and repeated forms. A shallow XML form with 130,000 disabled fields
+serializes to the known empty result and remains usable afterward. This case does
+not claim a completed large-form Cheerio comparison. An existing ordinary-query
+assertion now includes the formerly missing inner match, confirmed against Cheerio;
+the separate relative-list order remains covered.
+
+Native ASan/UBSan passes the same 2,382 cases with leak detection and no findings.
+Owned-buffer tests recover from 87 failed growth requests, including four new
+first/last-child ID failures across HTML/XML. Native and pool each pass 1,000 seeded
+cases in both execution modes; 64 sanitized cases and source/package declarations
+also pass. All 193 scenarios match fresh Cheerio output/events on each preserved
+engine 0.9.1/0.10.0 snapshot across all four backends. Four 120-cycle authored
+memory budgets pass with custom inputs disabled; [resource checks](memory.md)
+also confirm the child-retention reduction and zero owners after failed loads.
+
+Offline Node 22/24 packages pass 56 shared public-contract checks per entry and
+caller-managed worker checks. Packaged portable normal/fallback paths each pass
+810 cases with 35 exclusions plus release contracts. There are no unexpected
+failures, cancellations or TODOs in the completed checks. These are local checks;
+fresh hosted release artifacts and broader browser qualification remain separate.
+[Performance measurements](benchmarks.md) retain their own controls and limits.
+
 ### 0.1.2 insertion, traversal and ownership review
 
 The four review fixes pass the **2,427-case suite**, including isolated main-thread
@@ -223,6 +260,8 @@ Generation rollover and fragment-parent restoration are checked on retries.
 Scoped-ordering scratch adds three failed-growth recovery checks across HTML,
 XML and templates, verifying that ordering registers no additional nodes and
 leaves subsequent queries usable.
+First/last-child reads add four HTML/XML ID-growth failure checks, verifying retry,
+stable identity and allocation-free empty-child results.
 These checks do not cover every upstream allocation or prove universal
 out-of-memory recovery. Dependency tests reject modified inputs, patches and
 cached trees without modifying the supplied upstream source.

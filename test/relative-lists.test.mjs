@@ -180,7 +180,9 @@ for (const xml of [false, true]) for (const execution of ['buffered', 'direct'])
       }
       assert.equal(inner[0].parent, fragment);
       assert.equal(fragment.parent, right[0]);
-      assert.deepEqual(ids(roots.find('p')), ['r', 'l']);
+      // Ordinary find also keeps the explicit inner context across the raw
+      // fragment, while retaining caller order (unlike the relative union).
+      assert.deepEqual(ids(roots.find('p')), ['r', 'l', 'i']);
     } finally { $.dispose(); }
   });
 }

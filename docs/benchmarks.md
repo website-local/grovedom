@@ -12,9 +12,12 @@ Experimental 0.1.1 is published. Its [release and browser summaries](#011-releas
 cover Node CI, Firefox 150 and Chromium 140, with material differences between
 the reported browser ratios. The earlier isolated investigation remains below.
 
-The latest 0.1.2 insertion/ownership [review](#012-insertion-and-ownership-corrections)
-has two scoped non-regression passes and fourteen inconclusive timing panels.
-It does not establish full-scope non-regression or a new adoption multiplier.
+The latest 0.1.2 fragment/load/child/form
+[follow-up](#012-fragment-load-child-and-form-fixes) obtained no timing samples
+because every panel stopped on host activity. Its non-regression remains unverified.
+The preceding insertion/ownership [review](#012-insertion-and-ownership-corrections)
+has two scoped passes and fourteen inconclusive panels. Neither establishes
+full-scope non-regression or a new adoption multiplier.
 
 The completed investigation retains the Wasm HTML opening-tag span writer and
 qualified correctness fixes. Native keeps its previous writer. Isolated Node 24
@@ -38,6 +41,33 @@ median passes and seven inconclusive panels; promising pooled seeded tails do
 not pass multiplicity correction. The compact [performance review](history/performance-review.md)
 preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
 [Correctness qualification](testing.md) is a separate requirement.
+
+## 0.1.2 fragment, load, child and form fixes
+
+The fixed follow-up plan compares the four fixes with the preceding insertion/
+ownership checkpoint. It attempts sixteen short panels: four authored HTML/XML
+workloads on pooled Wasm with Node 22/24 and native with Node 22; three affected
+query, form and child-edge workloads on pooled Node 22; and nineteen preserved
+consumer scenarios on pooled Node 22. **All sixteen panels stopped before timing
+because host activity exceeded the 15% limit. Zero of 237 planned blocks ran.**
+This supplies no elapsed non-regression result or speedup estimate.
+
+The plan retains three fresh process groups, twenty warmups, two batches per
+sample, four authored replays per batch, two affected-API replays or one consumer
+replay. Each block rotates and mirrors separate baseline, current, identical-code
+control and compatible Cheerio processes. Authored and affected workloads match
+both Cheerio 1.2.0 configurations; the consumer panel uses default Cheerio because
+htmlparser2 changes its output. Panels permit three load pauses, the independent
+1.5 probe filter and the same raw/filtered 0.97 non-regression and 0.97–1.03 control
+criteria below. No panel was extended or replaced after the load stops.
+
+Correctness, package and [resource checks](memory.md) pass separately. A raw child
+read now transfers one scalar ID and exposes one wrapper; the twelve-read
+replacement probe creates 12 wrappers instead of 12,288. Five ordinary native/pool
+workloads retain identical output hashes, logical calls, returned IDs and backing
+allocation counts. These observations do not establish elapsed performance or
+total JavaScript allocation. Earlier timing panels and their controls remain
+separate below.
 
 ## 0.1.2 insertion and ownership corrections
 

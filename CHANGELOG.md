@@ -4,6 +4,14 @@
 
 Development has moved to 0.1.2; the published release remains 0.1.1.
 
+- Preserve explicit inner query contexts across attached raw fragments, including
+  duplicate roots and their result order.
+- Snapshot load options and finish facade construction before allocating a
+  document, so throwing getters or construction errors leave no live owner.
+- Read only the requested `firstChild` or `lastChild` handle without creating and
+  retaining wrappers for every sibling.
+- Serialize wide forms without JavaScript's argument-count limit, preserving
+  field order and duplicate form occurrences.
 - Keep repeated existing-node `after()` inputs attached with reciprocal sibling
   links, preventing subsequent traversal from hanging.
 - Reject foreign-document query contexts in `.add()` before their numeric IDs

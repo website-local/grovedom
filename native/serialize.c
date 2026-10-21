@@ -259,6 +259,11 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
     } else if (operation == READ_HTML || operation == READ_OUTER) {
         if (!node || (operation == READ_HTML && node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_result_set(doc, GD_NULL, NULL, 0, 0);
         status = gd_serialize(doc, node, operation == READ_HTML);
+    } else if (operation == READ_FIRST_CHILD || operation == READ_LAST_CHILD) {
+        lxb_dom_node_t *child = node ? operation == READ_FIRST_CHILD ? node->first_child : node->last_child : NULL;
+        uint32_t id = child ? gd_id(doc, child) : 0;
+        if (child && !id) { gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Child handle allocation failed"); return gd_failed(); }
+        return gd_result_set(doc, GD_NUMBER, NULL, 0, id);
     } else { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Unknown read operation"); return gd_failed(); }
     if (status != LXB_STATUS_OK) { gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Output allocation failed"); return gd_failed(); }
     if (!data) { data = doc->output.data; length = doc->output.length; }

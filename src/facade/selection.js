@@ -503,7 +503,11 @@ export function createSelection(context) {
             const { state } = entry(this), fields = [], result = [];
             const excluded = state.xml ? /^(?:submit|button|image|reset|file)$/ : /^(?:submit|button|image|reset|file)$/i;
             const checkable = state.xml ? /^(?:checkbox|radio)$/ : /^(?:checkbox|radio)$/i;
-            this.each(function () { const one = state.api(this); fields.push(...(this.name === 'form' ? one.find('input,select,textarea,keygen').get() : one.get())); });
+            this.each(function () {
+                if (this.name === 'form') {
+                    for (const node of state.api(this).find('input,select,textarea,keygen')) fields.push(node);
+                } else fields.push(this);
+            });
             for (const node of fields) {
                 const field = state.api(node), name = field.attr('name'), type = field.attr('type') ?? '';
                 if (!name || field.attr('disabled') !== undefined || !['input', 'select', 'textarea', 'keygen'].includes(node.name) || excluded.test(type) || (checkable.test(type) && field.attr('checked') === undefined))
