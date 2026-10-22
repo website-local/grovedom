@@ -12,6 +12,12 @@ Experimental 0.1.1 is published. Its [release and browser summaries](#011-releas
 cover Node CI, Firefox 150 and Chromium 140, with material differences between
 the reported browser ratios. The earlier isolated investigation remains below.
 
+Development CI at `71db6d3` and `654c9b9` is
+[reported as passing](testing.md#reported-012-ci-passes). Their
+[Wasm summaries](#012-reported-ci-runs) compare each candidate with published
+0.1.1. The latest report is near parity with 0.1.1 on these authored cases, with
+material XML control drift and SVG below 3× Cheerio.
+
 The latest 0.1.2 [API optimization pass](#012-api-optimizations) has one scoped
 non-regression pass and fifteen inconclusive panels. Its separate server
 comparison stops during preflight and supplies no remote speed estimate.
@@ -44,6 +50,89 @@ median passes and seven inconclusive panels; promising pooled seeded tails do
 not pass multiplicity correction. The compact [performance review](history/performance-review.md)
 preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
 [Correctness qualification](testing.md) is a separate requirement.
+
+## 0.1.2 reported CI runs
+
+Both development CI runs were reported as passing on 2026-10-22. The supplied
+benchmark summaries use **current 0.1.2, published Wasm 0.1.1 and Cheerio 1.2.0**,
+with pooled heaps. CI runs the shared browser workload under Node; these reports
+do not add actual-browser qualification. The tables retain the supplied precision.
+CI logs, raw block observations, order breakdowns and artifact hashes were not
+supplied for independent inspection.
+
+Ratios are reference time divided by current time; values above one favor current.
+"Released Wasm" means published 0.1.1 in both reports. Counts are probe-retained /
+complete blocks, summed across the displayed comparison rows. The CI harness and
+shared workload are unchanged between the two commits.
+
+### 71db6d3
+
+The fragment/load/child/form fixes at
+[`71db6d3`](https://github.com/website-local/grovedom/commit/71db6d3dbf14c8241c25a1453ccb46822c78ae5a):
+
+| Case | Reference / current | Raw | Probe-filtered | Kept / complete |
+|---|---|---:|---:|---:|
+| articles-120 | released Wasm | 1.015× | 1.015× | 48/48 |
+| articles-120 | Cheerio default | 3.912× | 3.912× | 48/48 |
+| articles-120 | Cheerio htmlparser2 | 2.811× | 2.811× | 48/48 |
+| articles-120 | identical Wasm control | 1.010× | 1.010× | 48/48 |
+| articles-600 | released Wasm | 0.973× | 0.973× | 48/48 |
+| articles-600 | Cheerio default | 6.302× | 6.302× | 47/47 |
+| articles-600 | Cheerio htmlparser2 | 5.009× | 5.009× | 47/47 |
+| articles-600 | identical Wasm control | 0.981× | 0.981× | 47/47 |
+| sitemap-600 | released Wasm | 1.034× | 1.034× | 47/47 |
+| sitemap-600 | Cheerio default | 4.508× | 4.508× | 47/47 |
+| sitemap-600 | Cheerio htmlparser2 | 4.440× | 4.440× | 47/47 |
+| sitemap-600 | identical Wasm control | 1.054× | 1.054× | 47/47 |
+| svg-300 | released Wasm | 1.019× | 1.019× | 47/47 |
+| svg-300 | Cheerio default | 2.970× | 2.970× | 47/47 |
+| svg-300 | Cheerio htmlparser2 | 2.958× | 2.958× | 47/47 |
+| svg-300 | identical Wasm control | 1.056× | 1.056× | 48/48 |
+
+Displayed kept/complete counts sum to **758/758**.
+
+### 654c9b9
+
+The API optimizations at
+[`654c9b9`](https://github.com/website-local/grovedom/commit/654c9b9ffc5e0f5663a8875212c15433eda909cb):
+
+| Case | Reference / current | Raw | Probe-filtered | Kept / complete |
+|---|---|---:|---:|---:|
+| articles-120 | released Wasm | 1.022× | 1.023× | 62/64 |
+| articles-120 | Cheerio default | 4.083× | 4.083× | 64/64 |
+| articles-120 | Cheerio htmlparser2 | 2.691× | 2.683× | 63/64 |
+| articles-120 | identical Wasm control | 0.986× | 0.983× | 62/64 |
+| articles-600 | released Wasm | 1.012× | 1.012× | 64/64 |
+| articles-600 | Cheerio default | 7.659× | 7.657× | 63/64 |
+| articles-600 | Cheerio htmlparser2 | 5.193× | 5.193× | 62/64 |
+| articles-600 | identical Wasm control | 0.981× | 0.978× | 63/64 |
+| sitemap-600 | released Wasm | 1.007× | 1.006× | 63/64 |
+| sitemap-600 | Cheerio default | 4.493× | 4.493× | 63/63 |
+| sitemap-600 | Cheerio htmlparser2 | 4.411× | 4.411× | 63/63 |
+| sitemap-600 | identical Wasm control | 1.068× | 1.066× | 62/63 |
+| svg-300 | released Wasm | 1.032× | 1.032× | 62/63 |
+| svg-300 | Cheerio default | 2.948× | 2.948× | 61/63 |
+| svg-300 | Cheerio htmlparser2 | 2.986× | 2.986× | 63/63 |
+| svg-300 | identical Wasm control | 1.077× | 1.077× | 63/64 |
+
+Displayed kept/complete counts sum to **1,003/1,018**.
+
+The latest filtered released/current HTML ratios are 1.023× and 1.012×, with
+controls of 0.983× and 0.978×. Sitemap/SVG ratios of 1.006×/1.032× accompany
+controls of 1.066×/1.077×. Those XML control offsets limit small gain claims;
+they are not formal error bounds and are not used to normalize the ratios.
+
+SVG remains below 3× against both Cheerio configurations in both reports:
+the latest ratios are 2.948× default and 2.986× htmlparser2. The latest
+articles-120 htmlparser2 ratio is 2.683×. The complete-workload adoption target
+and fastest-compatible comparison remain as defined above.
+
+These separate CI runs do not supply a paired `71db6d3` → `654c9b9` estimate;
+dividing their ratios or comparing completed-block counts cannot establish that
+incremental gain. The four authored cases also do not directly measure the
+three targeted traversal, attribute and containment probes. Hosted CI has no
+speed threshold. Full-scope non-regression and production adoption remain
+unverified; the local and server comparisons below retain their own limits.
 
 ## 0.1.2 API optimizations
 

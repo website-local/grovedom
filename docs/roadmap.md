@@ -17,7 +17,11 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
   traversals, fixes callback visits after tree edits, and reduces attribute,
   containment and transport overhead. The 2,488-case local matrix, sanitizer,
   seeded fuzz, preserved consumer replays, offline packages and four 120-cycle
-  memory budgets pass. Its sixteen local timing panels yield one scoped
+  memory budgets pass. CI at `71db6d3` and `654c9b9` is also
+  [reported as passing](testing.md#reported-012-ci-passes). Their
+  [Wasm summaries](benchmarks.md#012-reported-ci-runs) compare each candidate
+  with published 0.1.1; SVG remains below 3× Cheerio and XML controls limit small
+  gain claims. The sixteen local API timing panels yield one scoped
   non-regression pass and fifteen inconclusive results; a separate server run
   stops during preflight. Full-scope non-regression remains unverified. Earlier
   host-stopped panels and the two-pass insertion review remain documented.

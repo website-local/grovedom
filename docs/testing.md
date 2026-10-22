@@ -21,6 +21,19 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
+### Reported 0.1.2 CI passes
+
+The user reported passing CI on 2026-10-22 for `71db6d3` (fragment/load/child/form
+fixes) and `654c9b9` (API optimizations). This records hosted CI status for both
+implementation checkpoints. The local matrices below retain their own scope;
+CI logs and artifact hashes were not supplied for independent inspection.
+
+The supplied [Wasm summaries](benchmarks.md#012-reported-ci-runs) compare each
+candidate with published 0.1.1. CI has no speed threshold, so its pass status does
+not establish full-scope non-regression or adoption. Fresh artifacts from the
+[manual release workflow](releasing.md) and broader actual-browser qualification
+remain separate requirements.
+
 ### 0.1.2 API optimizations
 
 The full **2,488-case suite** passes after batching static `until` traversals,
@@ -132,9 +145,10 @@ inputs or every downloader revision. Four **120-cycle / 2,430-lifetime authored
 memory budgets** also pass with the custom corpus disabled. See
 [memory](memory.md) and the separate [timing results](benchmarks.md#012-insertion-and-ownership-corrections).
 
-These are local checks. Fresh hosted CI for these fixes, exact Node 22.0.0,
-Windows/macOS and actual-browser reruns remain separate release qualification.
-The reported 0.1.1 browser results below are unchanged.
+These were local checks at that checkpoint. The two follow-ups now have
+[reported CI passes](#reported-012-ci-passes); fresh release-workflow artifacts
+and actual-browser reruns remain separate release qualification. The reported
+0.1.1 browser results below are unchanged.
 
 ### 0.1.2 initialization follow-up
 
