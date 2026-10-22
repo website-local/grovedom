@@ -206,6 +206,17 @@ static napi_value gd_traverse(napi_env env, napi_callback_info info) {
     if (!gd_typed(env, args[1], napi_uint32_array, (void **) &ids, &count)) return gd_finish(env, doc, NULL);
     return gd_value(env, doc, gk_traverse(doc, ids, count, axis));
 }
+static napi_value gd_until(napi_env env, napi_callback_info info) {
+    napi_value args[5];
+    if (!gd_arguments(env, info, 5, args)) return NULL;
+    gd_document *doc = gd_owner(env, args[0], 0);
+    if (!doc) return NULL;
+    uint32_t axis, *ids, *stops; size_t count, stop_count;
+    if (napi_get_value_uint32(env, args[2], &axis) != napi_ok) return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected until axis"));
+    if (!gd_typed(env, args[1], napi_uint32_array, (void **) &ids, &count) ||
+        !gd_typed(env, args[4], napi_uint32_array, (void **) &stops, &stop_count) || !gd_string(env, doc, args[3])) return gd_finish(env, doc, NULL);
+    return gd_value(env, doc, gk_until(doc, ids, count, axis, stops, stop_count));
+}
 static napi_value gd_execute(napi_env env, napi_callback_info info) {
     napi_value args[3], result = NULL;
     if (!gd_arguments(env, info, 3, args)) return NULL;
@@ -226,7 +237,15 @@ static napi_value gd_edit(napi_env env, napi_callback_info info) {
     uint32_t operation, *ids, *other; size_t count, other_count;
     if (napi_get_value_uint32(env, args[1], &operation) != napi_ok) return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected edit operation"));
     if (!gd_typed(env, args[2], napi_uint32_array, (void **) &ids, &count) ||
-        !gd_typed(env, args[3], napi_uint32_array, (void **) &other, &other_count) || !gd_string(env, doc, args[4])) return gd_finish(env, doc, NULL);
+        !gd_typed(env, args[3], napi_uint32_array, (void **) &other, &other_count)) return gd_finish(env, doc, NULL);
+    uint32_t kind = operation & ~256u;
+    if (kind == 1 || (kind >= 8 && kind <= 12)) {
+        if (!gd_string(env, doc, args[4])) return gd_finish(env, doc, NULL);
+    } else {
+        napi_valuetype type;
+        if (napi_typeof(env, args[4], &type) != napi_ok || type != napi_string)
+            return gd_finish(env, doc, gd_error(env, "ERR_GROVEDOM_ARGUMENT", "Expected string input"));
+    }
     return gd_value(env, doc, gk_edit(doc, operation, ids, count, other, other_count));
 }
 
@@ -302,6 +321,7 @@ NAPI_MODULE_INIT() {
         { "read", NULL, gd_read, NULL, NULL, NULL, napi_default, NULL },
         { "observe", NULL, gd_observe, NULL, NULL, NULL, napi_default, NULL },
         { "traverse", NULL, gd_traverse, NULL, NULL, NULL, napi_default, NULL },
+        { "until", NULL, gd_until, NULL, NULL, NULL, napi_default, NULL },
         { "execute", NULL, gd_execute, NULL, NULL, NULL, napi_default, NULL },
         { "edit", NULL, gd_edit, NULL, NULL, NULL, napi_default, NULL },
         { "stats", NULL, gd_stats, NULL, NULL, NULL, napi_default, NULL }

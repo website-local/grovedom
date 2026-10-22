@@ -55,6 +55,8 @@ export function createOperations(kernel) {
         alive(state);
         if (!ids.length)
             return;
+        state.attributeSnapshot = null;
+        if (op >= 3) state.treeVersion++;
         // Bound retained batching storage. One large command can exceed this threshold.
         if (state.wordLength + ids.length + 6 > 16384 || state.byteLength + 3 * (a.length + b.length) > 65536)
             flush(state);
@@ -79,7 +81,7 @@ export function createOperations(kernel) {
     }
     function read(state, ids, operation, name = '') {
         alive(state);
-        const nodes = ids.length === 1 ? ids[0] : ids;
+        const nodes = typeof ids === 'number' ? ids : ids.length === 1 ? ids[0] : ids;
         if (state.wordLength) {
             const length = state.wordLength, bytes = state.byteLength;
             state.wordLength = state.byteLength = 0;
@@ -162,6 +164,20 @@ export function createOperations(kernel) {
             return query(state, selector, ids, true).length > 0;
         flush(state);
         return Boolean(kernel.matches(state.owner, selector, ids.length === 1 ? ids[0] : ids));
+    }
+    function traverseUntil(state, roots, axis, selector, stops) {
+        // Positional suffixes apply to each singleton stop test, and relative
+        // selectors need the ordinary query path's validation. Keep that path.
+        if (selector.includes(':')) {
+            const suffix = positional.exec(selector);
+            if (suffix && !escaped(selector, suffix.index)) return null;
+            try { selector = expandSelector(selector); }
+            catch { return null; } // An empty traversal must not evaluate it.
+        }
+        if (/^(?:[>+~]|:scope\b)/.test(selectorStart(selector)) ||
+            (selector.includes(',') && /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/.test(selector))) return null;
+        flush(state);
+        return kernel.until(state.owner, roots, axis, selector, stops);
     }
     // Brackets, arguments, comments, quotes and CSS escapes keep embedded commas
     // and combinators from becoming clause or traversal boundaries.
@@ -271,6 +287,8 @@ export function createOperations(kernel) {
         return rest ? query(state, rest, candidates) : candidates;
     }
     function edit(state, operation, ids = empty, other = empty, text = '') {
+        state.attributeSnapshot = null;
+        if ((operation & ~256) !== 13 && (operation & ~256) !== 12) state.treeVersion++;
         flush(state);
         return kernel.edit(state.owner, operation, ids, other, text);
     }
@@ -286,5 +304,5 @@ export function createOperations(kernel) {
         }
         return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name : result;
     }
-    return { flush, enqueue, read, query, matches, edit, attributes, attributeValue };
+    return { flush, enqueue, read, query, matches, traverseUntil, edit, attributes, attributeValue };
 }

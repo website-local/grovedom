@@ -386,3 +386,94 @@ const gd_result *gk_query(gd_document *doc, const uint32_t *ids, size_t count, i
     if (match == GD_QUERY_ANY) return gd_result_set(doc, GD_NUMBER, NULL, 0, doc->result_count != 0);
     return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
 }
+
+static lxb_status_t gd_until_found(lxb_dom_node_t *node, lxb_css_selector_specificity_t specificity, void *context) {
+    (void) node; (void) specificity;
+    *(int *) context = 1;
+    return LXB_STATUS_OK;
+}
+
+static lxb_status_t gd_until_match(gd_document *doc, lxb_dom_node_t *node,
+    lxb_css_selector_list_t *plan, lxb_tag_id_t tag, int *matched) {
+    if (tag) {
+        *matched = node->local_name == tag && gd_selector_tag_case(doc, node);
+        return LXB_STATUS_OK;
+    }
+    /* Match the same singleton as is(), without exposing a stop node merely
+     * to answer a predicate. Restore both boundaries on every error path. */
+    lxb_dom_node_t *boundary = doc->templates || doc->selector_custom || doc->selector_guard ? gd_fragment_boundary(node->parent) : NULL;
+    lxb_dom_node_t *parent = boundary ? boundary->parent : NULL;
+    lxb_dom_document_cmode_t mode = doc->html->dom_document.compat_mode;
+    if (boundary) boundary->parent = NULL;
+    doc->html->dom_document.compat_mode = LXB_DOM_DOCUMENT_CMODE_NO_QUIRKS;
+    lxb_status_t status = LXB_STATUS_OK;
+    if (doc->selector_guard) *matched = gd_selector_guard_match(doc, node);
+    else if (doc->selector_custom) *matched = gd_selector_match(doc, node, plan);
+    else status = lxb_selectors_match_node(doc->selectors, node, plan, gd_until_found, matched);
+    doc->html->dom_document.compat_mode = mode;
+    if (boundary) boundary->parent = parent;
+    return status;
+}
+
+const gd_result *gk_until(gd_document *doc, const uint32_t *ids, size_t count, uint32_t axis,
+    const uint32_t *stops, size_t stop_count) {
+    GD_PROFILE_SCOPE(GP_TRAVERSE);
+    if (!gd_begin(doc)) return NULL;
+    if (!gd_valid_ids(doc, ids, count) || !gd_valid_ids(doc, stops, stop_count)) return gd_failed();
+    int duplicates = (axis & 256) != 0;
+    axis &= ~256u;
+    if (axis != 6 && axis != 7 && axis != 9) {
+        gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Invalid until axis"); return gd_failed();
+    }
+    doc->selector_context = (gd_selector_context) {0};
+    gd_results_reset(doc);
+    for (size_t i = 0; i < stop_count; i++) doc->nodes[stops[i]].order = (uint32_t) i;
+    lxb_css_selector_list_t *plan = NULL;
+    lxb_tag_id_t tag = 0;
+    int ready = !doc->input.length, possible = 0;
+    for (size_t i = 0; i < count; i++) {
+        lxb_dom_node_t *origin = doc->nodes[ids[i]].node;
+        lxb_dom_node_t *node = axis == 9 ? origin->parent : axis == 7 ? origin->prev : origin->next;
+        for (; node; node = axis == 9 ? node->parent : axis == 7 ? node->prev : node->next) {
+            if (node->type != LXB_DOM_NODE_TYPE_ELEMENT) {
+                if (axis == 9) break;
+                continue;
+            }
+            uint32_t id = (uint32_t) (uintptr_t) node->user;
+            if (id && stop_count && doc->nodes[id].order < stop_count && stops[doc->nodes[id].order] == id) break;
+            /* The remainder of an already collected path has the same static
+             * stop condition. Filters needing occurrences disable this exit. */
+            if (!duplicates && id && doc->nodes[id].mark == doc->mark) break;
+            if (!ready) {
+                /* Empty traversals never evaluate their stop selector. */
+                if (gd_selector_plain_tag(doc->input.data, doc->input.length)) {
+                    if (doc->xml) {
+                        if (!gd_xml_tag_id(doc, doc->input.data, doc->input.length, &tag)) return gd_failed();
+                    } else tag = lxb_tag_id_by_name(doc->html->dom_document.tags, doc->input.data, doc->input.length);
+                    possible = tag != 0;
+                } else {
+                    plan = gd_plan_get(doc);
+                    if (!plan) return gd_failed();
+                    doc->selector_custom = (doc->selector_flags & GD_SELECTOR_CUSTOM) ||
+                        (doc->templates && (doc->selector_flags & GD_SELECTOR_TEMPLATE));
+                    if (doc->selector_custom) doc->selector_guard = NULL;
+                    possible = gd_selector_guard_prepare(doc, 0);
+                    if (doc->error_code) return gd_failed();
+                    tag = gd_selector_simple_tag(doc);
+                }
+                ready = 1;
+            }
+            int matched = 0;
+            if (possible && (gd_until_match(doc, node, plan, tag, &matched) != LXB_STATUS_OK || doc->error_code)) {
+                if (!doc->error_code) gd_set_error(doc, "ERR_GROVEDOM_SELECTOR", "Until selector execution failed");
+                return gd_failed();
+            }
+            if (matched) break;
+            if (duplicates && id) doc->nodes[id].mark = 0;
+            if (gd_collect(node, 0, doc) != LXB_STATUS_OK) {
+                gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Until traversal allocation failed"); return gd_failed();
+            }
+        }
+    }
+    return gd_result_set(doc, GD_IDS, doc->results, doc->result_count, 0);
+}

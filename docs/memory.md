@@ -34,6 +34,17 @@ handles keep their own identity through replacement without exposing all sibling
 Load options and facade construction finish before allocating the kernel owner;
 throwing getters leave no live document, including without finalization support.
 
+Static `until` traversals expose only returned nodes; containment checks expose
+no intermediate ancestors. Node handles allocate stable single-ID arrays only
+when needed. Immediate attribute/text callbacks share a borrowed array without
+sharing the IDs of retained selections.
+
+Live `attribs` enumeration caches one private attribute map per document until
+the next mutation or disposal. This trades retention of the most recently
+enumerated values for fewer boundary calls; it is not a byte cap or a total
+JavaScript heap guarantee. Other attribute snapshots returned to callers are
+independent of that cache.
+
 ## Verification scope
 
 Developer diagnostics measure live documents, backing bytes, allocations and
@@ -84,6 +95,12 @@ memory. Both versions release document backing on disposal; the correction remov
 avoidable retention during the document lifetime. Ordinary output, kernel-call,
 returned-ID and backing-allocation counts match the preceding checkpoint on five
 workloads per native/pool backend.
+
+The API optimizations repeat all four 120-cycle authored budgets with the same
+peaks and final zero live/control bytes. Fresh and trimmed-pool capacity again
+returns to zero. The traversal and containment probes avoid temporary handles;
+the live attribute cache retains one map per document, so these checks still do
+not bound the total JavaScript heap.
 
 `test/faults.c` injects failures into GroveDOM-owned buffer growth for input,
 transfer, query results and serialization, then checks recovery and idempotent

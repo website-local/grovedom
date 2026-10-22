@@ -5,7 +5,7 @@ const readOnlyProperties = new Set(['type', 'nodeType', 'children', 'childNodes'
 const rawProperties = new Set(['name', 'data', 'attribs', ...readOnlyProperties]);
 // Methods keep private branding and selection snapshots. Helpers are bound once.
 export function createSelection(context) {
-    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, xmlAttributeCallback, xmlTextCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
+    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
     function setProperty(source, name, value) {
         const { state, ids } = entry(source);
         if (name === 'namespace')
@@ -197,16 +197,7 @@ export function createSelection(context) {
             if (value === undefined)
                 return this;
             if (typeof value === 'function') {
-                if (state.xml)
-                    return xmlAttributeCallback(this, state, name, value);
-                return this.each(function (i, node) {
-                    const one = nodes.get(node).ids;
-                    const old = read(state, one, 1, name);
-                    if (old === undefined && node.nodeType !== 1)
-                        return;
-                    const next = value.call(node, i, old);
-                    enqueue(state, one, next === null ? 2 : 1, name, next === null ? '' : String(next));
-                });
+                return attributeCallback(this, state, name, value);
             }
             if (value !== null && typeof value === 'object')
                 return this.each(function () { if (this.nodeType === 1) state.api(this).attr(name, String(value)); });
@@ -226,18 +217,8 @@ export function createSelection(context) {
             const { state, ids } = entry(this);
             if (value === undefined)
                 return read(state, ids, 2);
-            if (typeof value === 'function' && state.xml)
-                return xmlTextCallback(this, state, value);
             if (typeof value === 'function')
-                return this.each(function (i, node) {
-                    const one = nodes.get(node).ids;
-                    const next = value.call(node, i, read(state, one, 2));
-                    alive(state);
-                    if (typeof next === 'function')
-                        selection(state, one).text(next);
-                    else if (next !== undefined)
-                        enqueue(state, one, 3, String(next));
-                });
+                return textCallback(this, state, value);
             enqueue(state, ids, 3, String(value));
             return this;
         }

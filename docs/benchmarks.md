@@ -12,7 +12,10 @@ Experimental 0.1.1 is published. Its [release and browser summaries](#011-releas
 cover Node CI, Firefox 150 and Chromium 140, with material differences between
 the reported browser ratios. The earlier isolated investigation remains below.
 
-The latest 0.1.2 fragment/load/child/form
+The latest 0.1.2 [API optimization pass](#012-api-optimizations) has one scoped
+non-regression pass and fifteen inconclusive panels. Its separate server
+comparison stops during preflight and supplies no remote speed estimate.
+The preceding fragment/load/child/form
 [follow-up](#012-fragment-load-child-and-form-fixes) obtained no timing samples
 because every panel stopped on host activity. Its non-regression remains unverified.
 The preceding insertion/ownership [review](#012-insertion-and-ownership-corrections)
@@ -41,6 +44,103 @@ median passes and seven inconclusive panels; promising pooled seeded tails do
 not pass multiplicity correction. The compact [performance review](history/performance-review.md)
 preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
 [Correctness qualification](testing.md) is a separate requirement.
+
+## 0.1.2 API optimizations
+
+Static `until` traversals now batch their stop tests; live attribute enumeration
+reuses a private snapshot, and containment returns a scalar. Callbacks still
+follow live relations after tree edits, while returned selections retain their
+membership and identity. Deterministic probes compare the preceding checkpoint
+with the current implementation:
+
+| Pooled Wasm probe | Logical calls before / current | Wasm exports before / current |
+|---|---:|---:|
+| `nextUntil()`, 128 overlapping sibling roots | 8,256 /1 | 24,512 /3 |
+| Live enumeration of 128 attributes | 258 /2 | 770 /2 |
+| `contains()`, depth 128 | 129 /1 | 129 /1 |
+| Ordinary API replay | 2,283 /2,283 | 4,208 /3,728 |
+
+The traversal probe creates one selection instead of 8,385 and no additional
+wrappers instead of 127. Containment avoids 128 ancestor wrappers. Instrumented
+single-element typed-array constructions fall from 255 to zero and 128 to zero
+in those two probes; they measure only that allocation category. Four authored
+HTML/XML workloads keep their prior call and backing-allocation counts. Five
+ordinary native/pool output hashes match, including the API replay. These counts
+do not establish elapsed speed or total JavaScript allocation.
+
+### Local comparison
+
+The fixed plan attempts sixteen panels and 240 blocks against the preceding
+fragment/load/child/form checkpoint. **55 blocks complete and pass the independent
+probe filter; one panel passes non-regression and fifteen remain inconclusive.**
+Thirteen panels stop on activity, including the partially measured SVG case.
+The completed small-HTML and sitemap panels have invalid identical-code controls.
+
+Each variant runs in its own process and complete module graph, with one executing
+at a time. Three fresh groups each contain five rotated/mirrored blocks, twenty
+warmups and two batches per sample. Batches contain four authored replays or two
+ordinary/affected API replays, including parse, operations, output and disposal.
+Both Cheerio 1.2.0 configurations match the inputs; htmlparser2 uses `emptyAttrs: true`
+to preserve boolean-attribute output. The initial incompatible default-htmlparser2
+preflight is retained separately.
+
+The activity limit remains 15%, with at most three pauses per panel. Whole-block
+probe filtering remains 1.5. Passing requires all three groups, at least three
+retained blocks per group and ten overall, raw/filtered before/current at least
+0.97, and raw/filtered identical-code controls within 0.97–1.03. No panel is
+extended or replaced. All reported raw and filtered ratios coincide here.
+Counts are retained / complete / planned blocks; partial estimates cannot pass.
+
+| Backend / Node | Workload | Before / current | Control | Blocks | Result |
+|---|---|---:|---:|---:|---|
+| Pool /22 | HTML120 | 1.0689 | 1.0658 | 15/15/15 | Inconclusive control |
+| Pool /22 | HTML600 | 0.9918 | 1.0238 | 15/15/15 | Pass |
+| Pool /22 | Sitemap600 | 1.0074 | 0.9659 | 15/15/15 | Inconclusive control |
+| Pool /22 | SVG300 | 0.9895 | 0.9900 | 10/10/15 | Incomplete |
+| Pool /24 | HTML120 | — | — | 0/0/15 | Incomplete |
+| Pool /24 | HTML600 | — | — | 0/0/15 | Incomplete |
+| Pool /24 | Sitemap600 | — | — | 0/0/15 | Incomplete |
+| Pool /24 | SVG300 | — | — | 0/0/15 | Incomplete |
+| Native /22 | HTML120 | — | — | 0/0/15 | Incomplete |
+| Native /22 | HTML600 | — | — | 0/0/15 | Incomplete |
+| Native /22 | Sitemap600 | — | — | 0/0/15 | Incomplete |
+| Native /22 | SVG300 | — | — | 0/0/15 | Incomplete |
+| Pool /22 | Ordinary API | — | — | 0/0/15 | Incomplete |
+| Pool /22 | Until128 | — | — | 0/0/15 | Incomplete |
+| Pool /22 | Attributes128 | — | — | 0/0/15 | Incomplete |
+| Pool /22 | Contains128 | — | — | 0/0/15 | Incomplete |
+
+Within-block Cheerio/current ratios for the available panels are:
+
+| Workload | Cheerio default / current | Cheerio htmlparser2 / current | Complete blocks |
+|---|---:|---:|---:|
+| HTML120 | 3.5441 | 2.5515 | 15 |
+| HTML600 | 5.1236 | 3.7634 | 15 |
+| Sitemap600 | 4.4632 | 4.7314 | 15 |
+| SVG300 | 3.0810 | 3.0632 | 10 |
+
+The same controls and completion limits apply. Batches across all implementations
+span 3.22–224.49 ms. These are scoped replay results, not a complete-consumer or
+production adoption gate.
+
+### Separate server preflight
+
+A separate Node 24 plan reserves twelve panels, eight fresh process groups and
+four mirrored blocks per group: 384 measurement blocks in total. Each worker
+holds independent before/current/identical module graphs and heaps; only one
+worker runs at a time. It retains fixed load, process-memory, swap and page-fault
+guards, with no replacement panels.
+
+All sixteen shared correctness checks pass on the server. Ten of twelve
+benchmark preflight workers complete; the two pooled HTML workers hit the
+no-major-page-fault guard. The required all-preflights condition is therefore
+unsatisfied: **zero formal measurement blocks run**. Preflight samples remain
+diagnostics and supply no remote speed estimate or statistical gain claim.
+No limits are relaxed and the run is closed.
+
+[Correctness](testing.md) and [memory](memory.md) qualification pass separately.
+Full-scope elapsed non-regression, broader browser qualification and production
+adoption remain unverified.
 
 ## 0.1.2 fragment, load, child and form fixes
 

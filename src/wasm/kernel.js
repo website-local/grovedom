@@ -79,6 +79,8 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             fail('ERR_GROVEDOM_ARGUMENT', 'Expected a UTF-8 encodable string');
         const runtime = state.runtime;
         const pointer = check(state, runtime.gk_input(state.pointer, value.length * 3));
+        if (!value.length)
+            return;
         views(state);
         let written = 0;
         if (value.length <= 128) {
@@ -251,6 +253,21 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             const pointer = ids(state, nodes);
             return result(state, state.runtime.gk_traverse(state.pointer, pointer, nodes.length, axis));
         },
+        until(handle, nodes, axis, selector, stops) {
+            const state = owner(handle);
+            if (!Number.isInteger(axis))
+                fail('ERR_GROVEDOM_ARGUMENT', 'Expected until axis');
+            if (!(nodes instanceof Uint32Array) || !(nodes.buffer instanceof ArrayBuffer) ||
+                !(stops instanceof Uint32Array) || !(stops.buffer instanceof ArrayBuffer))
+                fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary node arrays');
+            input(state, selector);
+            const pointer = transfer(state, nodes.byteLength + stops.byteLength);
+            views(state);
+            state.words.set(nodes, pointer >>> 2);
+            state.words.set(stops, (pointer + nodes.byteLength) >>> 2);
+            return result(state, state.runtime.gk_until(state.pointer, pointer, nodes.length, axis,
+                pointer + nodes.byteLength, stops.length));
+        },
         execute(handle, words, payload) {
             const state = owner(handle);
             if (!(words instanceof Uint32Array) || !(words.buffer instanceof ArrayBuffer) ||
@@ -267,7 +284,13 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             if (!(nodes instanceof Uint32Array) || !(nodes.buffer instanceof ArrayBuffer) ||
                 !(other instanceof Uint32Array) || !(other.buffer instanceof ArrayBuffer))
                 fail('ERR_GROVEDOM_ARGUMENT', 'Expected ordinary node arrays');
-            input(state, text);
+            // Existing-node edits and sorting do not consume the input buffer.
+            // Text edits still reset it, including when their new text is empty.
+            const kind = operation & ~256;
+            if (kind === 1 || (kind >= 8 && kind <= 12))
+                input(state, text);
+            else if (typeof text !== 'string')
+                fail('ERR_GROVEDOM_ARGUMENT', 'Expected a UTF-8 encodable string');
             const pointer = transfer(state, nodes.byteLength + other.byteLength);
             views(state);
             state.words.set(nodes, pointer >>> 2);

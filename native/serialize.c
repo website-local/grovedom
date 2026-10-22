@@ -218,6 +218,12 @@ const gd_result *gk_read(gd_document *doc, uint32_t operation, const uint32_t *i
     lxb_status_t status = LXB_STATUS_OK;
     doc->output.length = 0;
     if (operation == READ_TYPE) return gd_result_set(doc, GD_NUMBER, NULL, 0, node ? node->type : 0);
+    if (operation == READ_CONTAINS) {
+        if (count != 2) { gd_set_error(doc, "ERR_GROVEDOM_ARGUMENT", "Containment requires two nodes"); return gd_failed(); }
+        for (lxb_dom_node_t *parent = doc->nodes[ids[1]].node->parent; parent; parent = parent->parent)
+            if (parent == node) return gd_result_set(doc, GD_NUMBER, NULL, 0, 1);
+        return gd_result_set(doc, GD_NUMBER, NULL, 0, 0);
+    }
     if (operation == READ_ATTR) {
         if (node && node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
             lxb_dom_attr_t *attr = gd_attribute(doc, node, doc->input.data, doc->input.length);

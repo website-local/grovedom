@@ -86,6 +86,7 @@ export function createFacade(kernel, decodeInput) {
             closed: false, direct: execution === 'direct', wrappers: new Map(), data: new Map(), baseURI,
             words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
             usedWords: null, usedPayload: null, callbackIds: null,
+            containsIds: null, attributeSnapshot: null, treeVersion: 0,
         };
         const rootIds = Uint32Array.of(1);
         function $(input, context) {
@@ -171,6 +172,7 @@ export function createFacade(kernel, decodeInput) {
             state.words = state.payload = null;
             state.usedWords = state.usedPayload = null;
             state.callbackIds = null;
+            state.containsIds = state.attributeSnapshot = null;
             state.wrappers.clear();
             state.data.clear();
             state.selectorAliases?.clear();
@@ -188,10 +190,10 @@ export function createFacade(kernel, decodeInput) {
         alive(b.state);
         if (a.state !== b.state)
             return false;
-        for (let node = contained.parent; node; node = node.parent)
-            if (node === container)
-                return true;
-        return false;
+        const ids = a.state.containsIds ??= new Uint32Array(2);
+        ids[0] = a.id;
+        ids[1] = b.id;
+        return Boolean(read(a.state, ids, 15));
     }
     function merge(first, second) {
         const arrayLike = value => {

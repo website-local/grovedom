@@ -427,7 +427,56 @@ static void child_handle_growth(int xml, uint32_t operation) {
     fprintf(stderr, "Child handle growth xml=%d operation=%u: %d failure sites recovered\n", xml, operation, recovered);
 }
 
+static void sweep_until_growth(int xml, int duplicates) {
+    char source[16000];
+    strcpy(source, "<main><i id='start'></i>");
+    for (int i = 0; i < 300; i++) strcat(source, "<p>value</p>");
+    strcat(source, "<i class='stop'></i></main>");
+    for (long failure = 0; failure < 64; failure++) {
+        gd_document *doc = gk_new();
+        assert(doc);
+        input(doc, source);
+        assert(xml ? gk_parse_xml(doc, 0) : gk_parse(doc, 1, 0));
+        uint32_t start = selected_id(doc, "#start"), roots[] = { start, start };
+        size_t initial_nodes = doc->node_count;
+        input(doc, ".stop");
+        gd_test_fail_after(failure);
+        const gd_result *result = gk_until(doc, roots, 2, 6 | (duplicates ? 256 : 0), NULL, 0);
+        int success = result != NULL;
+        if (!success) assert(!strcmp(gk_error_code(doc), "ERR_GROVEDOM_MEMORY"));
+        gd_test_fail_after(-1);
+        result = gk_until(doc, roots, 2, 6 | (duplicates ? 256 : 0), NULL, 0);
+        assert(result && result->kind == GD_IDS && result->length == (duplicates ? 600 : 300));
+        assert(doc->node_count == initial_nodes + 300); /* The stop predicate exposes no handle. */
+        doc->mark = UINT32_MAX;
+        for (size_t i = 1; i <= doc->node_count; i++) doc->nodes[i].mark = UINT32_MAX;
+        result = gk_until(doc, roots, 2, 6 | (duplicates ? 256 : 0), NULL, 0);
+        assert(result && result->length == (duplicates ? 600 : 300));
+        uint32_t stop = selected_id(doc, ".stop");
+        input(doc, "");
+        result = gk_until(doc, roots, 2, 6, &stop, 1);
+        assert(result && result->length == 300);
+        uint32_t pair[] = { 1, start };
+        size_t before_contains = doc->node_count;
+        gd_test_fail_after(0);
+        result = gk_read(doc, READ_CONTAINS, pair, 2);
+        assert(result && result->kind == GD_NUMBER && result->number == 1);
+        assert(doc->node_count == before_contains);
+        gd_test_fail_after(-1);
+        gk_delete(doc);
+        const size_t *stats = gk_stats();
+        assert(stats[0] == 0 && stats[1] == 0 && stats[4] == 0);
+        if (success) {
+            assert(failure > 1);
+            fprintf(stderr, "Until growth xml=%d duplicates=%d: %ld failure sites recovered\n", xml, duplicates, failure);
+            return;
+        }
+    }
+    assert(0 && "Until growth sweep did not reach success");
+}
+
 int main(void) {
+    for (int xml = 0; xml < 2; xml++) for (int duplicates = 0; duplicates < 2; duplicates++) sweep_until_growth(xml, duplicates);
     for (int xml = 0; xml < 2; xml++) {
         child_handle_growth(xml, READ_FIRST_CHILD);
         child_handle_growth(xml, READ_LAST_CHILD);

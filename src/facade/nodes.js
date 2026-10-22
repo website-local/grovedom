@@ -9,8 +9,8 @@ export function createNodes(kernel, operations, selections, selection) {
         return result.length ? wrap(state, result[0]) : null;
     }
     function rawChild(node, operation) {
-        const { state, ids } = nodes.get(node);
-        const id = read(state, ids, operation);
+        const record = nodes.get(node), { state } = record;
+        const id = read(state, record.id, operation);
         return id ? wrap(state, id) : null;
     }
     function wrap(state, id) {
@@ -36,13 +36,13 @@ export function createNodes(kernel, operations, selections, selection) {
                 const value = nodes.get(input[i]);
                 if (!value || value.state !== state)
                     throw new TypeError('Expected nodes from this document');
-                ids[i] = value.ids[0];
+                ids[i] = value.id;
             }
             return ids;
         }
         throw new TypeError('Expected a selector, node handle, or selection');
     }
-    class XMLNodeRecord {
+    class NodeRecord {
         #ids;
         constructor(state, id) { this.state = state; this.id = id; }
         get ids() { return this.#ids ??= Uint32Array.of(this.id); }
@@ -56,7 +56,7 @@ export function createNodes(kernel, operations, selections, selection) {
         ids[0] = record.id;
         return ids;
     }
-    function xmlAttributeCallback(target, state, name, value) {
+    function attributeCallback(target, state, name, value) {
         return target.each(function (i, node) {
             const old = read(state, callbackIds(state, node), 1, name);
             if (old === undefined && node.nodeType !== 1)
@@ -66,7 +66,7 @@ export function createNodes(kernel, operations, selections, selection) {
             enqueue(state, callbackIds(state, node), next === null ? 2 : 1, name, text);
         });
     }
-    function xmlTextCallback(target, state, value) {
+    function textCallback(target, state, value) {
         return target.each(function (i, node) {
             const next = value.call(node, i, read(state, callbackIds(state, node), 2));
             alive(state);
@@ -80,16 +80,16 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     class NodeHandle {
         #record;
-        constructor(state, id) { this.#record = state.xml ? new XMLNodeRecord(state, id) : { state, ids: Uint32Array.of(id) }; }
+        constructor(state, id) { this.#record = new NodeRecord(state, id); }
         static record(value) { return value !== null && typeof value === 'object' && #record in value ? value.#record : undefined; }
-        get name() { const { state, ids } = nodes.get(this); return read(state, ids, 5); }
+        get name() { const { state, id } = nodes.get(this); return read(state, id, 5); }
         get type() {
-            const { state, ids } = nodes.get(this);
-            const type = read(state, ids, 6);
+            const { state, id } = nodes.get(this);
+            const type = read(state, id, 6);
             if (type === 1) {
                 if (state.xml)
                     return 'tag';
-                const name = read(state, ids, 5);
+                const name = read(state, id, 5);
                 return name === 'script' || name === 'style' ? name : 'tag';
             }
             return ({ 3: 'text', 4: 'cdata', 7: 'directive', 8: 'comment', 9: 'root', 10: 'directive', 11: 'root' })[type];
@@ -99,7 +99,7 @@ export function createNodes(kernel, operations, selections, selection) {
     Object.defineProperties(NodeHandle.prototype, {
         name: { get: originalName, set(value) { const { state, ids } = nodes.get(this); edit(state, 11, ids, empty, String(value)); } },
         tagName: { get: originalName, set(value) { this.name = value; } },
-        nodeType: { get() { const { state, ids } = nodes.get(this); const type = read(state, ids, 6); return type === 11 ? 9 : type; } },
+        nodeType: { get() { const { state, id } = nodes.get(this); const type = read(state, id, 6); return type === 11 ? 9 : type; } },
         parent: { get() { return rawAxis(this, 10); } },
         parentNode: { get() { return this.parent; } },
         next: { get() { return rawAxis(this, 11); } },
@@ -111,7 +111,7 @@ export function createNodes(kernel, operations, selections, selection) {
         firstChild: { get() { return rawChild(this, 13); } },
         lastChild: { get() { return rawChild(this, 14); } },
         data: {
-            get() { const { state, ids } = nodes.get(this); const value = state.data.get(ids[0]); return value === undefined ? read(state, ids, 8) : value; },
+            get() { const { state, id } = nodes.get(this); const value = state.data.get(id); return value === undefined ? read(state, id, 8) : value; },
             set(value) {
                 const record = nodes.get(this), { state, ids } = record;
                 // Kind is immutable, including across element renames. Learn it
@@ -123,20 +123,33 @@ export function createNodes(kernel, operations, selections, selection) {
             },
         },
         attribs: { get() {
-                const data = nodes.get(this), { state, ids } = data;
-                if (read(state, ids, 6) !== 1)
+                const data = nodes.get(this), { state, id } = data;
+                if (read(state, id, 6) !== 1)
                     return undefined;
                 if (!data.attribs)
                     data.attribs = new Proxy({}, {
-                        get: (_, name) => typeof name === 'string' ? read(state, ids, 1, name) : undefined,
-                        set: (_, name, value) => { enqueue(state, ids, 1, String(name), String(value)); return true; },
-                        deleteProperty: (_, name) => { enqueue(state, ids, 2, String(name)); return true; },
-                        has: (_, name) => read(state, ids, 1, String(name)) !== undefined,
-                        ownKeys: () => Object.keys(attributes(state, ids)),
-                        getOwnPropertyDescriptor: (_, name) => { const value = read(state, ids, 1, String(name)); return value === undefined ? undefined : { configurable: true, enumerable: true, writable: true, value }; },
+                        get: (_, name) => typeof name === 'string' ? liveAttribute(state, id, name) : undefined,
+                        set: (_, name, value) => { enqueue(state, data.ids, 1, String(name), String(value)); return true; },
+                        deleteProperty: (_, name) => { enqueue(state, data.ids, 2, String(name)); return true; },
+                        has: (_, name) => liveAttribute(state, id, String(name)) !== undefined,
+                        ownKeys: () => {
+                            const value = attributes(state, id);
+                            state.attributeSnapshot = { id, value };
+                            return Object.keys(value);
+                        },
+                        getOwnPropertyDescriptor: (_, name) => { const value = liveAttribute(state, id, String(name)); return value === undefined ? undefined : { configurable: true, enumerable: true, writable: true, value }; },
                     });
                 return data.attribs;
             } },
     });
-    return { nodes, wrap, inputIds, xmlAttributeCallback, xmlTextCallback };
+    function liveAttribute(state, id, name) {
+        alive(state);
+        // Only one private enumeration snapshot is retained per document. Every
+        // queued or immediate mutation invalidates it before any later read.
+        const snapshot = state.attributeSnapshot;
+        if (snapshot?.id === id && Object.hasOwn(snapshot.value, name))
+            return snapshot.value[name];
+        return read(state, id, 1, name);
+    }
+    return { nodes, wrap, inputIds, attributeCallback, textCallback };
 }

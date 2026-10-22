@@ -1,6 +1,6 @@
-import { empty } from './common.js';
+import { alive, empty } from './common.js';
 export function createCollectionHelpers(context) {
-    const { selections, nodes, selection, inputIds, entry, edit, enqueue } = context;
+    const { kernel, selections, nodes, wrap, selection, inputIds, entry, edit, enqueue, flush, traverseUntil } = context;
     class MappedCollection extends Array {
         static get [Symbol.species]() { return Array; }
         get(index) { return index === undefined ? this.toArray() : this.at(Number(index)); }
@@ -34,29 +34,55 @@ export function createCollectionHelpers(context) {
         return result;
     }
     function until(source, axis, stop, selector) {
-        const { state, ids } = entry(source), result = [];
-        let matched = 0;
-        const stopAt = typeof stop === 'function' ? function () { return stop.call(this, matched, this); } : stop;
-        for (const id of ids) {
-            for (const node of selection(state, Uint32Array.of(id))._traverse(axis)) {
-                if (stopAt && state.api(node).is(stopAt)) break;
-                matched++;
-                if (selector || !result.includes(node)) result.push(node);
-            }
-        }
-        let value = selection(state, inputIds(state, result), source);
+        const { state, ids } = entry(source);
+        if (!ids.length) return selection(state, empty, source);
+        const stopRecord = selections.get(stop) ?? nodes.get(stop);
+        let resultIds = null;
+        if (!stop || typeof stop === 'string' || (stopRecord?.state === state && !state.closed))
+            resultIds = traverseUntil(state, ids, axis | (selector && ids.length > 1 ? 256 : 0),
+                typeof stop === 'string' ? stop : '', stopRecord?.ids ?? empty);
+        if (resultIds === null) resultIds = untilCallbacks(state, ids, axis, stop, selector);
+        let value = selection(state, resultIds, source);
         if (selector) {
             // Filters observe every accepted visit before deduplication/sorting.
             value = value.filter(selector);
             const record = selections.get(value);
             record.previous = source;
-            if (ids.length > 1 && record.ids.length > 1) record.ids = record.ids.filter((id, index, values) => values.indexOf(id) === index);
+            if (ids.length > 1 && record.ids.length > 1) record.ids = Uint32Array.from(new Set(record.ids));
         }
         if (axis === 9 && ids.length > 1) {
             const record = selections.get(value);
             record.ids = edit(state, 13, record.ids).reverse();
         }
         return value;
+    }
+    function untilCallbacks(state, ids, axis, stop, selector) {
+        const result = [], seen = selector ? null : new Set();
+        let matched = 0;
+        const one = new Uint32Array(1);
+        for (const id of ids) {
+            one[0] = id;
+            flush(state);
+            let path = kernel.traverse(state.owner, one, axis), version = state.treeVersion;
+            for (let i = 0; i < path.length;) {
+                const next = path[i++], node = wrap(state, next);
+                const stopped = typeof stop === 'function' ? stop.call(node, matched, node) : stop && state.api(node).is(stop);
+                alive(state);
+                if (stopped) break;
+                matched++;
+                if (!seen || !seen.has(node)) { result.push(node); seen?.add(node); }
+                if (version !== state.treeVersion) {
+                    // A stop callback can remove or move the current/next node.
+                    // Resume from the current live relation, as Cheerio does.
+                    one[0] = next;
+                    flush(state);
+                    path = kernel.traverse(state.owner, one, axis);
+                    i = 0;
+                    version = state.treeVersion;
+                }
+            }
+        }
+        return inputIds(state, result);
     }
     const classTokens = value => typeof value === 'string' ? value.match(/\S+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
     function classes(source, action, value, force, argc) {

@@ -13,11 +13,14 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
 - The 0.1.2 correctness review fixes repeated-insertion hangs, foreign-owner
   `.add()` queries, duplicate traversal occurrences and single-select null values.
   Its follow-up fixes fragment query coverage, failed-load cleanup, raw child
-  retention and wide-form serialization. The 2,441-case local matrix, sanitizer,
+  retention and wide-form serialization. The API follow-up batches static `until`
+  traversals, fixes callback visits after tree edits, and reduces attribute,
+  containment and transport overhead. The 2,488-case local matrix, sanitizer,
   seeded fuzz, preserved consumer replays, offline packages and four 120-cycle
-  memory budgets pass. The follow-up's sixteen timing panels all stopped on host
-  activity before sampling; non-regression remains unverified. The preceding
-  timing pass retains its two scoped passes and fourteen inconclusive panels.
+  memory budgets pass. Its sixteen local timing panels yield one scoped
+  non-regression pass and fifteen inconclusive results; a separate server run
+  stops during preflight. Full-scope non-regression remains unverified. Earlier
+  host-stopped panels and the two-pass insertion review remain documented.
   [Qualification and limits](testing.md) remain explicit.
 - The bounded performance investigation is complete. It retains the Wasm HTML
   span writer, correctness fixes and XML regression tests. Native keeps its

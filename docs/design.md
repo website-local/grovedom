@@ -72,6 +72,14 @@ matching JS. There is no protocol version negotiation or plugin framework.
   the kernel owner. Getter or construction failures cannot strand a document.
 - Raw first/last-child reads register only the requested child ID. Reading one
   edge does not expose every sibling or keep replaced siblings alive.
+- Static `until` traversals test stop conditions in the kernel without exposing
+  stop-node handles. Callback traversals follow live relations after tree edits;
+  returned selections still retain snapshot membership and identity.
+- Live attribute enumeration retains one private map per document. Writes clear
+  it before observation, and disposal releases it. Missing keys use ordinary
+  attribute lookup; returned attribute snapshots remain independent.
+- Scalar containment does not register ancestor handles. Node ID arrays are lazy;
+  immediate callbacks borrow a document array and reacquire it after user code.
 - Wasm instances use non-shared memory. Growth detaches old views; bindings refresh
   them before access. Pooled instances are reused only after document cleanup.
 

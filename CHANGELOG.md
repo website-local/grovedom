@@ -4,6 +4,16 @@
 
 Development has moved to 0.1.2; the published release remains 0.1.1.
 
+- Batch `nextUntil()`, `prevUntil()` and `parentsUntil()` with static stop
+  conditions, preserving selection order and duplicate filter visits.
+- Follow live sibling and parent links after mutations inside `until` callbacks,
+  so removed or newly inserted nodes are visited as Cheerio specifies.
+- Reuse a private attribute-enumeration snapshot while keeping raw `attribs`
+  views live through writes, callbacks and disposal.
+- Answer `contains()` without creating ancestor handles; allocate node ID arrays
+  lazily and reuse borrowed arrays for immediate HTML/XML callbacks.
+- Skip unused edit-input encoding and redundant empty Wasm input calls, while
+  still clearing input for operations that consume an empty string.
 - Preserve explicit inner query contexts across attached raw fragments, including
   duplicate roots and their result order.
 - Snapshot load options and finish facade construction before allocating a

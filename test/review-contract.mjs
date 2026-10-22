@@ -8,6 +8,91 @@ function sameNodes(actual, expected) {
 // The same corrections must reach installed packages and the portable facade.
 export const reviewCases = [
   {
+    name: 'until traversal retains duplicate filter visits and follows callback edits', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main><p id="a">A</p>text<p id="b">B</p><p id="c">C</p><p id="d">D</p></main>', { xml, execution });
+        try {
+          const [a, b, c, d] = $('p').get(), selected = $([a, a]), visits = [];
+          sameNodes(selected.nextUntil('#d').get(), [b, c]);
+          sameNodes(selected.nextUntil($(d)).get(), [b, c]);
+          sameNodes(selected.nextUntil(undefined, ':eq(3)').get(), [b]);
+          const result = selected.nextUntil(function (i, node) {
+            visits.push([i, node === this, this.attribs.id]);
+            if (!i) $(c).remove();
+            return this === d;
+          });
+          assert.equal(JSON.stringify(visits), JSON.stringify([[0, true, 'b'], [1, true, 'd'], [1, true, 'b'], [2, true, 'd']]));
+          sameNodes(result.get(), [b]);
+          assert.equal(result.end(), selected);
+          $('main').empty();
+          sameNodes(result.get(), [b]);
+          assert.equal(b.name, 'p');
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
+    name: 'enumerated attribute views stay live through nested writes and disposal', corrected: true,
+    run({ load }, execution) {
+      const $ = load('<i a="one" b="two"></i>', { execution }), item = $('i'), view = item[0].attribs;
+      try {
+        assert.equal(Object.keys(view).join(','), 'a,b');
+        const copy = item.attr(); copy.a = 'external';
+        assert.equal(view.a, 'one');
+        const target = { set a(_) { item.attr('b', 'changed'); } };
+        Object.assign(target, view);
+        assert.equal(target.b, 'changed');
+        item.prop('tagName', 'span').attr('c', 'new');
+        assert.equal(view.c, 'new');
+        assert.equal(Object.getOwnPropertyDescriptor(view, 'b').value, 'changed');
+        Object.keys(view);
+        view.__proto__ = 'own'; delete view.a;
+        assert.equal(view.__proto__, 'own'); assert.equal(view.a, undefined);
+        Object.keys(view); $.dispose();
+        assert.throws(() => view.b, { code: 'ERR_GROVEDOM_DISPOSED' });
+      } finally { $.dispose(); }
+    },
+  },
+  {
+    name: 'containment preserves raw fragment ancestry and follows buffered moves', corrected: true,
+    run({ load, contains }, execution) {
+      const $ = load('<main></main><aside></aside>', { execution }), other = load('<p></p>');
+      try {
+        const main = $('main')[0], aside = $('aside')[0], node = $('<p>text</p>')[0], fragment = node.parent;
+        $(main).append(fragment);
+        assert.equal(contains(main, node), true); assert.equal(contains(fragment, node), true);
+        assert.equal(contains(node, node), false); assert.equal(contains(main, other('p')[0]), false);
+        $(aside).append(node);
+        assert.equal($.contains(main, node), false); assert.equal($.contains(aside, node), true);
+        $(aside).remove(); assert.equal($.contains(aside, node), true);
+        $.dispose(); assert.throws(() => contains(aside, node), { code: 'ERR_GROVEDOM_DISPOSED' });
+      } finally { $.dispose(); other.dispose(); }
+    },
+  },
+  {
+    name: 'borrowed callback IDs and empty edit inputs cannot reuse previous operands', corrected: true,
+    run({ load }, execution) {
+      for (const xml of [false, true]) {
+        const $ = load('<main><p id="a">A</p><p id="b">B</p></main>', { xml, execution });
+        try {
+          const saved = [];
+          $('p').attr('x', function (i) {
+            saved.push($(this));
+            return { toString() { $('#b').attr('inner', () => 'nested'); return String(i); } };
+          });
+          assert.equal(saved[0].attr('x'), '0'); assert.equal(saved[1].attr('x'), '1');
+          const text = saved[0].contents()[0];
+          $('#b'); saved[0].after(saved[1]); saved[0].prepend(''); text.data = '';
+          assert.equal(saved[0].text(), ''); assert.equal(saved[1].text(), 'B');
+          saved[0].text('restored');
+          assert.equal(saved[0].text(), 'restored'); assert.equal(text.data, '');
+          sameNodes($('p').get(), saved.map(value => value[0]));
+        } finally { $.dispose(); }
+      }
+    },
+  },
+  {
     name: 'ordinary find retains explicit contexts on both sides of a raw fragment', corrected: true,
     run({ load }, execution) {
       for (const xml of [false, true]) for (const template of (xml ? [false] : [false, true])) {
