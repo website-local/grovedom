@@ -2,8 +2,14 @@ import { alive, empty } from './common.js';
 export function createNodes(kernel, operations, selections, selection) {
     const { flush, read, edit, enqueue, attributes, attributeValue } = operations;
     const nodes = { get: value => NodeHandle.record(value), has: value => NodeHandle.record(value) !== undefined };
+    function nodeIds(record) {
+        if (record.ids) return record.ids;
+        const ids = new Uint32Array(1);
+        ids[0] = record.id;
+        return record.ids = ids;
+    }
     function rawAxis(node, axis) {
-        const { state, ids } = nodes.get(node);
+        const record = nodes.get(node), { state } = record, ids = nodeIds(record);
         flush(state);
         const result = kernel.traverse(state.owner, ids, axis);
         return result.length ? wrap(state, result[0]) : null;
@@ -28,7 +34,7 @@ export function createNodes(kernel, operations, selections, selection) {
             alive(value.state);
             if (value.state !== state)
                 throw new TypeError('Nodes belong to another document');
-            return value.ids;
+            return nodeIds(value);
         }
         if (Array.isArray(input)) {
             const ids = new Uint32Array(input.length);
@@ -41,11 +47,6 @@ export function createNodes(kernel, operations, selections, selection) {
             return ids;
         }
         throw new TypeError('Expected a selector, node handle, or selection');
-    }
-    class NodeRecord {
-        #ids;
-        constructor(state, id) { this.state = state; this.id = id; }
-        get ids() { return this.#ids ??= Uint32Array.of(this.id); }
     }
     function callbackIds(state, node) {
         const record = nodes.get(node);
@@ -71,7 +72,7 @@ export function createNodes(kernel, operations, selections, selection) {
             const next = value.call(node, i, read(state, callbackIds(state, node), 2));
             alive(state);
             if (typeof next === 'function')
-                selection(state, nodes.get(node).ids).text(next);
+                selection(state, nodeIds(nodes.get(node))).text(next);
             else if (next !== undefined) {
                 const text = String(next);
                 enqueue(state, callbackIds(state, node), 3, text);
@@ -80,7 +81,9 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     class NodeHandle {
         #record;
-        constructor(state, id) { this.#record = new NodeRecord(state, id); }
+        // Keep the shared state/ids fields in the same order as selection
+        // records. Materialize a stable array only when an API needs one.
+        constructor(state, id) { this.#record = { state, ids: null, id }; }
         static record(value) { return value !== null && typeof value === 'object' && #record in value ? value.#record : undefined; }
         get name() { const { state, id } = nodes.get(this); return read(state, id, 5); }
         get type() {
@@ -97,7 +100,7 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     const originalName = Object.getOwnPropertyDescriptor(NodeHandle.prototype, 'name').get;
     Object.defineProperties(NodeHandle.prototype, {
-        name: { get: originalName, set(value) { const { state, ids } = nodes.get(this); edit(state, 11, ids, empty, String(value)); } },
+        name: { get: originalName, set(value) { const record = nodes.get(this); edit(record.state, 11, nodeIds(record), empty, String(value)); } },
         tagName: { get: originalName, set(value) { this.name = value; } },
         nodeType: { get() { const { state, id } = nodes.get(this); const type = read(state, id, 6); return type === 11 ? 9 : type; } },
         parent: { get() { return rawAxis(this, 10); } },
@@ -106,14 +109,14 @@ export function createNodes(kernel, operations, selections, selection) {
         nextSibling: { get() { return this.next; } },
         prev: { get() { return rawAxis(this, 12); } },
         previousSibling: { get() { return this.prev; } },
-        children: { get() { const { state, ids } = nodes.get(this); return selection(state, ids).contents().toArray(); } },
+        children: { get() { const record = nodes.get(this); return selection(record.state, nodeIds(record)).contents().toArray(); } },
         childNodes: { get() { return this.children; } },
         firstChild: { get() { return rawChild(this, 13); } },
         lastChild: { get() { return rawChild(this, 14); } },
         data: {
             get() { const { state, id } = nodes.get(this); const value = state.data.get(id); return value === undefined ? read(state, id, 8) : value; },
             set(value) {
-                const record = nodes.get(this), { state, ids } = record;
+                const record = nodes.get(this), { state } = record, ids = nodeIds(record);
                 // Kind is immutable, including across element renames. Learn it
                 // only on this path, but preserve the pre-coercion observation.
                 if (record.dataType === undefined) record.dataType = read(state, ids, 6);
@@ -129,8 +132,8 @@ export function createNodes(kernel, operations, selections, selection) {
                 if (!data.attribs)
                     data.attribs = new Proxy({}, {
                         get: (_, name) => typeof name === 'string' ? liveAttribute(state, id, name) : undefined,
-                        set: (_, name, value) => { enqueue(state, data.ids, 1, String(name), String(value)); return true; },
-                        deleteProperty: (_, name) => { enqueue(state, data.ids, 2, String(name)); return true; },
+                        set: (_, name, value) => { enqueue(state, nodeIds(data), 1, String(name), String(value)); return true; },
+                        deleteProperty: (_, name) => { enqueue(state, nodeIds(data), 2, String(name)); return true; },
                         has: (_, name) => liveAttribute(state, id, String(name)) !== undefined,
                         ownKeys: () => {
                             const value = attributes(state, id);
@@ -151,5 +154,5 @@ export function createNodes(kernel, operations, selections, selection) {
             return snapshot.value[name];
         return read(state, id, 1, name);
     }
-    return { nodes, wrap, inputIds, attributeCallback, textCallback };
+    return { nodes, wrap, inputIds, nodeIds, attributeCallback, textCallback };
 }

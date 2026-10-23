@@ -16,7 +16,7 @@ function parse(value) {
 }
 export function createDataMethods({ entry, nodes, read, attributes }) {
     function store(state, node) {
-        const id = nodes.get(node).ids[0];
+        const id = nodes.get(node).id;
         let result = state.data.get(id);
         if (result == null) state.data.set(id, result = {});
         return result;
@@ -52,7 +52,7 @@ export function createDataMethods({ entry, nodes, read, attributes }) {
     function removeData(source, name) {
         const { state } = entry(source);
         return source.each(function () {
-            const id = nodes.get(this).ids[0];
+            const id = nodes.get(this).id;
             if (name === undefined) state.data.delete(id);
             else {
                 const data = state.data.get(id);

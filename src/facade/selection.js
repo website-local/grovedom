@@ -5,7 +5,7 @@ const readOnlyProperties = new Set(['type', 'nodeType', 'children', 'childNodes'
 const rawProperties = new Set(['name', 'data', 'attribs', ...readOnlyProperties]);
 // Methods keep private branding and selection snapshots. Helpers are bound once.
 export function createSelection(context) {
-    const { kernel, entry, wrap, selection, inputIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
+    const { kernel, entry, wrap, selection, inputIds, nodeIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
     function setProperty(source, name, value) {
         const { state, ids } = entry(source);
         if (name === 'namespace')
@@ -14,7 +14,7 @@ export function createSelection(context) {
             unsupported('Direct changes to node types or relations are not supported; use DOM mutation methods.');
         if (name === 'attribs')
             return source.each(function () {
-                const record = nodes.get(this), one = record.ids;
+                const record = nodes.get(this), one = nodeIds(record);
                 // Reassigning the element's own live view is a no-op. Clearing
                 // it first would also erase the replacement's source values.
                 if (value && value === record.attribs) return;
@@ -33,7 +33,7 @@ export function createSelection(context) {
         if (name === 'data')
             return source.each(function () {
                 if (this.nodeType !== 1) return;
-                const id = nodes.get(this).ids[0];
+                const id = nodes.get(this).id;
                 // Cheerio uses an attribute until a raw data property exists.
                 // Replacements keep object identity, including explicit resets.
                 if (state.data.has(id)) state.data.set(id, value);

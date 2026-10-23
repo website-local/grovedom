@@ -130,7 +130,39 @@ on Node 22/24 observed 150 loop-exit deoptimizations before this fix and none
 afterward. This repairs the probe; it does not explain DOM regressions or
 reclassify earlier results. Hosted diagnostics do not replace fresh-process gates.
 
+## HTML wrapper allocation
+
+CPU and allocation profiles found extra callback-wrapper bookkeeping after the
+API batching change, without establishing a new parsing or GC bottleneck.
+HTML600 materializes ID arrays for all 1,200 callback nodes, so those nodes do
+not benefit from deferring their arrays. Private records now use ordinary fields
+and a direct one-element `Uint32Array` constructor. Laziness, stable selection
+storage and borrowed callback arrays remain intact. The generic array factory
+also existed in 0.1.1; removing it is an optimization, not proof of the cause of
+the entire reported regression.
+
+A separate Node 24 confirmation used four fresh processes, eight mirrored blocks
+per process, five independent module graphs, 80 warmups and 16 full HTML600
+replays per sample. All 32 blocks were retained, with no activity admission,
+probe filtering or forced GC. Median process ratios were **1.0352** for pre-fix
+0.1.2 (`654c9b9`)/fixed, **1.0259** for published 0.1.1/fixed and **1.0062** for
+the identical-release control. Ordinary fields alone were near neutral
+(**1.0044**); direct construction supplied most of the measured improvement.
+
+One process group regressed against pre-fix 0.1.2 (**0.9493**). That pre-fix
+version was itself near parity with 0.1.1 in this confirmation (**0.9988**), which
+uses a different variant mix and longer batches than the earlier comparison.
+These results do not establish that the earlier 5.8% slowdown is fully explained
+or eliminated. A separate 10,000-node callback check had substantial control
+drift and supplies no precise gain claim. Raw results remain preserved; this
+scoped optimization is not full-consumer or universal non-regression evidence.
+
 ## Short checks
+
+Start regression investigations with source analysis and CPU/allocation profiles.
+Use timing to confirm a concrete finding or candidate fix. Activity admission is
+not a prerequisite for diagnosis; declare each confirmation's settings and keep
+its evidence separate from the historical acceptance protocols below.
 
 - Fix inputs, parser options, groups, batches and stopping rules before timing.
   Never extend a panel to obtain a pass.

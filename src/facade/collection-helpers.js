@@ -1,6 +1,6 @@
 import { alive, empty } from './common.js';
 export function createCollectionHelpers(context) {
-    const { kernel, selections, nodes, wrap, selection, inputIds, entry, edit, enqueue, flush, traverseUntil } = context;
+    const { kernel, selections, nodes, wrap, selection, inputIds, nodeIds, entry, edit, enqueue, flush, traverseUntil } = context;
     class MappedCollection extends Array {
         static get [Symbol.species]() { return Array; }
         get(index) { return index === undefined ? this.toArray() : this.at(Number(index)); }
@@ -40,7 +40,7 @@ export function createCollectionHelpers(context) {
         let resultIds = null;
         if (!stop || typeof stop === 'string' || (stopRecord?.state === state && !state.closed))
             resultIds = traverseUntil(state, ids, axis | (selector && ids.length > 1 ? 256 : 0),
-                typeof stop === 'string' ? stop : '', stopRecord?.ids ?? empty);
+                typeof stop === 'string' ? stop : '', stopRecord ? nodeIds(stopRecord) : empty);
         if (resultIds === null) resultIds = untilCallbacks(state, ids, axis, stop, selector);
         let value = selection(state, resultIds, source);
         if (selector) {

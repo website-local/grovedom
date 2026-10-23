@@ -12,6 +12,8 @@ Development has moved to 0.1.2; the published release remains 0.1.1.
   views live through writes, callbacks and disposal.
 - Answer `contains()` without creating ancestor handles; allocate node ID arrays
   lazily and reuse borrowed arrays for immediate HTML/XML callbacks.
+- Simplify private node records and construct singleton ID arrays directly,
+  preserving lazy allocation, selection snapshots and callback ownership.
 - Skip unused edit-input encoding and redundant empty Wasm input calls, while
   still clearing input for operations that consume an empty string.
 - Preserve explicit inner query contexts across attached raw fragments, including
