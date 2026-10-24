@@ -46,8 +46,9 @@ actual browser engines.
 
 The [source review](source-audit.md) covers ownership, reentrant coercions,
 mutation recovery, snapshots and transport lifetimes. No new release-blocking
-defect was found within this scope. Final hosted artifacts must be rebuilt and
-verified from the final release commit through the [manual workflow](releasing.md).
+defect was found within this scope. Full CI is reported passing for the released
+commit `25faa49`. Both npm packages, the Git tag and the deployed demo manifest
+confirm 0.1.2 publication; the local checks above retain their recorded scope.
 
 The previous API checkpoint's 1,544 consumer comparisons cover 193 scenarios,
 two preserved engine snapshots and four backends. They do not qualify the current
@@ -64,11 +65,18 @@ retain their checkpoint scope.
 
 ### Reported 0.1.2 CI passes
 
-CI was reported passing for `71db6d3` and `654c9b9`; logs and artifact hashes were
-not supplied for independent inspection. Their
+The complete workflow, including the final gate, was reported passing for
+`25faa49`, now tagged `v0.1.2`. A later report also states that CI passed. Their
+[two benchmark summaries](history/release-benchmarks.md#012-reported-ci) remain
+separate; raw job logs, block timings and benchmark artifact hashes were not
+supplied for independent inspection. Publication metadata does not establish a
+new actual-browser or complete-consumer qualification.
+
+Earlier CI was reported passing for `71db6d3` and `654c9b9`; logs and artifact
+hashes were not supplied for independent inspection. Their
 [reported scope](history/testing.md#reported-012-ci-passes) and
 [benchmark rows](history/development-benchmarks.md#012-reported-ci-runs) remain separate.
-The later `c807bdb` benchmark receipt does not confirm every CI job.
+The `c807bdb` benchmark receipt alone did not confirm every CI job.
 
 <a id="012-api-optimizations"></a>
 <a id="012-fragment-load-child-and-form-fixes"></a>

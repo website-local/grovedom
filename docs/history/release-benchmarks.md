@@ -1,6 +1,6 @@
 # Published release measurements
 
-These reported 0.1.1 CI and browser runs are separate from current development
+These reported release CI and browser runs are separate from current development
 comparisons. See the [current summary](../benchmarks.md) for readiness.
 
 ## 0.1.1 release measurements
@@ -106,3 +106,74 @@ The browser reports do not establish matched host conditions, and their
 relative ratios do not measure absolute engine speed. Do not average the two
 browsers or divide their ratios by the controls. Browser-wide 3× performance,
 broader browser API qualification and production adoption remain unverified.
+
+## 0.1.2 reported CI
+
+Experimental 0.1.2 was released on 2026-10-24 from
+[`25faa49`](https://github.com/website-local/grovedom/commit/25faa49448ff783e0736ebcc1a819f169ef5136f).
+Both npm packages are published at 0.1.2; the Git tag and deployed demo manifest
+identify that commit. Full CI, including its final gate, is reported passing.
+
+The two supplied summaries below use **current 0.1.2, published Wasm 0.1.1 and
+Cheerio 1.2.0**, with pooled heaps and the shared browser workload running in CI.
+The second report also states that CI passed. Neither table embeds a run ID,
+commit or artifact hash; raw timings, order breakdowns and Node versions were
+not supplied. Keep the reports separate and retain their displayed precision.
+They are not new browser-engine or complete-consumer qualifications.
+
+### First reported run
+
+| Case | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | ---: | ---: | ---: |
+| articles-120 | released Wasm | 1.019× | 1.019× | 46/46 |
+| articles-120 | Cheerio default | 3.876× | 3.876× | 46/46 |
+| articles-120 | Cheerio htmlparser2 | 2.873× | 2.873× | 46/46 |
+| articles-120 | identical Wasm control | 1.013× | 1.013× | 46/46 |
+| articles-600 | released Wasm | 1.065× | 1.065× | 46/46 |
+| articles-600 | Cheerio default | 6.123× | 6.123× | 46/46 |
+| articles-600 | Cheerio htmlparser2 | 4.951× | 4.951× | 45/45 |
+| articles-600 | identical Wasm control | 0.967× | 0.967× | 45/45 |
+| sitemap-600 | released Wasm | 1.049× | 1.049× | 45/45 |
+| sitemap-600 | Cheerio default | 4.532× | 4.532× | 45/45 |
+| sitemap-600 | Cheerio htmlparser2 | 4.458× | 4.458× | 45/45 |
+| sitemap-600 | identical Wasm control | 1.040× | 1.040× | 45/45 |
+| svg-300 | released Wasm | 1.030× | 1.030× | 45/45 |
+| svg-300 | Cheerio default | 2.959× | 2.959× | 46/46 |
+| svg-300 | Cheerio htmlparser2 | 2.996× | 2.996× | 46/46 |
+| svg-300 | identical Wasm control | 1.042× | 1.042× | 46/46 |
+
+The reported counts retain **729/729** complete blocks. Released/current medians
+are 1.019, 1.065, 1.049 and 1.030; identical controls are 1.013, 0.967, 1.040 and
+1.042. SVG remains below 3× both Cheerio configurations in this report.
+
+### Later reported run
+
+| Case | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | ---: | ---: | ---: |
+| articles-120 | released Wasm | 1.024× | 1.024× | 47/47 |
+| articles-120 | Cheerio default | 3.833× | 3.833× | 47/47 |
+| articles-120 | Cheerio htmlparser2 | 2.864× | 2.864× | 47/47 |
+| articles-120 | identical Wasm control | 1.018× | 1.018× | 47/47 |
+| articles-600 | released Wasm | 1.014× | 1.014× | 47/47 |
+| articles-600 | Cheerio default | 6.355× | 6.355× | 47/47 |
+| articles-600 | Cheerio htmlparser2 | 5.027× | 5.027× | 47/47 |
+| articles-600 | identical Wasm control | 0.980× | 0.980× | 47/47 |
+| sitemap-600 | released Wasm | 1.006× | 1.006× | 47/47 |
+| sitemap-600 | Cheerio default | 4.507× | 4.507× | 47/47 |
+| sitemap-600 | Cheerio htmlparser2 | 4.378× | 4.378× | 47/47 |
+| sitemap-600 | identical Wasm control | 1.061× | 1.061× | 47/47 |
+| svg-300 | released Wasm | 1.039× | 1.039× | 47/47 |
+| svg-300 | Cheerio default | 3.022× | 3.022× | 46/46 |
+| svg-300 | Cheerio htmlparser2 | 2.998× | 2.998× | 47/47 |
+| svg-300 | identical Wasm control | 1.044× | 1.044× | 47/47 |
+
+The reported counts retain **751/751** complete blocks. Released/current medians
+are 1.024, 1.014, 1.006 and 1.039; identical controls are 1.018, 0.980, 1.061 and
+1.044. The sitemap ratio of 1.006 with a 1.061 control does not establish a precise
+improvement. SVG is 3.022× default Cheerio and 2.998× htmlparser2, with a 1.044
+control; small HTML is below 3× htmlparser2 in both reports.
+
+All released/current medians favor 0.1.2, but control drift limits small gain
+claims. Do not normalize by controls, combine the runs or treat these near-threshold
+medians as a complete-workload 3× adoption pass. Published-package integration
+and representative consumer measurements remain the next qualification work.

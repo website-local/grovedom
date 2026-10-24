@@ -9,7 +9,7 @@ browser speed; production input weights remain unvalidated.
 ## Current result
 
 **Current full-scope non-regression and production adoption remain unverified.**
-Experimental 0.1.1 is published; 0.1.2 has scoped improvements, incomplete panels,
+Experimental 0.1.2 is published with scoped improvements, incomplete panels,
 control drift and unfavorable results. Correctness qualification is recorded in
 [testing](testing.md) and does not turn inconclusive timing into a pass.
 
@@ -33,7 +33,14 @@ remain separate from historical adoption screens. Both campaigns are closed.
 
 ## 0.1.2 reported CI runs
 
-CI is reported passing at `71db6d3` and `654c9b9`. Their
+Full CI is reported passing at released commit `25faa49`. Two
+[supplied summaries](history/release-benchmarks.md#012-reported-ci) retain
+**729/729** and **751/751** complete blocks. All released/current medians favor
+0.1.2, but controls limit precise gains. The later SVG median is **3.022×** default
+Cheerio and **2.998×** htmlparser2, with a **1.044×** identical-Wasm control.
+These reports do not establish the complete-workload adoption target.
+
+Earlier CI is reported passing at `71db6d3` and `654c9b9`. Their
 [32 supplied rows](history/development-benchmarks.md#012-reported-ci-runs) compare
 each with published 0.1.1: authored results are near parity, XML controls limit
 small gain claims, and SVG remains below 3× Cheerio. Raw blocks and artifact hashes

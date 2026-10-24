@@ -120,10 +120,12 @@ inconsistent cloned-root links or neighboring-node deletion in self-replacement.
 
 ## Qualification
 
-Experimental **0.1.1** passed hosted Linux Node 22.0.0/22/24 checks and pooled-Wasm
-Node 24 checks on Windows/macOS, including packed installs. Native remains Linux
-x64/glibc only; [release policy](releasing.md) defines that baseline.
-Reported Firefox 150 and Chromium 140 [correctness-page runs](testing.md#reported-browser-runs)
+Experimental **0.1.2** has a [reported full CI pass](testing.md#reported-012-ci-passes),
+covering Linux Node 22.0.0/22/24 and pooled Wasm on Windows/macOS with Node 24,
+including packed installs. Native remains Linux x64/glibc only;
+[release policy](releasing.md) defines that baseline.
+The reported 0.1.1 Firefox 150 and Chromium 140
+[correctness-page runs](testing.md#reported-browser-runs)
 each pass 810 cases with 35 skips and no failures. WebKit and broader browser API
 coverage remain unqualified; portable normal/fallback checks run under Node.
 

@@ -9,9 +9,9 @@ from JavaScript, with no runtime dependencies or native installation step.
 [Getting started](#getting-started) · [Browser usage](#browser-usage) ·
 [Compatibility](docs/compatibility.md) · [Architecture](docs/design.md)
 
-**Experimental:** `0.1.1` is published on npm.
-This release is a [compatibility bug-fix patch](CHANGELOG.md#011), including
-documented result and extraction type-inference corrections.
+**Experimental:** `0.1.2` is published on npm.
+This [compatibility and lifecycle patch](CHANGELOG.md#012) corrects initialization,
+ownership and traversal behavior and reduces temporary allocations.
 GroveDOM implements a substantial subset of Cheerio, not a complete drop-in
 replacement. Check the [compatibility guide](docs/compatibility.md) before migrating.
 
@@ -128,7 +128,7 @@ The [browser benchmark](docs/prototype.md#browser-and-demo) shares the local and
 authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0
 with default and htmlparser2 parsers and an identical-Wasm control, verifying output
 equality on every replay. The [hosted demo](https://website-local.github.io/grovedom/)
-serves 0.1.1 through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages).
+serves 0.1.2 through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages).
 
 ## Packages and platform support
 
@@ -162,7 +162,7 @@ validation remain [open work](docs/roadmap.md).
 
 ## Development
 
-The `main` branch targets **0.1.2 (unreleased)**.
+The `main` branch targets **0.1.3 (unreleased)**.
 
 See [build and package setup](docs/prototype.md) for the pinned Lexbor/WASI inputs
 and required Node, Clang/LLVM, CMake and Ninja tools. After configuring those

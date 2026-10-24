@@ -1,8 +1,15 @@
 # Changelog
 
-## 0.1.2 (unreleased)
+## 0.1.3 (unreleased)
 
-Development has moved to 0.1.2; the published release remains 0.1.1.
+- Synchronize documentation with published 0.1.2, retain both reported CI
+  benchmark summaries, and prioritize published-package consumer qualification.
+- Advance development manifests and the Release default to 0.1.3; align the
+  Browser demo default with published v0.1.2.
+
+## 0.1.2
+
+Released 2026-10-24.
 
 - Batch `nextUntil()`, `prevUntil()` and `parentsUntil()` with static stop
   conditions, preserving selection order and duplicate filter visits.

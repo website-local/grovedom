@@ -41,14 +41,24 @@ installed dependency and lockfile versions before claiming a locked baseline.
 
 ## Adoption steps
 
+Start with published **grovedom 0.1.2** in an isolated installed consumer. Validate
+declarations, both engine downloaders, document cleanup, failure/retry/cancellation
+paths and per-worker pool controls. Prior candidate and frozen-snapshot results
+do not substitute for this published-package check.
+
 Use the main Wasm package with `init` before the first transform. Keep explicit
 adapter-owned disposal and synchronous DOM execution on the caller's thread.
 The separate native package is an alternative, not an automatic fallback.
 Unsupported parser/API behavior must remain explicit.
 
+Route documents created by hooks and standalone MDN transforms through the engine's
+ownership scope, including nested loads and serialization. Establish the same
+engine revision and options for both parsers, then compare a fixed recording of
+original responses for exact outputs, submissions, paths, events and cleanup.
+
 Before production migration, validate representative original inputs and agreed
 traffic weights, close any required compatibility gaps and test intended shipping
-platforms. This workspace has not modified or deployed the original consumer.
+platforms. This workspace has not modified or deployed the original consumer runtime.
 Local package assembly does not authorize publication or rollout.
 
 [Historical integration audit](history/integration.md) records detailed source

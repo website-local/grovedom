@@ -1,6 +1,6 @@
 # Readiness and next work
 
-Experimental **0.1.1 is published**; `main` targets **0.1.2 (unreleased)**.
+Experimental **0.1.2 is published**; `main` targets **0.1.3 (unreleased)**.
 Pooled Wasm on Node is primary, native is a separate package, and browsers use
 the same Wasm binary with async initialization. The
 [compatibility guide](compatibility.md) defines the supported contract.
@@ -13,22 +13,24 @@ forms. They also reduce unnecessary boundary calls, temporary selections and
 retention. [Correctness and resource qualification](testing.md#current-qualification)
 records the exact matrix, exclusions, sanitizer, fuzz and package checks.
 
-Local qualification supports an experimental patch candidate. The final commit
-still needs the [manual release workflow](releasing.md) to build and verify its
-publishable artifacts. Earlier hosted passes and reported browser runs apply
-only to their named checkpoints.
+Release 0.1.2 is published from `25faa49`, whose full CI workflow is reported
+passing. Both npm packages and the hosted demo now serve 0.1.2. Development
+continues at 0.1.3; prior actual-browser results still apply to their named 0.1.1
+checkpoint. Published-package consumer qualification is the next step.
 
 **Current full-scope non-regression and production adoption remain unverified.**
 Targeted operations improve in scoped measurements, but incomplete panels,
 control drift and unfavorable results prevent a broader claim. The completed
 [performance evidence](benchmarks.md) remains separate from correctness checks.
-Closed campaigns stay closed; no extra samples are required to finish this patch.
+Closed campaigns stay closed; the next measurements should qualify consumer
+integration.
 
 ## Priorities
 
-1. Release the experimental patch through final hosted verification, then test
-   the published package with the development consumer and representative inputs.
-   Validate output, ownership and complete-workload performance against current
+1. Validate published 0.1.2 with the development website-scrap-engine adapter:
+   installed declarations, both downloaders, document cleanup, retries,
+   cancellation and pool controls. Then complete MDN ownership and original-input
+   replay, comparing output and complete-workload performance against current
    Cheerio and its fastest compatible configuration. Saved consumer snapshots
    do not establish production input weights or complete-crawl performance.
 2. Extend actual-browser API and fallback checks beyond the selected correctness
