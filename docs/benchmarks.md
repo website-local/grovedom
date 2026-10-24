@@ -46,6 +46,32 @@ published 0.1.1, not with each other. The latest authored results are near parit
 with 0.1.1; XML controls limit small gain claims, and SVG remains below 3× Cheerio.
 The [32 reported rows and qualifications](history/development-benchmarks.md#012-reported-ci-runs)
 retain the supplied precision; raw blocks and artifact hashes were not supplied.
+The [later benchmark receipt](history/read-performance.md#reported-ci-after-the-wrapper-change)
+favors the wrapper change on all four medians, with control drift. It does not
+independently confirm the remaining CI jobs.
+
+## 0.1.2 read paths and remote comparisons
+
+First-element getters, raw child arrays, text properties and nested wrapping
+avoid unnecessary IDs, selections, views or traversals. Seventeen new regressions
+preserve successful outputs, snapshots, callback order and disposal.
+
+The focused server comparison retains 711 of 1,024 planned blocks before its
+fixed deadline. Pooled first-element reads have a descriptive before/current
+median of **7.8712**, control **1.0245**, across three of four planned groups.
+The other targeted medians also favor the changes, with substantial control
+drift for raw children and wrapping. Native HTML600 is unfavorable at **0.9444**;
+its control is **0.9703**. These incomplete panels establish no full-scope
+non-regression claim. [All counts, groups and controls](history/read-performance.md#four-read-path-changes)
+remain recorded.
+
+The preceding `c807bdb` full server run completes 120 of 122 comparisons across
+32 panels and retains 11,521 blocks. Pooled HTML600 is near parity with 0.1.1
+(**1.0061**, control **0.9996**); the frozen consumer replay is **0.9974**,
+control **1.0051**. Two real-page/Cheerio comparisons stop on swap guards.
+[Methods and all 32 rows](history/read-performance.md#full-comparison-at-c807bdb)
+remain separate from the later read changes and historical acceptance gates.
+Production adoption and current full-scope non-regression remain unverified.
 
 ## 0.1.2 API optimizations
 

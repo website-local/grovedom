@@ -19,6 +19,14 @@ export function createNodes(kernel, operations, selections, selection) {
         const id = read(state, record.id, operation);
         return id ? wrap(state, id) : null;
     }
+    function rawChildren(node) {
+        const record = nodes.get(node), { state } = record;
+        flush(state);
+        const ids = kernel.traverse(state.owner, nodeIds(record), 3);
+        const children = new Array(ids.length);
+        for (let i = 0; i < ids.length; i++) children[i] = wrap(state, ids[i]);
+        return children;
+    }
     function wrap(state, id) {
         alive(state);
         let node = state.wrappers.get(id);
@@ -109,7 +117,7 @@ export function createNodes(kernel, operations, selections, selection) {
         nextSibling: { get() { return this.next; } },
         prev: { get() { return rawAxis(this, 12); } },
         previousSibling: { get() { return this.prev; } },
-        children: { get() { const record = nodes.get(this); return selection(record.state, nodeIds(record)).contents().toArray(); } },
+        children: { get() { return rawChildren(this); } },
         childNodes: { get() { return this.children; } },
         firstChild: { get() { return rawChild(this, 13); } },
         lastChild: { get() { return rawChild(this, 14); } },

@@ -21,6 +21,28 @@ also check reciprocal parent/sibling links and stable handle identity.
 
 ## Current qualification
 
+### 0.1.2 read-path follow-up
+
+The **2,505-case suite** passes on Node 22 and 24: native has **2,446 passes /
+59 exclusions**, and pooled Wasm has **2,454 /51**. Seventeen added cases cover
+first-element versus aggregate reads, duplicate/reordered selections, pending
+writes, empty results, raw child snapshots and identity, templates, XML, nested
+wrapping callbacks and disposal. A size-scaling check verifies bounded getter
+operands without narrowing aggregate text.
+
+Focused global and per-document Wasm checks each pass 52 cases on Node 22.
+Source/package declarations and fresh offline Node 22/24 installations pass;
+all 69 packaged files match the server candidate. Installed Node, browser and
+native entries also match all four read-fixture outputs. Packaged portable
+normal/fallback checks each pass 810 cases with 35 exclusions and release
+contracts under Node; these are not new browser-engine runs.
+
+The C artifacts are unchanged. The preceding sanitizer, fuzz and fixed memory
+budget results below retain their original qualification scope. The
+[remote confirmations](benchmarks.md#012-read-paths-and-remote-comparisons)
+include incomplete panels and control drift, independently of these correctness
+passes. Final hosted release artifacts still require the manual workflow.
+
 ### Reported 0.1.2 CI passes
 
 The user reported passing CI on 2026-10-22 for `71db6d3` (fragment/load/child/form

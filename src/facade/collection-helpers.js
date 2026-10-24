@@ -142,8 +142,11 @@ export function createCollectionHelpers(context) {
             if (i + 1 < ids.length || (typeof value === 'string' && !value.trimStart().startsWith('<')))
                 root = root.clone();
             let inner = root;
-            while (inner.children().length)
-                inner = inner.children().first();
+            for (;;) {
+                const children = inner.children();
+                if (!children.length) break;
+                inner = children.first();
+            }
             if (inside) {
                 const contents = one.contents();
                 inner.empty().append(contents);

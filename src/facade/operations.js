@@ -81,7 +81,18 @@ export function createOperations(kernel) {
     }
     function read(state, ids, operation, name = '') {
         alive(state);
-        const nodes = typeof ids === 'number' ? ids : ids.length === 1 ? ids[0] : ids;
+        let nodes = ids;
+        if (typeof ids !== 'number') {
+            if (ids.length === 1) nodes = ids[0];
+            else if (ids.length) {
+                // These reads consume only the first node. Keep aggregate text,
+                // serialization and two-node containment operands intact.
+                switch (operation) {
+                    case 1: case 3: case 4: case 5: case 6: case 7: case 8: case 13: case 14:
+                        nodes = ids[0];
+                }
+            }
+        }
         if (state.wordLength) {
             const length = state.wordLength, bytes = state.byteLength;
             state.wordLength = state.byteLength = 0;
@@ -298,7 +309,7 @@ export function createOperations(kernel) {
         if (result === undefined && name === 'value' && ids.length) {
             const tag = read(state, ids, 5);
             if (tag === 'option')
-                return read(state, ids.subarray(0, 1), 2);
+                return read(state, ids[0], 2);
             if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type')))
                 return 'on';
         }

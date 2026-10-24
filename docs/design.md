@@ -72,6 +72,9 @@ matching JS. There is no protocol version negotiation or plugin framework.
   the kernel owner. Getter or construction failures cannot strand a document.
 - Raw first/last-child reads register only the requested child ID. Reading one
   edge does not expose every sibling or keep replaced siblings alive.
+- First-element getters transfer only the first ID; aggregate text, serialization
+  and containment keep their required operands. Raw child enumeration wraps the
+  traversal result directly into a fresh array without intermediate selections.
 - Static `until` traversals test stop conditions in the kernel without exposing
   stop-node handles. Callback traversals follow live relations after tree edits;
   returned selections still retain snapshot membership and identity.

@@ -10,6 +10,15 @@ best-effort and unsupported behavior; [testing](testing.md) records qualificatio
 
 ## Current status
 
+- Four read-path improvements avoid unnecessary ID transfers, child selections,
+  singleton views and repeated wrapping traversals. The 2,505-case native/pool
+  Node 22/24 matrix, focused other heaps, declarations and offline packages pass.
+  A fixed server confirmation favors the targeted operations but stops at
+  711/1,024 blocks; controls and an unfavorable native HTML600 result limit
+  broader conclusions. The preceding full server run completes 120/122
+  comparisons at `c807bdb`, with HTML600 and the frozen consumer near parity
+  with 0.1.1. [Complete evidence](history/read-performance.md) preserves both
+  protocols. Current full-scope non-regression and production adoption remain open.
 - The 0.1.2 correctness review fixes repeated-insertion hangs, foreign-owner
   `.add()` queries, duplicate traversal occurrences and single-select null values.
   Its follow-up fixes fragment query coverage, failed-load cleanup, raw child

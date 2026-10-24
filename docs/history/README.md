@@ -8,6 +8,7 @@ Use [the current README](../../README.md) for setup and support status.
 
 - [Benchmark history](benchmarks.md)
 - [Development benchmark details](development-benchmarks.md)
+- [Read-path and remote comparisons](read-performance.md)
 - [Published release measurements](release-benchmarks.md)
 - [Earlier correctness checkpoints](testing.md)
 - [Release optimization follow-ups](release-followups.md)

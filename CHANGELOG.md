@@ -14,6 +14,11 @@ Development has moved to 0.1.2; the published release remains 0.1.1.
   lazily and reuse borrowed arrays for immediate HTML/XML callbacks.
 - Simplify private node records and construct singleton ID arrays directly,
   preserving lazy allocation, selection snapshots and callback ownership.
+- Pass one node ID for first-element getters and text properties, preserving
+  aggregate reads and pending-write observations.
+- Read raw child arrays without temporary selections, keeping independent
+  snapshots and stable node handles.
+- Reuse each child traversal while descending nested wrapping elements.
 - Skip unused edit-input encoding and redundant empty Wasm input calls, while
   still clearing input for operations that consume an empty string.
 - Preserve explicit inner query contexts across attached raw fragments, including

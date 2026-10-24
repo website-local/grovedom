@@ -402,7 +402,7 @@ export function createSelection(context) {
             if (name === 'outerHTML')
                 return read(state, ids, 4);
             if (name === 'textContent' || name === 'innerText')
-                return read(state, ids.subarray(0, 1), name === 'innerText' ? 9 : 2);
+                return read(state, ids[0], name === 'innerText' ? 9 : 2);
             if (name === 'style') {
                 const values = this.css();
                 if (!values)
