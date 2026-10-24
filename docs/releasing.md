@@ -1,125 +1,90 @@
 # GitHub CI and releases
 
-CI runs on pull requests, pushes to `main`, and manual dispatch. `verify.yml`
-is shared by CI and releases, so publishing requires the same build and test jobs:
+Experimental **0.1.1 is published**; source manifests, lockfile, changelog and the
+Release workflow default target **0.1.2 (unreleased)**. Pages stays at **v0.1.1**.
+Pushes and pull requests verify code. Publication requires manual **Release**
+dispatch; a version bump alone publishes nothing.
 
-- Pinned Lexbor source fingerprint and SHA-256-verified WASI SDK 25 libraries.
-- Wasm built on Ubuntu 24.04 with Clang 19; native built on Ubuntu 22.04 with
-  Clang 15. Hosted jobs provision their compiler packages; local build scripts
-  still install no toolchains.
-- Full Linux tests on the exact Node 22.0.0 floor and maintained Node 22/24,
-  including all Wasm heap modes, plus pooled Wasm on Windows and macOS/Node 24.
-- Native ASan/UBSan, leak detection, owned-buffer failure checks, bounded seeded
-  fuzzing, declarations and portable browser module checks.
-- Separate packages packed once, then installed offline into empty consumers
-  on Linux, Windows and macOS. No Cheerio or install scripts are needed.
+## Verification
 
-Actions are pinned to commit IDs. Dependabot groups monthly action updates into
-one PR. Node declarations stay on major 22; TypeScript stays on major 6 until the
-type-check scripts support its replacement for the `typescript/bin/tsc` entry.
-Pull requests receive no release credentials; default token permissions are
-read-only. A diagnostic benchmark runs on shared CI hosts; its timing ratios do
-not gate releases. Output mismatches, setup failures and insufficient samples
-fail verification. Hosted release verification passed for experimental 0.1.1,
-and both npm packages are published at that version. Reported Firefox 150 and
-Chromium 140 [demo measurements](benchmarks.md#011-release-measurements) supplement
-the portable checks. Separate [correctness-page runs](testing.md#reported-browser-runs)
-pass the selected suite in both browsers; WebKit and broader browser API coverage
-remain unqualified.
+CI and releases share `verify.yml`. Its eleven jobs cover two builds, sanitizers,
+package assembly, five OS/Node groups, a diagnostic benchmark and the final gate:
 
-Verification uses eleven runner jobs: two builds, one sanitizer job, package
-assembly, five OS/Node test groups, one benchmark and the final gate. Linux groups
-cover Node 22.0.0, 22 and 24; Windows and macOS each use one Node 24 job. Grouping removes
-duplicate runner setup without dropping the ten runtime configurations or four
-packaged-install configurations. Each runtime configuration runs in a fresh
-process. All checks in a group are attempted, and any failure fails the job.
-Runtime checks still run if packaging fails; a runtime failure does not skip
-available package-install checks.
-The identical Node 22 declaration check runs once; both fuzz backends retain
-their 200 cases. npm caches only downloaded packages, keyed by the lockfile;
-dependency installation still uses `npm ci`, and binaries are rebuilt every run.
+- Fingerprint-verified Lexbor and SHA-256-verified WASI SDK 25 libraries. Hosted
+  Wasm uses Ubuntu 24.04/Clang 19; native uses Ubuntu 22.04/Clang 15. Local scripts
+  use existing tools and install no compilers.
+- Full Linux tests on Node 22.0.0 and maintained Node 22/24, all Wasm heaps,
+  plus pooled Wasm on Windows/macOS with Node 24. Each runtime gets a fresh process.
+- Native ASan/UBSan, leaks, owned-buffer failures, 200 seeded cases per backend,
+  64 sanitized cases, standalone declarations and portable browser graph checks.
+- Packages packed once and installed offline into empty consumers. Installed
+  contracts cover XML, callbacks, handles, disposal and caller-managed workers.
 
-For local validation, configure existing build directories, `TMPDIR` and
-`GROVEDOM_FUZZ_DIR` as described in [setup](prototype.md), then run:
+All checks in a group are attempted; a failure fails the job. Runtime checks can
+run after packaging failure, and failed runtime checks do not skip available
+package checks. Binaries rebuild each run; npm caches only downloaded dependencies
+by lockfile. The Node 22 declaration check runs once. Actions use pinned commits;
+Dependabot groups monthly updates. Node types stay on major 22 and TypeScript on
+major 6 until the checker supports a changed compiler entry point.
+
+Default token permissions are read-only, and pull requests receive no release
+credentials. CI timing has no speed threshold; output mismatches, setup failures
+or insufficient samples fail verification. Hosted 0.1.1 verification, later
+[reported CI status](testing.md#reported-012-ci-passes), local qualification and
+[actual-browser results](testing.md#reported-browser-runs) have separate scopes.
+
+For local verification, configure builds and disk-backed temporary/cache/fuzz
+outputs as in [setup](prototype.md), then choose a new output directory:
 
 ```sh
 npm run ci:pack -- ./build/release
 npm run ci:test -- all-heaps both ./build/release/tarballs
 ```
 
-`all-heaps` requires Linux native artifacts. Use `portable wasm` instead for a
-pooled-Wasm-only check. The local command uses the current Node version; it does
-not substitute for the other OS/runtime jobs.
+`all-heaps` needs Linux native artifacts; `portable wasm` checks pooled Wasm only.
+This runs the current Node version, not the entire hosted matrix.
 
 ## Packages and platform scope
 
-Keep the source workspace private. Normal package assembly preserves
-`private: true`. `npm run ci:pack -- OUTPUT` uses the explicit `--publishable`
-assembly mode, checks release artifacts and standalone types, and creates:
+The source workspace remains `private: true`. `ci:pack` explicitly assembles
+publishable copies, checks binaries and standalone types, then packs:
 
 | Package | Artifact and scope |
 |---|---|
 | `grovedom` | Wasm-first Node package and best-effort async browser entry; the same binary for both |
 | `grovedom-native` | Optional Linux x64/glibc binary, built on Ubuntu 22.04; glibc 2.35 or later |
 
-The native manifest restricts OS, CPU and libc. ARM64, musl/Alpine, Windows and
-macOS native builds are not shipped. Use the main Wasm package there. Building
-locally on a newer system does not produce the CI native compatibility baseline.
-Published **0.1.0** and **0.1.1** remain immutable. Both source manifests and the
-root lockfile now target **0.1.2 (unreleased)**, matching the Release workflow's
-default version and the new changelog entry. CI reads the current version from
-package metadata; its published comparison continues to use npm `latest`.
-The Pages default stays at published **v0.1.1** until another release is available.
-Update both manifests, the lockfile, changelog and Release default together when
-starting the next development version. A version bump does not publish a release.
+The native manifest restricts OS, CPU and libc; no ARM64, musl, Windows or macOS
+addon is shipped. A local build on a newer system does not establish the hosted
+native compatibility floor. Both packages have no runtime or peer dependencies.
+The [package READMEs](../packages/wasm/README.md) and [native guide](../packages/native/README.md)
+are copied into their tarballs.
 
-The **0.1.1 release is a compatibility bug-fix patch**. Public exports,
-initialization, runtime requirements and ownership rules match 0.1.0. Observable
-corrections include array extraction and its TypeScript result inference; code
-that relied on those earlier results may need adjustment. The
-[changelog](../CHANGELOG.md#011) lists the corrections and performance limits. During
-0.1 development, deliberate incompatible API changes require 0.2.0. Release
-preflight requires a nonempty, unique changelog entry matching the committed version.
+Versions 0.1.0 and 0.1.1 are immutable. Update both manifests, lockfile, changelog
+and Release default together for a new development version. Preflight requires a
+unique, nonempty changelog entry matching the committed version. Deliberate
+incompatible API changes during 0.1 development require 0.2.0; compatibility fixes
+can still correct observable results and types, as documented for [0.1.1](../CHANGELOG.md#011).
+Never run `npm publish` from the source checkout.
 
-Offline installation checks verify hashes, package versions and the source commit
-before invoking npm. The installed Node, browser and native entries then run the
-same public-contract cases as the source suite, including XML, callbacks, retained
-handles and disposal. Caller-managed workers import the installed packages while
-parent documents stay live. These checks use no Cheerio or runtime dependencies.
+## Release a reviewed commit
 
-## First npm publish
+1. Push the reviewed commit to `main` and verify CI. Configure GitHub `npm` and
+   `release` environments for `main`; required reviewers are recommended. Branch
+   protection should require the reusable workflow's `gate` status.
+2. Dispatch **Actions → Release** on `main` with the committed version,
+   `npm_packages: none|wasm|both`, `npm_tag: latest|next`, and `npm_auth: oidc|token`.
+   Prerelease versions require `next`. The default `none` creates a GitHub release
+   with artifacts but makes no npm publication.
+3. Approve configured environment deployments. The workflow rebuilds and verifies
+   the selected commit before consuming its tested tarballs for publication.
 
-npm has no **Create package** button. A successful first `npm publish` creates
-the package named in its manifest. GitHub repository ownership does not reserve
-an npm name. Sign in to npm, verify your email, enable 2FA, and ensure that your
-account can publish the unscoped names `grovedom` and, optionally, `grovedom-native`.
-Name availability is decided by npm at publication time.
-
-1. Push the reviewed workflows to the repository's default `main` branch and
-   wait for CI to pass. Workflow dispatch appears under **Actions → Release**.
-2. In GitHub **Settings → Environments**, create `npm` and `release`. Restrict
-   deployment branches to `main`; required reviewers are recommended. Set the
-   branch protection required status to the reusable workflow's `gate` job after
-   its first run makes the exact check name available.
-3. For the first publication, create an npm granular access token with package
-   read/write access that permits creating these packages. A token restricted to
-   existing selected packages cannot bootstrap a new name. Automated token
-   publication needs npm's bypass-2FA capability; use a short expiry and revoke
-   the bootstrap token after trusted publishing works. Store it as **NPM_TOKEN**
-   in the GitHub **npm environment**, never in the repository.
-4. Run **Release** on `main` with the committed version, `npm_packages: wasm` (or `both`),
-   `npm_tag: latest`, and `npm_auth: token`. Approve environment deployments if
-   reviewers were configured. The workflow builds and tests before publication.
-
-The default `npm_packages: none` creates a GitHub release with tarballs and
-checksums, without publishing to npm. A dispatch authorizes the selected release
-actions; a push or pull request alone never publishes. The workflow does not
-alter versions, create npm accounts, reserve names or configure external settings.
+A dispatch authorizes its selected actions. It does not change versions, reserve
+package names, create accounts or configure external settings.
 
 ## Trusted publishing after bootstrap
 
-On npm, open each published package's **Settings → Trusted publishing**, choose
-GitHub Actions and configure:
+Configure each npm package under **Settings → Trusted publishing**:
 
 | Field | Value |
 |---|---|
@@ -128,90 +93,67 @@ GitHub Actions and configure:
 | Workflow filename | `release.yml` |
 | Environment | `npm` |
 
-Use the publishing workflow filename, not `verify.yml`. Each package needs its
-own configuration. Future releases select `npm_auth: oidc`; the workflow grants
-`id-token: write` only to the npm job and uses a pinned npm CLI with OIDC support.
-New versions need no npm token; publishing requests provenance and sets the
-selected dist-tag. See npm's [trusted publisher documentation](https://docs.npmjs.com/trusted-publishers/).
+Use `release.yml`, not `verify.yml`. With `npm_auth: oidc`, only the npm job gets
+`id-token: write`; the pinned npm CLI requests provenance and sets the selected
+dist-tag without a token. See [npm's documentation](https://docs.npmjs.com/trusted-publishers/).
 
-Versions such as `0.1.1-alpha.1` require `npm_tag: next`; they create GitHub
-prereleases. Source manifests remain private even when generated tarballs are
-publishable. Do not run `npm publish` from the source checkout.
+## First npm publish
+
+Both GroveDOM names already exist. For a new package, the first successful publish
+creates the name; GitHub ownership does not reserve it. Verify the npm account's
+email, 2FA and name permissions. A granular bootstrap token must permit package
+creation, read/write access and automated bypass-2FA; a token restricted to existing
+packages cannot create a new name. Store a short-lived token as **NPM_TOKEN** in
+the GitHub **npm environment**, select `npm_auth: token`, then revoke it after
+trusted publishing works. No token belongs in the repository.
 
 ## Artifacts and retries
 
-`npm-tarballs` contains both packages, `SHA256SUMS` and `release.json` recording
-the source commit and npm integrity values. Publishing consumes those tested
-tarballs without rebuilding or running lifecycle scripts. The GitHub publication
-job requires successful validation, successful requested npm publication, and an
-uncancelled workflow. A skipped npm job qualifies only when `npm_packages: none`
-was selected.
+`npm-tarballs` contains both `.tgz` files, `SHA256SUMS` and `release.json` with the
+source commit and npm integrity values. Offline installs verify these before npm.
+Publishing uses the same bytes without rebuilding or running lifecycle scripts.
+GitHub publication requires successful validation, requested npm publication and
+an uncancelled workflow; skipped npm qualifies only for `npm_packages: none`.
 
-Publishing two packages is not atomic. If one succeeds and the other fails,
-rerun the failed jobs to reuse the same artifacts. An existing npm version is
-accepted only if its integrity matches exactly; different bytes fail rather than
-overwriting or silently skipping. An identical version with the requested tag
-already set needs no registry write. With the pinned npm 11.6.2 CLI, changing an
-existing version's dist-tag requires `npm_auth: token`. The publisher checks this
-before writing any selected package, so an OIDC retry that needs retagging fails
-before publishing its companion package. An existing Git tag must identify the
-same commit. npm versions are immutable; if source or artifacts need changing,
-commit a new version instead.
+Two-package publication is not atomic. Rerun failed jobs with the same artifacts.
+An existing npm version must have identical integrity; mismatching bytes fail.
+An already-correct dist-tag needs no write. With npm 11.6.2, changing an existing
+version's tag requires `npm_auth: token`; OIDC preflight detects that before
+publishing either companion. Existing Git tags must resolve to the tested commit.
+If source or artifacts change, use a new version.
 
-GitHub publication uses the official [GitHub CLI](https://cli.github.com/manual/gh_release_create)
-already installed on hosted runners. `GH_TOKEN: ${{ github.token }}` authenticates
-it with the job's `contents: write` permission; no interactive login or personal
-GitHub token is needed.
+GitHub publication uses the hosted `gh` CLI with `GH_TOKEN: ${{ github.token }}`
+and job-scoped `contents: write`. New releases send all four assets in one
+`gh release create`: the CLI uploads to a temporary draft and publishes its ID,
+with possible draft cleanup on failure. Existing drafts/partial releases are
+verified before missing assets are added; existing files are never overwritten.
+Lightweight and annotated tags are resolved to commits. Resumed drafts receive
+the version's prerelease status; an inconsistent published status fails preflight.
 
-New releases pass all four assets to one `gh release create` command. The CLI
-creates a temporary draft, uploads the assets, then publishes using that release's
-ID. It may clean up its temporary draft on failure. Existing drafts and partial
-manual releases are verified before missing assets are uploaded, without
-overwriting existing files. Tag verification resolves lightweight and annotated
-Git tags to the tested commit; `target_commitish` alone can be a branch name.
-Resumed drafts get the prerelease status implied by their version. An already
-published release with inconsistent prerelease status fails verification before
-npm publication.
-
-If npm succeeded but GitHub publication failed, the npm version stays published.
-For a manually completed GitHub release, attach both tested `.tgz` files,
-`SHA256SUMS` and `release.json` from that run's `npm-tarballs` artifact. Do not
-rebuild or republish the same npm version from a newer commit.
+If npm succeeds but GitHub fails, npm remains published. Retry GitHub or attach
+the original four tested assets manually. Do not rebuild or republish that npm
+version from a newer commit.
 
 ## Browser demo on GitHub Pages
 
-In **Settings → Pages → Build and deployment**, select **GitHub Actions** as the
-source. The `github-pages` environment must allow deployments from `main` and
-release tags (`v*`), since the workflow supports both manual and release events.
-No additional token or npm credentials are needed: the official Pages actions
-use `GITHUB_TOKEN` and a deployment OIDC token. The repository's normal Pages
-URL is <https://website-local.github.io/grovedom/>.
+In GitHub **Settings → Pages**, choose **GitHub Actions**. Allow `main` and `v*`
+in the `github-pages` environment. Official Pages actions use `GITHUB_TOKEN` and
+deployment OIDC; no npm token is needed. The site is
+<https://website-local.github.io/grovedom/>.
 
-Run **Actions → Browser demo → Run workflow** on `main` with a published tag;
-the default is `v0.1.1`, which the hosted demo currently serves. The release must
-contain its original two `.tgz` files,
-`SHA256SUMS` and `release.json`. A newer CI artifact with the same package version
-is not a replacement: commit and checksum verification must match the release.
-
-Publishing a release through the UI triggers the same workflow, including
-prereleases. The **Release** workflow calls it directly after successful GitHub
-publication, reusing that run's tested tarballs. This explicit call is necessary
-because releases created with `GITHUB_TOKEN` do not start release-event workflows.
+Dispatch **Actions → Browser demo** with a published tag (default `v0.1.1`).
+Its release must contain the original two tarballs, checksums and `release.json`;
+a newer CI artifact with the same version cannot replace them. UI release events
+also trigger Pages, including prereleases. **Release** calls Pages directly after
+GitHub publication because `GITHUB_TOKEN` events do not trigger another workflow.
 Pushes and pull requests never deploy Pages.
 
-Assembly checks the tagged source commit and tarball hashes, copies the demo from
-that tag, and serves the matching packaged JS and Wasm. Relative URLs support the
-repository's `/grovedom/` path and custom domains. Only the demo and Wasm package
-are uploaded, including their licenses. No compiler, npm install, native rebuild
-or benchmark runs in this workflow. Normal/fallback portable checks exercise the
-packaged browser graph before deployment; actual browser engines remain best-effort.
-These checks load the selected tag's test fixtures and any release-specific
-portable regressions, so an older release is checked against its own documented
-expectations. Resolved historical expected failures still require review.
+Assembly verifies commit/hashes and copies the tagged demo, matching JS/Wasm and
+licenses. It uploads only the demo and Wasm package, using relative URLs for
+subpaths/custom domains. There is no compiler, install, native build or benchmark.
+Portable normal/fallback checks use that tag's own fixtures before deployment;
+actual browser support remains best-effort.
 
-Deployments are serialized without cancelling an active deployment. The selected
-release replaces the site, so manual selection of an older tag intentionally
-rolls it back. If Pages deployment fails, npm and the GitHub release remain
-published; rerun the failed job or dispatch **Browser demo** for that tag without
-releasing again. The Pages settings above are required when configuring a new
-deployment environment.
+Deployments are serialized without cancelling an active one. Selecting an older
+tag rolls the site back. A failed Pages deployment leaves npm and GitHub releases
+intact; rerun it or dispatch that tag again without releasing another version.

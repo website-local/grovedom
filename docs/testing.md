@@ -1,9 +1,8 @@
 # Correctness tests
 
-`npm test` runs deterministic Node tests against the backend selected by the
-developer-only configuration in [setup](prototype.md). No network, browsers or
-benchmark timings are needed for the unit suite. Every loaded document is
-disposed after its case, including failures.
+`npm test` runs deterministic Node tests against the backend selected in
+[setup](prototype.md#checks). The unit suite needs no network, browser or timing
+run. Cases dispose their documents, including on failure.
 
 | Source | What is checked |
 |---|---|
@@ -13,250 +12,166 @@ disposed after its case, including failures.
 | GroveDOM regressions | Buffered observations, callbacks, handles/disposal, worker ownership, Wasm growth/pools, options, faults and standalone declarations |
 | Balanced generated corpus | 48 seeded HTML/XML/SVG inputs covering width, depth, Unicode, long values, namespaces, malformed input, templates, forms and retained selections |
 
-[Cheerio/jQuery selection](../test/upstream/README.md) and
-[WPT selection](../test/web-platform/README.md) identify exact sources, licenses,
-adaptations and exclusions. Imported WPT expectations are fixed upstream data;
-they are not calculated by GroveDOM or Cheerio during the run. Parser assertions
-also check reciprocal parent/sibling links and stable handle identity.
+The [Cheerio/jQuery](../test/upstream/README.md) and [WPT](../test/web-platform/README.md)
+manifests identify sources, licenses, adaptations and exclusions. Imported WPT
+assertions are fixed upstream data. Independent tree checks verify reciprocal
+links, acyclic structure and stable handle identity; exclusions do not count as passes.
 
 ## Current qualification
 
+The 2026-10-24 pre-release review retains the 0.1.2 read-path runtime and its
+matching C artifacts. Each full configuration runs **2,505 cases**:
+
+| Configuration | Node | Pass / exclusions | Verification |
+|---|---|---:|---|
+| Native | 22, 24 | 2,446 /59 | Read-path checkpoint; unchanged runtime |
+| Pooled Wasm | 22, 24 | 2,454 /51 | Read-path checkpoint; unchanged runtime |
+| Global Wasm | 22 | 2,450 /55 | Fresh pre-release run |
+| Per-document Wasm | 22 | 2,451 /54 | Fresh pre-release run |
+| Native ASan/UBSan | 22 | 2,446 /59 | Fresh pre-release run with leak detection |
+
+Fresh checks also pass 1,000 seeded cases each on native/pool, 64 sanitized
+cases, and 105 owned-buffer growth-failure recoveries. All four 120-cycle /
+2,430-lifetime authored memory budgets pass with custom inputs disabled; final
+tracked live/control bytes are zero. No sanitizer findings, unexpected failures,
+cancellations or TODOs occur in these runs. This is bounded verification, not a
+proof of arbitrary-input safety or universal allocation-failure recovery.
+
+Fresh offline Node 22/24 installs pass public contracts and caller-managed worker
+checks. All 69 packaged files match both installations; source and standalone
+package declarations pass. Packaged portable normal/fallback paths each pass
+810 cases with 35 exclusions plus release contracts on both Node versions.
+All 93 release checks pass on each version. These portable runs use Node, not
+actual browser engines.
+
+The [source review](source-audit.md) covers ownership, reentrant coercions,
+mutation recovery, snapshots and transport lifetimes. No new release-blocking
+defect was found within this scope. Final hosted artifacts must be rebuilt and
+verified from the final release commit through the [manual workflow](releasing.md).
+
+The previous API checkpoint's 1,544 consumer comparisons cover 193 scenarios,
+two preserved engine snapshots and four backends. They do not qualify the current
+development consumer, production input weights or a complete crawl.
+[Performance limits](benchmarks.md) remain independent of correctness results.
+
 ### 0.1.2 read-path follow-up
 
-The **2,505-case suite** passes on Node 22 and 24: native has **2,446 passes /
-59 exclusions**, and pooled Wasm has **2,454 /51**. Seventeen added cases cover
-first-element versus aggregate reads, duplicate/reordered selections, pending
-writes, empty results, raw child snapshots and identity, templates, XML, nested
-wrapping callbacks and disposal. A size-scaling check verifies bounded getter
-operands without narrowing aggregate text.
-
-Focused global and per-document Wasm checks each pass 52 cases on Node 22.
-Source/package declarations and fresh offline Node 22/24 installations pass;
-all 69 packaged files match the server candidate. Installed Node, browser and
-native entries also match all four read-fixture outputs. Packaged portable
-normal/fallback checks each pass 810 cases with 35 exclusions and release
-contracts under Node; these are not new browser-engine runs.
-
-The C artifacts are unchanged. The preceding sanitizer, fuzz and fixed memory
-budget results below retain their original qualification scope. The
-[remote confirmations](benchmarks.md#012-read-paths-and-remote-comparisons)
-include incomplete panels and control drift, independently of these correctness
-passes. Final hosted release artifacts still require the manual workflow.
+Seventeen regressions cover first-element versus aggregate reads, pending writes,
+duplicate/reordered selections, empty results, raw-child snapshots, XML/templates,
+wrapping callbacks and disposal. The
+[original matrix, package and fixture checks](history/testing.md#012-read-path-follow-up)
+retain their checkpoint scope.
 
 ### Reported 0.1.2 CI passes
 
-The user reported passing CI on 2026-10-22 for `71db6d3` (fragment/load/child/form
-fixes) and `654c9b9` (API optimizations). This records hosted CI status for both
-implementation checkpoints. The local matrices below retain their own scope;
-CI logs and artifact hashes were not supplied for independent inspection.
+CI was reported passing for `71db6d3` and `654c9b9`; logs and artifact hashes were
+not supplied for independent inspection. Their
+[reported scope](history/testing.md#reported-012-ci-passes) and
+[benchmark rows](history/development-benchmarks.md#012-reported-ci-runs) remain separate.
+The later `c807bdb` benchmark receipt does not confirm every CI job.
 
-The supplied [Wasm summaries](benchmarks.md#012-reported-ci-runs) compare each
-candidate with published 0.1.1. CI has no speed threshold, so its pass status does
-not establish full-scope non-regression or adoption. Fresh artifacts from the
-[manual release workflow](releasing.md) and broader actual-browser qualification
-remain separate requirements.
-
-### 0.1.2 API optimizations
-
-The full **2,488-case suite** passes after batching static `until` traversals,
-reusing live attribute snapshots, adding scalar containment and reducing handle
-and input-transfer allocations:
-
-| Backend | Node versions | Pass / exclusions |
-|---|---|---:|
-| Native | 22, 24 | 2,429 /59 |
-| Pooled Wasm | 22, 24 | 2,437 /51 |
-| Global Wasm | 22 | 2,433 /55 |
-| Per-document Wasm | 22 | 2,434 /54 |
-
-Forty-seven added cases cover stop-selector and duplicate-filter semantics,
-callbacks that remove, insert, replace or move nodes on all three traversal axes,
-live attribute writes during enumeration, prototype names, nested coercions,
-containment, disposal, wide transfers and fragment boundaries. They also correct
-a pre-existing callback traversal defect: later visits now follow links changed
-by earlier callbacks. Shared cases reach installed and portable entries.
-
-Native ASan/UBSan passes 2,429 cases with 59 exclusions, leak detection and no
-findings. Owned-buffer checks recover from 105 failed growth requests, including
-`until` result/ID growth; mark rollover, stop-node visibility and kernel containment
-without ID allocation are checked separately. Native and pool each pass 1,000 seeded cases
-in both execution modes, and 64 sanitized cases pass. Source and isolated package
-declarations pass.
-
-All 1,544 comparisons match fresh Cheerio output/events across 193 scenarios,
-two preserved engine snapshots and four backends. These snapshots do not qualify
-current production. Four 120-cycle / 2,430-lifetime authored memory budgets pass
-with custom inputs disabled. Offline Node 22/24 installs, shared public contracts
-and caller-managed workers pass; packaged portable normal/fallback paths each
-pass 810 cases with 35 exclusions plus release contracts. There are no unexpected
-failures, cancellations or TODOs in these completed correctness checks.
-
-The artifact audit verifies the saved logs, source/artifact pairing and all
-69 packaged files against both offline installations. Sixteen shared correctness
-checks also pass on the separate Node 24 measurement server. Fresh hosted release
-artifacts and broader browser qualification remain required; the independent
-[timing limits](benchmarks.md#012-api-optimizations) are not correctness failures.
-
-### 0.1.2 fragment, load, child and form fixes
-
-The preceding 2,441-case matrix, sanitizer, faults, consumer replays, packages
-and resource checks pass. [Checkpoint details](history/testing.md#012-fragment-load-child-and-form-fixes)
-include the 130,000-field form and failed-load ownership checks.
-
-### 0.1.2 insertion, traversal and ownership review
-
-The preceding 2,427-case matrix, sanitizer, fuzzing, consumer and package checks
-pass. [Checkpoint details](history/testing.md#012-insertion-traversal-and-ownership-review)
-retain the insertion-hang reproducers and ownership scope.
-
-### 0.1.2 initialization follow-up
-
-Thirteen initialization tests and the focused 92-case lifecycle scope pass;
-later full matrices include them. [Checkpoint details](history/testing.md#012-initialization-follow-up)
-record package, retry and reentrancy qualification.
-
-### 0.1.1 full matrix
-
-Released 0.1.1 passes its 2,394-case local suite and the hosted release matrix.
-[Historical counts and checks](history/testing.md#011-full-matrix) remain separate
-from current development and the reported browser runs below.
+<a id="012-api-optimizations"></a>
+<a id="012-fragment-load-child-and-form-fixes"></a>
+<a id="012-insertion-traversal-and-ownership-review"></a>
+<a id="012-initialization-follow-up"></a>
+<a id="011-full-matrix"></a>
+Earlier API, fragment/load/child/form, insertion/ownership, initialization and
+0.1.1 matrices are in [checkpoint history](history/testing.md).
 
 ## Browser entry
 
-`test/browser-correctness.html` runs the same 845 WPT-derived cases through async
-browser initialization. Serve the workspace over HTTP with the Wasm file also
-available, then open `test/browser-correctness.html?wasm=../assets/grovedom.wasm`.
-The URL must satisfy browser CORS rules. The local server accepts `.mjs` and JSON:
+Serve the workspace and matching Wasm over HTTP, then open
+`test/browser-correctness.html?wasm=../assets/grovedom.wasm`:
 
 ```sh
 node scripts/serve-demo.mjs . 8080
 ```
 
-The page reports passes, unexpected failures, exclusions and known failures
-separately. It performs no benchmark or CDN request. A resolved known failure
-requires review rather than silently passing under an old exemption.
+The page runs the selected 845 WPT-derived cases through async initialization
+and reports passes, failures, exclusions and known failures separately. It
+makes no benchmark or CDN request. A resolved known failure requires review.
 
 ### Reported browser runs
 
-The Firefox 150 and Chromium 140 results supplied on 2026-10-17 match the
-0.1.1 correctness suite:
+The supplied 2026-10-17 results match the 0.1.1 suite; binary hashes were not supplied:
 
 | Browser | Passed | Failed | Skipped | Known failures |
 |---|---:|---:|---:|---:|
 | Firefox 150 | 810 | 0 | 35 | 0 |
 | Chromium 140 | 810 | 0 | 35 | 0 |
 
-These are user-reported executions; browser-run binary hashes were not supplied.
-A static audit confirms that both skip lists match the pinned 0.1.1 manifests.
-The 845 cases comprise 721 selector cases, 68 escape cases and 28 additional DOM
-cases in buffered/direct modes. The 35 skips are 33 documented selector
-scope/compatibility exclusions and two lone-surrogate escape cases, leaving
-810 eligible cases and no known failures.
-
-This qualifies the selected DOM transformations through the browser ESM entry.
-It does not cover the complete public API or all WPT tests. WebKit and broader
-API/fallback coverage on actual browser engines remain unqualified, so browser
-support stays best-effort. Layout, events and script execution are outside the
-GroveDOM contract.
+Both skip lists match the pinned manifests. The 845 cases comprise 721 selector,
+68 escape and 28 additional DOM cases in both execution modes. The 35 skips are
+33 scope/compatibility exclusions and two lone-surrogate escapes. These selected
+transformations do not cover the entire API, WebKit or broader browser fallback
+behavior; browser support remains best-effort.
 
 ### Portable checks
-
-For a portable module-graph check without a browser engine:
 
 ```sh
 node --experimental-vm-modules test/browser-sandbox.mjs
 GROVEDOM_BROWSER_FALLBACK=1 node --experimental-vm-modules test/browser-sandbox.mjs
 ```
 
-These checks run under Node without Node globals in the browser module context.
-They cover normal and fallback paths separately from the reported browser-page
-runs and the benchmark demo's output comparisons.
-
-For a historical Pages package, the optional arguments are `PACKAGE_ROOT TEST_ROOT`.
-The workflow supplies the selected release's `test` directory, preserving its
-own fixtures and known-failure guards. Published 0.1.0 reproduces 814 passes,
-32 exclusions and two documented expected failures; applying today's fixtures
-to that older binary would misclassify its known Unicode limitation.
+These run under Node with no Node globals in the browser module context. They
+exercise the portable graph, not a browser engine. Optional `PACKAGE_ROOT TEST_ROOT`
+arguments select a package and its matching fixtures. Historical Pages releases
+must use their own assertions: 0.1.0 has 814 passes, 32 exclusions and two known
+failures, unlike the current suite.
 
 ## Additional checks
 
-Types and isolated package imports require no Cheerio declarations. Sanitizer and
-owned-buffer failure commands are in [setup](prototype.md); keep raw reports and
-local paths outside Git. [Source-audit regressions](source-audit.md) cover
-callbacks/coercion, lazy data, class spacing, traversal, fragment roots and XML
-references. Foreign-content, template/select parsing, Unicode/token boundaries,
-serializer quoting, command-buffer bounds, handles, disposal and worker cases
-check successful outputs and tree/ownership invariants.
+[Setup](prototype.md#checks) covers standalone declarations, separate sanitizer
+builds and owned-buffer fault injection. Fault tests recreate the document for
+each countdown, then check retries, another live owner and idempotent disposal.
+They cover input/transfer/output/result growth, query mark rollover, fragment-parent
+restoration, scoped ordering, child IDs and `until` traversal. They do not inject
+every Lexbor or host allocation failure.
 
-Owned-buffer fault tests recreate the document for every allocation countdown,
-then verify retry, other live owners and disposal. HTML/XML query/serialization
-sweeps cover 28 failed growth requests; XML-output sweeps cover 14 more in
-encoded/raw modes. Multi-root queries recover from twelve failed growth requests
-across HTML/XML and plain/scoped selectors; template scope unions cover two more.
-Generation rollover and fragment-parent restoration are checked on retries.
-Scoped-ordering scratch adds three failed-growth recovery checks across HTML,
-XML and templates, verifying that ordering registers no additional nodes and
-leaves subsequent queries usable.
-First/last-child reads add four HTML/XML ID-growth failure checks, verifying retry,
-stable identity and allocation-free empty-child results.
-These checks do not cover every upstream allocation or prove universal
-out-of-memory recovery. Dependency tests reject modified inputs, patches and
-cached trees without modifying the supplied upstream source.
+[Memory budgets](memory.md#verification-scope) require the authored corpus;
+custom manifests disable the fixed budgets. Dependency tests verify upstream,
+patch and cached-tree fingerprints without changing the supplied upstream tree.
+Mock release commands omit sanitizer preload because they load no addon; native
+DOM and worker checks retain it. Fault checks still run after a failing sanitizer
+suite if the build succeeded. [CI](releasing.md) also checks artifact integrity
+and publication failures using mock commands without registry credentials.
 
 ## Broader corpus follow-up
 
-The [balanced generator](../bench/balanced-fixtures.mjs) creates sixteen families
-in each of HTML, XML and SVG with fixed seeds. The
-[workload](../bench/corpus-workload.mjs) checks serialization, 27 selectors, raw
-attributes/relations, traversal, callback observations, seeded edits, retained
-snapshots and disposal. Four malformed XML/SVG inputs check rejection/lifecycle
-safety separately from successful output comparisons.
+The [balanced generator](../bench/balanced-fixtures.mjs) supplies sixteen families
+in each of HTML, XML and SVG. The [workload](../bench/corpus-workload.mjs) checks
+serialization, 27 selectors, raw relations, callbacks, seeded edits and retained
+snapshots. Four malformed XML/SVG inputs check rejection/lifecycle safety.
 
-A private convenience sample preserves 48 public HTTP responses from 50 fixed
-requests, including redirects and error/challenge bodies. Two transport failures
-had no replacement requests; one duplicate body pair is retained. The sample
-contains no MDN pages and is not a random web or validated production distribution.
-Original response data, decoded inputs and local reports remain outside Git.
+The separate private convenience sample preserves 48 public responses from
+50 fixed requests: no replacements for two transport failures, with redirects,
+error/challenge bodies and one duplicate body pair retained. It contains no MDN
+pages and is not a representative production distribution. The combined 96-input
+check has 92 exact matches and four explicit rejections on native, every Wasm heap
+and the portable Node entry, including native sanitizer and direct-mode checks.
 
-The offline [checker](../bench/check-corpus.mjs) reads an `entries` array containing
-`id`, `group`, `mode` (`html`/`xml`/`svg`), a relative UTF-8 `file`, `sha256`, and a
-deterministic `seed` or explicit `operations`. It fetches nothing:
+The offline [checker](../bench/check-corpus.mjs) fetches nothing. Its manifest
+`entries` contain `id`, `group`, `mode` (`html`/`xml`/`svg`), relative UTF-8 `file`,
+`sha256`, and deterministic `seed` or explicit `operations`:
 
 ```sh
 node --expose-gc bench/check-corpus.mjs \
   --manifest=./corpus/manifest.json --out=./reports/corpus.json
 ```
 
-Backend/heap settings follow [setup](prototype.md). Mismatches/exceptions return
-exit 2; reports retain phase hashes and lifecycle counters. The 96-input follow-up
-has **92 exact matches and four explicit malformed-input rejections** on native,
-all Wasm heaps and the portable entry under Node, with native sanitizer checks.
-Direct-mode replays are checked separately. Reduced tests retain structural
-sibling counting, explicit template-root and until-callback fixes exposed by
-these inputs. [Performance outcomes](history/performance-review.md) remain separate.
+Mismatches/exceptions exit 2; reports preserve phase hashes and lifecycle counters.
+Raw inputs and local reports remain outside Git.
 
 ## Seeded fuzzing
 
-`test/fuzz.mjs` separates deterministic generation and execution in `test/fuzz/`.
-Each valid case compares both buffered and direct execution with Cheerio, including
-multi-node callbacks, deliberate callback exceptions, queued writes, retained
-selection membership and observations after later edits. An independent traversal
-checks acyclic, reciprocal parent/sibling links and stable child identity.
-HTML/XML, foreign content, select and template cases are included by default.
-Every ninth generated input is corrupted for safety checks; successful parses
-must retain tree invariants, and rejected inputs must leave subsequent documents
-usable. Malformed recovery is not compared with Cheerio.
+`npm run test:fuzz` compares buffered/direct execution with Cheerio and checks
+callbacks, partial effects, queued writes, retained selections and tree invariants.
+Every ninth generated input is corrupted for safety checks; malformed recovery is
+not compared with Cheerio. Rejected inputs must leave later documents usable.
+Version 3 also covers repeated existing-node arrays/selections, duplicate traversals
+and foreign contexts using GroveDOM's one-physical-node and ownership contracts.
 
-Version 3 cases also exercise existing-node arrays and selections for all four
-insertion positions, duplicate `contents`/adjacent traversal and foreign
-node/selection query contexts with matched and empty results. All eight input
-shape combinations are scheduled deterministically. These checks use GroveDOM's
-own one-physical-node and ownership contracts because Cheerio permits duplicate
-child references and cross-document adoption. Retained handles are compared by
-strict identity, not deep equality of wrapper objects.
-
-Set `TMPDIR` and `GROVEDOM_FUZZ_DIR` to disk-backed output directories, then run
-`npm run test:fuzz`. Developer options are:
+Set disk-backed `TMPDIR` and `GROVEDOM_FUZZ_DIR` before running:
 
 | Option | Behavior |
 |---|---|
@@ -266,21 +181,9 @@ Set `TMPDIR` and `GROVEDOM_FUZZ_DIR` to disk-backed output directories, then run
 | `GROVEDOM_FUZZ_TEMPLATES=1` | Include templates in every HTML case |
 | `GROVEDOM_FUZZ_CASE_FILE` | Replay one saved input, independently of generator state |
 
-The runner saves `active.json` before each case and `stage.json` before each
-phase/operation, so crashes leave a reproducer. Ordinary failures also save a
-named case and, for differences, full actual/expected observations. Reports
-separate requested actions from those that matched nodes, as well as safety
-cases, accepted/rejected executions and live-document/allocation counts. Older
-unversioned and version 2 case files remain replayable. These are bounded seeded checks, not
-coverage-guided fuzzing or proof that arbitrary inputs are safe.
-
-CI keeps the existing 200-case native/Wasm fuzz checks and adds 64 cases to the
-existing sanitizer job. Failing runs upload their reproducer directory; no new
-runner job or benchmark is added.
-
-[GitHub CI](releasing.md) also checks release policy and artifact integrity,
-using a fake npm executable to verify publication failures without credentials or
-registry access. Mock CLI/synthetic subprocesses omit `LD_PRELOAD` because they
-load no addon; native DOM, lifecycle and worker checks retain sanitizers and leak
-detection. Owned-buffer checks run even if the preceding suite fails, provided
-the sanitizer build succeeded.
+`active.json` and `stage.json` preserve the last input/operation if a process
+crashes. Ordinary failures save a named reproducer and actual/expected observations.
+Reports distinguish requested/matched actions, accepted/rejected safety cases and
+live allocations. Older unversioned/version 2 inputs remain replayable. CI runs
+200 cases per backend and 64 sanitized cases, uploading failures. This is bounded
+seeded testing, not coverage-guided fuzzing.

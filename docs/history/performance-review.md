@@ -283,3 +283,27 @@ analyzer-clean or memory-safety proof. The regex audit hardened overlapping
 release-pagination rescans and recursive positional-selector rescans; regressions
 and correctness checks pass, while ordinary timing controls remain inconclusive.
 See [compatibility limits](../compatibility.md) and [testing](../testing.md).
+
+## Selected writer summary
+
+The completed investigation retains the Wasm HTML opening-tag span writer and
+qualified correctness fixes. Native keeps its previous writer. Isolated Node 24
+comparisons support these workload-specific improvements:
+
+| Pooled Wasm workload | Lower p90 / p95 time | Before/current p90, 95% interval | Adjusted p |
+|---|---:|---|---:|
+| Authored HTML600 | 7.8% / 10.6% | 1.0842 [1.0574, 1.1285] | 0.0078 |
+| 44 successful seeded inputs | 4.2% / 4.5% | 1.0433 [1.0059, 1.0749] | 0.0313 |
+
+These are fixed-batch amortized replay times. Real-page timing remains incomplete.
+The selected runtime's separate twenty-panel comparison against 0.1.0 and the
+preceding candidate has **six practical median passes, one failure and thirteen
+inconclusive results**. Native HTML120 fails before/current at 0.9689 with valid
+control 0.9869. No panel satisfies every median and tail criterion.
+
+Later validator, node-kind, XML-span and XML-attribute-atom trials supply no
+supported primary gain and are not selected. The final atom trial has seventeen
+median passes and seven inconclusive panels; promising pooled seeded tails do
+not pass multiplicity correction. The compact [performance review](performance-review.md)
+preserves methods, selected-panel tables, rejected trials and unfavorable evidence.
+[Correctness qualification](../testing.md) is a separate requirement.

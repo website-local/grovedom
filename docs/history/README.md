@@ -11,6 +11,7 @@ Use [the current README](../../README.md) for setup and support status.
 - [Read-path and remote comparisons](read-performance.md)
 - [Published release measurements](release-benchmarks.md)
 - [Earlier correctness checkpoints](testing.md)
+- [Source compatibility audit history](source-audit.md)
 - [Release optimization follow-ups](release-followups.md)
 - [Isolated performance review](performance-review.md)
 - [Selector experiments](selector-experiments.md)

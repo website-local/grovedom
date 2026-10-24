@@ -294,3 +294,17 @@ Caching raw character-data kind reduces 120 repeated writes from 240 to 121
 calls; first writes to 120 distinct handles remain 240 calls.
 [Probe details](release-followups.md#relative-list-resource-correction)
 separate retained capacity from RSS, post-disposal leaks and elapsed performance.
+
+## Historical short protocols
+
+Later scoped screens use a **3% tolerance**: baseline/candidate ≥0.97 and controls
+within 0.97–1.03, for both raw and filtered estimates. Earlier closed panels keep
+their declared 2% rules. The short protocol uses the median of three group
+medians, one block per variant per group, at least three retained per group and
+ten overall. The comparisons above use four or five variants as declared.
+
+The later isolated protocol uses twelve fresh process groups, whole-process
+bootstrap intervals and family-adjusted primary p90 tests. It attempts every
+planned panel with a fixed allowance for load pauses. Secondary medians/p95 and
+operation counts cannot override a failed primary criterion. See the
+[full methods](performance-review.md#best-effort-isolated-optimizations).

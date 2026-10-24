@@ -195,3 +195,51 @@ Repeat for `global` and `document`. `GROVEDOM_MEMORY_ENTRY` selects an isolated 
 Pooled Wasm is the current primary optimization target; native remains a required comparison rather than an assumed winner. The performance panel and its limits are recorded in [benchmarks](benchmarks.md). Retain explicit disposal at the complete transform/serialization boundary, including errors. Independent caller-managed workers each own their documents; this work introduces no threads.
 
 For a portable Wasm deployment, a bounded pool offers capacity reuse while allowing idle memory to be discarded. Shared Wasm has lower aggregate capacity in this mixed workload but retains its high-water mark. Fresh heaps provide simple isolation and drop library ownership promptly, with repeated instantiation costs and GC-dependent physical reclamation. Keep all three as measured experiments for now; this pass changes the idle-slot default but does not select a shipping backend or change initial-memory/stack sizes.
+
+## 0.1.2 lifecycle checkpoints
+
+After the architecture split, four fixed-budget 24-cycle runs passed with zero
+final live/control bytes. These shorter runs do not replace the earlier
+120-cycle evidence. Fresh and trimmed-pool capacity returned to zero; shared
+memory retained its high-water capacity.
+
+The relative-list correction repeats all four 24-cycle authored-budget checks,
+with the custom corpus disabled, and separately checks eight sparse/dense
+query/empty/refill cycles. Both checks preserve intentionally retained handles.
+
+The 0.1.2 insertion/ownership correction repeats the longer **120-cycle run with
+2,430 document lifetimes** on all four backends, with all fixed budgets and plateau
+assertions passing:
+
+| Backend | Peak tracked backing bytes | Peak Wasm capacity | Final tracked live / control bytes |
+|---|---:|---:|---:|
+| Native | 22,521,160 | — | 0 /0 |
+| Pooled Wasm | 12,849,224 | 23,003,136 | 0 /0 |
+| Global Wasm | 12,849,224 | 14,286,848 | 0 /0 |
+| Per-document Wasm | 12,849,224 | 16,777,216 | 0 /0 |
+
+Fresh and trimmed-pool capacity returns to zero; global memory retains its
+14,286,848-byte high water for reuse. A separate repeated-input probe covers 257
+document lifetimes, 128 retained disposed selections and 6,096 edits per backend.
+Its long-lived insertion loop makes no additional backing-allocation requests
+after warmup, and final tracked live/control bytes are zero after handles are
+released. Before/current output hashes, logical calls, returned ID counts and
+backing-allocation counts match for five ordinary workloads on native and pool.
+These counters do not measure all JavaScript allocations or immediate RSS release.
+
+The subsequent fragment/load/child/form fixes repeat all four 120-cycle budgets
+with the same peaks and final zero live/control bytes shown above. A separate
+12-cycle probe replaces 1,024 children each cycle and reads one edge. Each side
+now creates **12 wrappers instead of 12,288**. Native backing capacity plateaus at
+1,671,040 bytes; pooled Wasm plateaus at 1,162,300 bytes for first-child reads and
+1,149,416 for last-child reads. These are document backing bytes, not total process
+memory. Both versions release document backing on disposal; the correction removes
+avoidable retention during the document lifetime. Ordinary output, kernel-call,
+returned-ID and backing-allocation counts match the preceding checkpoint on five
+workloads per native/pool backend.
+
+The API optimizations repeat all four 120-cycle authored budgets with the same
+peaks and final zero live/control bytes. Fresh and trimmed-pool capacity again
+returns to zero. The traversal and containment probes avoid temporary handles;
+the live attribute cache retains one map per document, so these checks still do
+not bound the total JavaScript heap.

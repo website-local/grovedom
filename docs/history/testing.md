@@ -166,3 +166,83 @@ installed/development consumer snapshot on native/Wasm; these historical snapsho
 do not qualify every downloader revision. Skips, explicit malformed-input
 rejections and policy exclusions are never counted as successful-output passes.
 Correctness/resource checks do not establish elapsed improvement or adoption.
+
+## 0.1.2 read and API checkpoints
+
+These are the checks recorded before the final pre-release review.
+
+### 0.1.2 read-path follow-up
+
+The **2,505-case suite** passes on Node 22 and 24: native has **2,446 passes /
+59 exclusions**, and pooled Wasm has **2,454 /51**. Seventeen added cases cover
+first-element versus aggregate reads, duplicate/reordered selections, pending
+writes, empty results, raw child snapshots and identity, templates, XML, nested
+wrapping callbacks and disposal. A size-scaling check verifies bounded getter
+operands without narrowing aggregate text.
+
+Focused global and per-document Wasm checks each pass 52 cases on Node 22.
+Source/package declarations and fresh offline Node 22/24 installations pass;
+all 69 packaged files match the server candidate. Installed Node, browser and
+native entries also match all four read-fixture outputs. Packaged portable
+normal/fallback checks each pass 810 cases with 35 exclusions and release
+contracts under Node; these are not new browser-engine runs.
+
+The C artifacts are unchanged. The preceding sanitizer, fuzz and fixed memory
+budget results below retain their original qualification scope. The
+[remote confirmations](../benchmarks.md#012-read-paths-and-remote-comparisons)
+include incomplete panels and control drift, independently of these correctness
+passes. Final hosted release artifacts still require the manual workflow.
+
+### Reported 0.1.2 CI passes
+
+The user reported passing CI on 2026-10-22 for `71db6d3` (fragment/load/child/form
+fixes) and `654c9b9` (API optimizations). This records hosted CI status for both
+implementation checkpoints. The local matrices below retain their own scope;
+CI logs and artifact hashes were not supplied for independent inspection.
+
+The supplied [Wasm summaries](../benchmarks.md#012-reported-ci-runs) compare each
+candidate with published 0.1.1. CI has no speed threshold, so its pass status does
+not establish full-scope non-regression or adoption. Fresh artifacts from the
+[manual release workflow](../releasing.md) and broader actual-browser qualification
+remain separate requirements.
+
+### 0.1.2 API optimizations
+
+The full **2,488-case suite** passes after batching static `until` traversals,
+reusing live attribute snapshots, adding scalar containment and reducing handle
+and input-transfer allocations:
+
+| Backend | Node versions | Pass / exclusions |
+|---|---|---:|
+| Native | 22, 24 | 2,429 /59 |
+| Pooled Wasm | 22, 24 | 2,437 /51 |
+| Global Wasm | 22 | 2,433 /55 |
+| Per-document Wasm | 22 | 2,434 /54 |
+
+Forty-seven added cases cover stop-selector and duplicate-filter semantics,
+callbacks that remove, insert, replace or move nodes on all three traversal axes,
+live attribute writes during enumeration, prototype names, nested coercions,
+containment, disposal, wide transfers and fragment boundaries. They also correct
+a pre-existing callback traversal defect: later visits now follow links changed
+by earlier callbacks. Shared cases reach installed and portable entries.
+
+Native ASan/UBSan passes 2,429 cases with 59 exclusions, leak detection and no
+findings. Owned-buffer checks recover from 105 failed growth requests, including
+`until` result/ID growth; mark rollover, stop-node visibility and kernel containment
+without ID allocation are checked separately. Native and pool each pass 1,000 seeded cases
+in both execution modes, and 64 sanitized cases pass. Source and isolated package
+declarations pass.
+
+All 1,544 comparisons match fresh Cheerio output/events across 193 scenarios,
+two preserved engine snapshots and four backends. These snapshots do not qualify
+current production. Four 120-cycle / 2,430-lifetime authored memory budgets pass
+with custom inputs disabled. Offline Node 22/24 installs, shared public contracts
+and caller-managed workers pass; packaged portable normal/fallback paths each
+pass 810 cases with 35 exclusions plus release contracts. There are no unexpected
+failures, cancellations or TODOs in these completed correctness checks.
+
+The artifact audit verifies the saved logs, source/artifact pairing and all
+69 packaged files against both offline installations. Sixteen shared correctness
+checks also pass on the separate Node 24 measurement server. Fresh hosted release
+artifacts and broader browser qualification remain required; the independent
+[timing limits](../benchmarks.md#012-api-optimizations) are not correctness failures.
