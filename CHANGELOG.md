@@ -2,6 +2,9 @@
 
 ## 0.1.3 (unreleased)
 
+- Store Wasm document owner state directly on internal handles, preserving
+  disposal and garbage-collection cleanup. Document that internals, including
+  `_state`, carry no compatibility promise even between patch releases.
 - Synchronize documentation with published 0.1.2, retain both reported CI
   benchmark summaries, and prioritize published-package consumer qualification.
 - Advance development manifests and the Release default to 0.1.3; align the

@@ -12,7 +12,7 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
     let poolBytes = 0;
     const encoder = createEncoder(), decoder = new TextDecoder();
     const empty = new Uint32Array();
-    const owners = new WeakMap();
+    const ownerScope = {};
     let observer;
     function fail(code, message) { const error = new Error(message); error.code = code; throw error; }
     function instance() {
@@ -47,8 +47,8 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
         observer?.collected(held.observation);
     }) : null;
     function owner(value, allowClosed = false) {
-        const state = owners.get(value);
-        if (!state)
+        const state = value?._state;
+        if (!state || state.scope !== ownerScope || state.handle !== value)
             fail('ERR_GROVEDOM_HANDLE', 'Invalid document owner');
         if (!state.pointer && !allowClosed)
             fail('ERR_GROVEDOM_DISPOSED', 'Document has been disposed');
@@ -133,7 +133,7 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             const runtime = shared ?? acquire(), pointer = runtime.gk_new();
             if (!pointer)
                 fail('ERR_GROVEDOM_MEMORY', 'Owner allocation failed');
-            const state = { runtime, pointer, bytes: null, words: null };
+            const state = { runtime, pointer, bytes: null, words: null, scope: ownerScope, handle: null };
             try {
                 input(state, html);
                 check(state, xmlFlags === undefined ? runtime.gk_parse(pointer, Number(scripting), Number(fragment)) : runtime.gk_parse_xml(pointer, xmlFlags));
@@ -144,8 +144,10 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
                     release(runtime);
                 throw error;
             }
-            const handle = Object.freeze({});
-            owners.set(handle, state);
+            // Internal and unstable, including across patch releases. Retaining this
+            // state retains its owner; mutation is outside the supported contract.
+            const handle = Object.freeze({ _state: state });
+            state.handle = handle;
             if (heap !== 'document' || observer) {
                 const held = heap === 'document' ? {} : { runtime, pointer };
                 if (observer)
