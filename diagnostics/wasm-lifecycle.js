@@ -2,7 +2,6 @@
 // The creation timer ends at runtimeCreated, before gk_init/parse. Its start is
 // the kernel.create entry, so it includes that small prefix, not just the VM call.
 export function wasmLifecycle({ poolSize, poolMaxBytes, eventLimit = 1024 }) {
-    const identities = new WeakMap();
     let nextId = 0, context, creationStart, label = '', active = 0;
     let counts, events;
     function reset() {
@@ -14,14 +13,14 @@ export function wasmLifecycle({ poolSize, poolMaxBytes, eventLimit = 1024 }) {
     }
     reset();
     function record(action, runtime) {
-        const event = { action, label, instance: identities.get(runtime.memory), bytes: runtime.memory.buffer.byteLength };
+        const event = { action, label, instance: runtime.memory._grovedomDiagnosticId, bytes: runtime.memory.buffer.byteLength };
         if (events.length < eventLimit) events.push(event);
         else counts.omittedEvents++;
     }
     return {
         runtimeCreated(runtime) {
             const elapsed = creationStart === undefined ? null : performance.now() - creationStart;
-            identities.set(runtime.memory, ++nextId);
+            runtime.memory._grovedomDiagnosticId = ++nextId;
             counts.created++;
             counts.initialBytes += runtime.memory.buffer.byteLength;
             if (elapsed !== null) { counts.instancePrefixMilliseconds += elapsed; counts.timedCreations++; }

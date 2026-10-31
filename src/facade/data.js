@@ -8,27 +8,31 @@ function parse(value) {
     if (value === 'true') return true;
     if (value === 'false') return false;
     if (value === 'null') return null;
-    if (String(Number(value)) === value) return Number(value);
+    const number = Number(value);
+    if (String(number) === value) return number;
     if (/^(?:\{[\s\S]*\}|\[[\s\S]*\])$/.test(value)) {
         try { return JSON.parse(value); } catch { }
     }
     return value;
 }
-export function createDataMethods({ entry, nodes, read, attributes }) {
+export function createDataMethods({ entry, wrap, read, attributes }) {
     function store(state, node) {
-        const id = nodes.get(node).id;
+        const id = node._state.id;
         let result = state.data.get(id);
         if (result == null) state.data.set(id, result = {});
         return result;
     }
     function data(source, name, value) {
         const { state, ids } = entry(source);
-        if (!ids.length || source[0].nodeType !== 1) return undefined;
-        const result = store(state, source[0]);
+        if (!ids.length) return undefined;
+        const node = wrap(state, ids[0]);
+        if (node.nodeType !== 1) return undefined;
+        const result = store(state, node);
         if (name == null) {
             for (const [key, val] of Object.entries(attributes(state, ids))) {
-                if (key.startsWith('data-') && !Object.hasOwn(result, camel(key.slice(5))))
-                    ownValue(result, camel(key.slice(5)), parse(val));
+                if (!key.startsWith('data-')) continue;
+                const name = camel(key.slice(5));
+                if (!Object.hasOwn(result, name)) ownValue(result, name, parse(val));
             }
             return result;
         }
@@ -50,9 +54,9 @@ export function createDataMethods({ entry, nodes, read, attributes }) {
         return parsed;
     }
     function removeData(source, name) {
-        const { state } = entry(source);
+        const { state } = source._state;
         return source.each(function () {
-            const id = nodes.get(this).id;
+            const id = this._state.id;
             if (name === undefined) state.data.delete(id);
             else {
                 const data = state.data.get(id);

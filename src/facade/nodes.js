@@ -1,7 +1,6 @@
 import { alive, empty } from './common.js';
-export function createNodes(kernel, operations, selections, selection) {
+export function createNodes(kernel, operations, isSelection, selection) {
     const { flush, read, edit, enqueue, attributes, attributeValue } = operations;
-    const nodes = { get: value => NodeHandle.record(value), has: value => NodeHandle.record(value) !== undefined };
     function nodeIds(record) {
         if (record.ids) return record.ids;
         const ids = new Uint32Array(1);
@@ -9,26 +8,27 @@ export function createNodes(kernel, operations, selections, selection) {
         return record.ids = ids;
     }
     function rawAxis(node, axis) {
-        const record = nodes.get(node), { state } = record, ids = nodeIds(record);
+        const record = node._state, { state } = record, ids = nodeIds(record);
         flush(state);
         const result = kernel.traverse(state.owner, ids, axis);
         return result.length ? wrap(state, result[0]) : null;
     }
     function rawChild(node, operation) {
-        const record = nodes.get(node), { state } = record;
+        const record = node._state, { state } = record;
         const id = read(state, record.id, operation);
         return id ? wrap(state, id) : null;
     }
     function rawChildren(node) {
-        const record = nodes.get(node), { state } = record;
+        const record = node._state, { state } = record;
         flush(state);
         const ids = kernel.traverse(state.owner, nodeIds(record), 3);
         const children = new Array(ids.length);
         for (let i = 0; i < ids.length; i++) children[i] = wrap(state, ids[i]);
         return children;
     }
+    // Callers validate liveness before wrapping. Iteration and callbacks recheck
+    // after user code; synchronous reads/traversals already validate the owner.
     function wrap(state, id) {
-        alive(state);
         let node = state.wrappers.get(id);
         if (!node) {
             node = Object.freeze(new NodeHandle(state, id));
@@ -37,8 +37,8 @@ export function createNodes(kernel, operations, selections, selection) {
         return node;
     }
     function inputIds(state, input) {
-        const value = selections.get(input) ?? nodes.get(input);
-        if (value) {
+        if (input instanceof NodeHandle || isSelection(input)) {
+            const value = input._state;
             alive(value.state);
             if (value.state !== state)
                 throw new TypeError('Nodes belong to another document');
@@ -47,17 +47,17 @@ export function createNodes(kernel, operations, selections, selection) {
         if (Array.isArray(input)) {
             const ids = new Uint32Array(input.length);
             for (let i = 0; i < input.length; i++) {
-                const value = nodes.get(input[i]);
-                if (!value || value.state !== state)
+                const node = input[i];
+                if (!(node instanceof NodeHandle) || node._state.state !== state)
                     throw new TypeError('Expected nodes from this document');
-                ids[i] = value.id;
+                ids[i] = node._state.id;
             }
             return ids;
         }
         throw new TypeError('Expected a selector, node handle, or selection');
     }
     function callbackIds(state, node) {
-        const record = nodes.get(node);
+        const record = node._state;
         alive(state);
         // Borrow this only for the immediate read/enqueue. Reacquire after calling
         // user code (including string coercion), which can reenter another callback.
@@ -67,7 +67,7 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     function attributeCallback(target, state, name, value) {
         return target.each(function (i, node) {
-            const old = read(state, callbackIds(state, node), 1, name);
+            const old = read(state, node._state.id, 1, name);
             if (old === undefined && node.nodeType !== 1)
                 return;
             const next = value.call(node, i, old);
@@ -77,10 +77,10 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     function textCallback(target, state, value) {
         return target.each(function (i, node) {
-            const next = value.call(node, i, read(state, callbackIds(state, node), 2));
+            const next = value.call(node, i, read(state, node._state.id, 2));
             alive(state);
             if (typeof next === 'function')
-                selection(state, nodeIds(nodes.get(node))).text(next);
+                selection(state, nodeIds(node._state)).text(next);
             else if (next !== undefined) {
                 const text = String(next);
                 enqueue(state, callbackIds(state, node), 3, text);
@@ -88,14 +88,13 @@ export function createNodes(kernel, operations, selections, selection) {
         });
     }
     class NodeHandle {
-        #record;
         // Keep the shared state/ids fields in the same order as selection
-        // records. Materialize a stable array only when an API needs one.
-        constructor(state, id) { this.#record = { state, ids: null, id }; }
-        static record(value) { return value !== null && typeof value === 'object' && #record in value ? value.#record : undefined; }
-        get name() { const { state, id } = nodes.get(this); return read(state, id, 5); }
+        // records. These direct properties are unsupported internals. Materialize
+        // a stable array only when an API needs one.
+        constructor(state, id) { this._state = { state, ids: null, id }; }
+        get name() { const { state, id } = this._state; return read(state, id, 5); }
         get type() {
-            const { state, id } = nodes.get(this);
+            const { state, id } = this._state;
             const type = read(state, id, 6);
             if (type === 1) {
                 if (state.xml)
@@ -108,9 +107,9 @@ export function createNodes(kernel, operations, selections, selection) {
     }
     const originalName = Object.getOwnPropertyDescriptor(NodeHandle.prototype, 'name').get;
     Object.defineProperties(NodeHandle.prototype, {
-        name: { get: originalName, set(value) { const record = nodes.get(this); edit(record.state, 11, nodeIds(record), empty, String(value)); } },
+        name: { get: originalName, set(value) { const record = this._state; edit(record.state, 11, nodeIds(record), empty, String(value)); } },
         tagName: { get: originalName, set(value) { this.name = value; } },
-        nodeType: { get() { const { state, id } = nodes.get(this); const type = read(state, id, 6); return type === 11 ? 9 : type; } },
+        nodeType: { get() { const { state, id } = this._state; const type = read(state, id, 6); return type === 11 ? 9 : type; } },
         parent: { get() { return rawAxis(this, 10); } },
         parentNode: { get() { return this.parent; } },
         next: { get() { return rawAxis(this, 11); } },
@@ -122,9 +121,9 @@ export function createNodes(kernel, operations, selections, selection) {
         firstChild: { get() { return rawChild(this, 13); } },
         lastChild: { get() { return rawChild(this, 14); } },
         data: {
-            get() { const { state, id } = nodes.get(this); const value = state.data.get(id); return value === undefined ? read(state, id, 8) : value; },
+            get() { const { state, id } = this._state; const value = state.data.get(id); return value === undefined ? read(state, id, 8) : value; },
             set(value) {
-                const record = nodes.get(this), { state } = record, ids = nodeIds(record);
+                const record = this._state, { state } = record, ids = nodeIds(record);
                 // Kind is immutable, including across element renames. Learn it
                 // only on this path, but preserve the pre-coercion observation.
                 if (record.dataType === undefined) record.dataType = read(state, ids, 6);
@@ -134,7 +133,7 @@ export function createNodes(kernel, operations, selections, selection) {
             },
         },
         attribs: { get() {
-                const data = nodes.get(this), { state, id } = data;
+                const data = this._state, { state, id } = data;
                 if (read(state, id, 6) !== 1)
                     return undefined;
                 if (!data.attribs)
@@ -154,13 +153,13 @@ export function createNodes(kernel, operations, selections, selection) {
             } },
     });
     function liveAttribute(state, id, name) {
-        alive(state);
         // Only one private enumeration snapshot is retained per document. Every
         // queued or immediate mutation invalidates it before any later read.
+        // Disposal clears it too, so a miss reaches read's liveness check.
         const snapshot = state.attributeSnapshot;
         if (snapshot?.id === id && Object.hasOwn(snapshot.value, name))
             return snapshot.value[name];
         return read(state, id, 1, name);
     }
-    return { nodes, wrap, inputIds, nodeIds, attributeCallback, textCallback };
+    return { NodeHandle, wrap, inputIds, nodeIds, attributeCallback, textCallback };
 }

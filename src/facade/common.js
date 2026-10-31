@@ -6,7 +6,7 @@ export function unsupported(message) {
     throw error;
 }
 export function alive(state) {
-    if (state.closed) {
+    if (state.owner === null) {
         const error = new Error('Document has been disposed');
         error.code = 'ERR_GROVEDOM_DISPOSED';
         throw error;

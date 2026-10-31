@@ -13,6 +13,11 @@ Experimental 0.1.2 is published with scoped improvements, incomplete panels,
 control drift and unfavorable results. Correctness qualification is recorded in
 [testing](testing.md) and does not turn inconclusive timing into a pass.
 
+The unreleased [internal-state investigation](history/internal-state.md) records
+direct metadata, fewer duplicate checks, a corrected Proxy read regression,
+disposal-related deopts and the shared-class mode experiment. Its bounded
+diagnostics do not establish the complete-workload target.
+
 ## 0.1.2 read paths and remote comparisons
 
 First-element reads, raw child arrays, text properties and wrapping avoid

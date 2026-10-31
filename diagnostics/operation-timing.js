@@ -37,14 +37,20 @@ export function timeFunctions(object, timing, domain) {
 }
 
 export function timeFacade(load, timing) {
+    // These belong to callers (including other DOM libraries), so instrumentation
+    // tracks them weakly instead of adding GroveDOM fields to caller objects.
     const prototypes = new WeakSet(), callbacks = new WeakMap();
     const callbackAt = { each: 0, map: 0, filter: 0, not: 0, is: 0,
         attr: 1, prop: 1, css: 1, text: 0, html: 0, val: 0,
         addClass: 0, removeClass: 0, toggleClass: 0, wrap: 0, wrapAll: 0, wrapInner: 0 };
     const content = new Set(['append', 'prepend', 'before', 'after', 'replaceWith']);
     function callback(fn) {
-        if (!callbacks.has(fn)) callbacks.set(fn, function (...args) { return timing.run(null, fn, this, args); });
-        return callbacks.get(fn);
+        let wrapped = callbacks.get(fn);
+        if (!wrapped) {
+            wrapped = function (...args) { return timing.run(null, fn, this, args); };
+            callbacks.set(fn, wrapped);
+        }
+        return wrapped;
     }
     function wrap(fn, name, receiver) {
         return function (...args) {

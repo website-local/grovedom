@@ -1,6 +1,6 @@
 import { alive, empty } from './common.js';
 export function createCollectionHelpers(context) {
-    const { kernel, selections, nodes, wrap, selection, inputIds, nodeIds, entry, edit, enqueue, flush, traverseUntil } = context;
+    const { kernel, isSelection, NodeHandle, wrap, selection, inputIds, nodeIds, entry, edit, enqueue, flush, traverseUntil } = context;
     class MappedCollection extends Array {
         static get [Symbol.species]() { return Array; }
         get(index) { return index === undefined ? this.toArray() : this.at(Number(index)); }
@@ -27,8 +27,8 @@ export function createCollectionHelpers(context) {
             else if (next != null)
                 result.push(next);
         });
-        const state = selections.get(source)?.state;
-        if (state && result.every(value => nodes.has(value)))
+        const state = isSelection(source) ? source._state.state : undefined;
+        if (state && result.every(value => value instanceof NodeHandle))
             return selection(state, inputIds(state, result), source);
         Object.defineProperty(result, 'previous', { value: source });
         return result;
@@ -36,9 +36,9 @@ export function createCollectionHelpers(context) {
     function until(source, axis, stop, selector) {
         const { state, ids } = entry(source);
         if (!ids.length) return selection(state, empty, source);
-        const stopRecord = selections.get(stop) ?? nodes.get(stop);
+        const stopRecord = isSelection(stop) || stop instanceof NodeHandle ? stop._state : undefined;
         let resultIds = null;
-        if (!stop || typeof stop === 'string' || (stopRecord?.state === state && !state.closed))
+        if (!stop || typeof stop === 'string' || (stopRecord?.state === state && state.owner !== null))
             resultIds = traverseUntil(state, ids, axis | (selector && ids.length > 1 ? 256 : 0),
                 typeof stop === 'string' ? stop : '', stopRecord ? nodeIds(stopRecord) : empty);
         if (resultIds === null) resultIds = untilCallbacks(state, ids, axis, stop, selector);
@@ -46,12 +46,12 @@ export function createCollectionHelpers(context) {
         if (selector) {
             // Filters observe every accepted visit before deduplication/sorting.
             value = value.filter(selector);
-            const record = selections.get(value);
+            const record = value._state;
             record.previous = source;
             if (ids.length > 1 && record.ids.length > 1) record.ids = Uint32Array.from(new Set(record.ids));
         }
         if (axis === 9 && ids.length > 1) {
-            const record = selections.get(value);
+            const record = value._state;
             record.ids = edit(state, 13, record.ids).reverse();
         }
         return value;
@@ -86,7 +86,7 @@ export function createCollectionHelpers(context) {
     }
     const classTokens = value => typeof value === 'string' ? value.match(/\S+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
     function classes(source, action, value, force, argc) {
-        const { state } = entry(source);
+        const { state } = source._state;
         return source.each(function (i, node) {
             if (node.nodeType !== 1)
                 return;
@@ -97,7 +97,7 @@ export function createCollectionHelpers(context) {
                 return;
             }
             if (action === 'toggle' && (next === undefined || typeof next === 'boolean')) {
-                const data = nodes.get(node);
+                const data = node._state;
                 if (old)
                     data.savedClass = old;
                 one.attr('class', next === false || old ? '' : data.savedClass ?? '');
@@ -130,14 +130,15 @@ export function createCollectionHelpers(context) {
         });
     }
     function wrapping(source, wrapper, inside) {
-        const { state, ids } = entry(source);
+        const { state, ids } = source._state;
         return source.each(function (i, node) {
             const value = typeof wrapper === 'function' ? wrapper.call(node, i, node) : wrapper;
             if (inside ? node.nodeType !== 1 && node.type !== 'root' : node.type === 'root')
                 return;
             const one = state.api(node);
             let root = state.api(value).first();
-            if (!root.length || root[0].nodeType !== 1 || root[0] === node)
+            const rootNode = root.get(0);
+            if (!rootNode || rootNode.nodeType !== 1 || rootNode === node)
                 return;
             if (i + 1 < ids.length || (typeof value === 'string' && !value.trimStart().startsWith('<')))
                 root = root.clone();

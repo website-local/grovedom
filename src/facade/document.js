@@ -7,17 +7,20 @@ import { createCollectionHelpers } from './collection-helpers.js';
 import { createDataMethods } from './data.js';
 // Each package owns an independent facade, kernel and handle brand.
 export function createFacade(kernel, decodeInput) {
-    const selections = new WeakMap();
     const operations = createOperations(kernel);
     const { flush, read, query, edit } = operations;
-    const nodeAPI = createNodes(kernel, operations, selections, selection);
-    const { nodes, inputIds } = nodeAPI;
-    const context = { kernel, selections, selection, entry, ...operations, ...nodeAPI };
+    const nodeAPI = createNodes(kernel, operations, isSelection, selection);
+    const { NodeHandle, inputIds } = nodeAPI;
+    const context = { kernel, isSelection, selection, entry, ...operations, ...nodeAPI };
     const Selection = createSelection({ ...context, ...createCollectionHelpers(context), ...createDataMethods(context) });
+    function isSelection(value) { return value instanceof Selection; }
     const numericKey = /^(0|[1-9][0-9]*)$/;
     const selectionProxy = {
         get(target, key, receiver) {
-            if (typeof key === 'string' && numericKey.test(key))
+            // Internal records need neither index parsing nor receiver forwarding.
+            if (key === '_state') return target._state;
+            // Ordinary method names start after ASCII '9'. Validate possible indices.
+            if (typeof key === 'string' && key.charCodeAt(0) <= 57 && numericKey.test(key))
                 return target.get(Number(key));
             return Reflect.get(target, key, receiver);
         },
@@ -42,18 +45,14 @@ export function createFacade(kernel, decodeInput) {
         },
     };
     function entry(selection) {
-        const value = selections.get(selection) ?? Selection.state(selection);
-        if (!value)
-            throw new TypeError('Expected a GroveDOM selection');
+        const value = selection._state;
         alive(value.state);
         return value;
     }
     function selection(state, ids, previous) {
         const value = { state, ids, previous };
         const target = new Selection(value);
-        const proxy = new Proxy(target, selectionProxy);
-        selections.set(proxy, value);
-        return proxy;
+        return new Proxy(target, selectionProxy);
     }
     function load(content, options = {}, isDocument = true) {
         content = decodeInput(content);
@@ -83,11 +82,15 @@ export function createFacade(kernel, decodeInput) {
         const flags = xml ? xmlFlags(serialization) : 0, baseURI = options.baseURI;
         const state = {
             owner: null, xml, serialization,
-            closed: false, direct: execution === 'direct', wrappers: new Map(), data: new Map(), baseURI,
-            words: new Uint32Array(256), payload: new Uint8Array(1024), wordLength: 0, byteLength: 0,
+            direct: execution === 'direct', wrappers: new Map(), data: new Map(), baseURI,
+            words: null, payload: null, wordLength: 0, byteLength: 0,
             usedWords: null, usedPayload: null, callbackIds: null,
             containsIds: null, attributeSnapshot: null, treeVersion: 0,
         };
+        // Resource fields are mutable from construction, including the null value
+        // used at disposal. The owner alone records whether the document is live.
+        state.words = new Uint32Array(256);
+        state.payload = new Uint8Array(1024);
         const rootIds = Uint32Array.of(1);
         function $(input, context) {
             alive(state);
@@ -100,13 +103,13 @@ export function createFacade(kernel, decodeInput) {
             }
             if (input.trimStart().startsWith('<') && input.trimEnd().endsWith('>')) {
                 const result = selection(state, edit(state, 1, empty, empty, input));
-                if (context && typeof context === 'object' && !nodes.has(context) && !selections.has(context) && !Array.isArray(context))
+                if (context && typeof context === 'object' && !(context instanceof NodeHandle) && !isSelection(context) && !Array.isArray(context))
                     for (const [key, value] of Object.entries(context))
                         typeof result[key] === 'function' ? result[key](value) : result.attr(key, value);
                 return result;
             }
             if (context !== undefined && typeof context !== 'string') {
-                const contextState = selections.get(context)?.state ?? nodes.get(context)?.state;
+                const contextState = isSelection(context) || context instanceof NodeHandle ? context._state.state : undefined;
                 if (contextState && contextState !== state)
                     return contextState.api(context).find(input);
             }
@@ -116,35 +119,35 @@ export function createFacade(kernel, decodeInput) {
                 roots = fragment.length ? inputIds(state, fragment[0].parent) : empty;
             }
             else
-                roots = context === undefined ? rootIds : typeof context === 'string' ? entry($(context)).ids : inputIds(state, context);
+                roots = context === undefined ? rootIds : typeof context === 'string' ? $(context)._state.ids : inputIds(state, context);
             // Query selections retain their context for end()/addBack(). Bare
             // node contexts stay as IDs until that previous selection is used.
             const previous = context === undefined || typeof context === 'string' ? rootIds
-                : selections.has(context) ? context : roots;
+                : isSelection(context) ? context : roots;
             return selection(state, query(state, input, roots), previous);
         }
         state.api = $;
         $.prototype = Selection.prototype;
         $.root = () => { alive(state); return selection(state, rootIds); };
         $.html = (input, options) => {
-            if (input && typeof input === 'object' && !nodes.has(input) && !selections.has(input) && !Array.isArray(input)) {
+            if (input && typeof input === 'object' && !(input instanceof NodeHandle) && !isSelection(input) && !Array.isArray(input)) {
                 options = input;
                 input = undefined;
             }
             if (options !== undefined) {
                 const flags = serializerOptions(state, options);
-                if (selections.has(input))
+                if (isSelection(input))
                     return input.toString();
                 if (flags !== null)
-                    return read(state, input == null ? rootIds : entry($(input)).ids, 12 | (flags << 8));
+                    return read(state, input == null ? rootIds : $(input)._state.ids, 12 | (flags << 8));
             }
-            return input === undefined ? read(state, rootIds, 3) : read(state, entry($(input)).ids, 10);
+            return input === undefined ? read(state, rootIds, 3) : read(state, $(input)._state.ids, 10);
         };
         $.xml = input => {
             alive(state);
-            return selections.has(input) ? input.toString() : read(state, input === undefined ? rootIds : entry($(input)).ids, 11);
+            return isSelection(input) ? input.toString() : read(state, input === undefined ? rootIds : $(input)._state.ids, 11);
         };
-        $.text = input => read(state, input === undefined ? rootIds : entry($(input)).ids, 2);
+        $.text = input => read(state, input === undefined ? rootIds : $(input)._state.ids, 2);
         $.contains = (container, contained) => {
             alive(state);
             return contains(container, contained);
@@ -163,12 +166,12 @@ export function createFacade(kernel, decodeInput) {
         $.load = load;
         $.flush = () => flush(state);
         $.dispose = () => {
-            if (state.closed)
+            if (state.owner === null)
                 return;
-            state.wordLength = state.byteLength = 0;
             kernel.dispose(state.owner);
             state.owner = null;
-            state.closed = true;
+            // Releasing the buffers discards the queue. Resetting untouched
+            // lengths can deoptimize V8 reads on other live documents.
             state.words = state.payload = null;
             state.usedWords = state.usedPayload = null;
             state.callbackIds = null;
@@ -183,13 +186,15 @@ export function createFacade(kernel, decodeInput) {
         return $;
     }
     function contains(container, contained) {
-        const a = nodes.get(container), b = nodes.get(contained);
-        if (!a || !b)
+        if (!(container instanceof NodeHandle) || !(contained instanceof NodeHandle))
             throw new TypeError('Expected GroveDOM node handles');
-        alive(a.state);
-        alive(b.state);
-        if (a.state !== b.state)
+        const a = container._state, b = contained._state;
+        if (a.state !== b.state) {
+            alive(a.state);
+            alive(b.state);
             return false;
+        }
+        // The read validates the shared owner before touching the kernel.
         const ids = a.state.containsIds ??= new Uint32Array(2);
         ids[0] = a.id;
         ids[1] = b.id;
@@ -197,7 +202,7 @@ export function createFacade(kernel, decodeInput) {
     }
     function merge(first, second) {
         const arrayLike = value => {
-            if (Array.isArray(value) || selections.has(value))
+            if (Array.isArray(value) || isSelection(value))
                 return true;
             if (value === null || typeof value !== 'object' || !Number.isSafeInteger(value.length) || value.length < 0)
                 return false;
@@ -208,8 +213,8 @@ export function createFacade(kernel, decodeInput) {
         };
         if (!arrayLike(first) || !arrayLike(second))
             return undefined;
-        if (selections.has(first)) {
-            const record = entry(first), added = inputIds(record.state, selections.has(second) ? second : Array.from(second));
+        if (isSelection(first)) {
+            const record = entry(first), added = inputIds(record.state, isSelection(second) ? second : Array.from(second));
             const ids = new Uint32Array(record.ids.length + added.length);
             ids.set(record.ids);
             ids.set(added, record.ids.length);

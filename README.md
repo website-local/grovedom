@@ -56,9 +56,10 @@ Always call `$.dispose()` when finished. It releases the document's resources
 and invalidates its selections and node handles. Handles belong to their
 document; garbage collection is only a cleanup fallback.
 
-Undocumented internals, including the Wasm owner's `_state`, are not supported
-application API. They carry **no compatibility promise, even between patch
-releases**. See the [internal-state policy](packages/wasm/README.md#internal-state)
+Selections, node handles and Wasm owners expose direct internal properties such
+as `_state`. These are unsupported application API, with **no compatibility
+promise, even between patch releases**. Names, layouts and enumeration may change
+without deprecation. See the [internal-state policy](packages/wasm/README.md#internal-state)
 for retention and disposal behavior.
 
 ## What it supports

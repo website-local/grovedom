@@ -133,7 +133,11 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             const runtime = shared ?? acquire(), pointer = runtime.gk_new();
             if (!pointer)
                 fail('ERR_GROVEDOM_MEMORY', 'Owner allocation failed');
-            const state = { runtime, pointer, bytes: null, words: null, scope: ownerScope, handle: null };
+            // Establish mutable lifecycle fields before reads become hot. Clearing
+            // one owner must not invalidate optimized reads on other live owners.
+            const state = { runtime: null, pointer: 0, bytes: null, words: null, scope: ownerScope, handle: null };
+            state.runtime = runtime;
+            state.pointer = pointer;
             try {
                 input(state, html);
                 check(state, xmlFlags === undefined ? runtime.gk_parse(pointer, Number(scripting), Number(fragment)) : runtime.gk_parse_xml(pointer, xmlFlags));

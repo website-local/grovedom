@@ -2,6 +2,15 @@
 
 ## 0.1.3 (unreleased)
 
+- Store selection and node metadata directly in unsupported `_state` properties;
+  remove private-field accessors and selection WeakMap lookups. Preserve numeric
+  selection access, snapshots and document ownership.
+- Reuse available records, lengths and first-node handles, and remove duplicate
+  lifetime checks on synchronous paths. Keep checks across callbacks, coercion,
+  iterator resumption and disposal-sensitive cached reads.
+- Use the nullable document owner for liveness and initialize mutable resource
+  fields before hot reads, avoiding disposal-triggered V8 invalidations. Let
+  Proxy metadata reads bypass index parsing and receiver forwarding.
 - Store Wasm document owner state directly on internal handles, preserving
   disposal and garbage-collection cleanup. Document that internals, including
   `_state`, carry no compatibility promise even between patch releases.

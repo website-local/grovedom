@@ -81,19 +81,25 @@ and workers; cross-document node adoption and shared handles are unsupported.
 
 DOM calls are synchronous and occupy the calling thread. Caller-managed Node
 workers may own independent documents; GroveDOM creates no threads itself.
+The instance, document, selections and handles stay in the thread that parsed
+the input. Send markup or extracted values between workers; passing handles to
+`structuredClone` or `postMessage` is unsupported.
 
 ### Internal state
 
-Undocumented records, constructors and fields, including a Wasm document owner's
-`_state`, are implementation details. There is **no compatibility promise for
-internals, even between patch releases**; they may change or disappear without
-deprecation. Public documented methods retain their stated contract.
+Selections, node handles and Wasm document owners expose direct internal
+properties such as `_state`. Undocumented records, constructors, fields and
+helpers are implementation details. There is **no compatibility promise for
+internals, even between patch releases**; their names, layouts, mutability and
+enumeration may change without deprecation. Public documented methods retain
+their stated contract. This policy also applies to future classes.
 
-Retaining `_state` keeps its owner reachable. Mutating internal state is
+Retaining internal records can keep their document reachable. Mutating them is
 unsupported and can invalidate ownership and lifecycle checks; those checks are
 not a security boundary against code modifying internals. Explicit disposal
-zeroes the document pointer and clears the runtime and cached memory views from
-the state, including indirect ownership links to the Wasm instance. The idle
+clears the facade's document owner, zeroes the Wasm document pointer, and clears
+the runtime and cached memory views from the Wasm owner's state, including its
+indirect ownership links to the instance. The package facade, idle
 pool or global heap may independently retain capacity, as can runtime or view
 references copied out by application code. Unreachable owner/state cycles remain
 collectible; garbage collection is a fallback, not a substitute for disposal.

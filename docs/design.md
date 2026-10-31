@@ -14,7 +14,7 @@ primary target; native and browser entries instantiate independent facades.
 | `src/initialize.js` | Initialization option validation |
 | `src/build-config.js` | Constants replaced by the selected build during packaging |
 | `src/facade/document.js` | Document ownership, callable `$`, selections and disposal |
-| `src/facade/selection.js` | Cheerio-shaped collection methods and private branding |
+| `src/facade/selection.js` | Cheerio-shaped collection methods and selection snapshots |
 | `src/facade/nodes.js` | Stable wrappers, raw node properties, XML callbacks |
 | `src/facade/operations.js` | Buffered commands, flush/read boundaries and queries |
 | `src/facade/collection-helpers.js` | Mapping, classes, insertion and wrapping helpers |
@@ -28,6 +28,36 @@ Factories bind helpers once per package entry, not per document. Node and browse
 share algorithms; Node retains direct Buffer decoding. The browser graph imports
 no Node modules or globals. Release entries never import diagnostics. No runtime
 package/build JSON checks or environment-variable configuration remain.
+
+## Internal JavaScript state
+
+Use direct properties for library-owned state, including `Selection`,
+`NodeHandle` and future classes. Their `_state` records and other undocumented
+fields are explicitly unsupported: names, layouts, mutability and enumeration
+have **no compatibility promise, even between patch releases**. They are not
+included in the public declarations. Applications must not mutate them.
+
+Do not add private fields, WeakMap records or accessor methods merely to hide
+state. Any exception needs a visible, measured performance improvement on the
+relevant workload. The shipped JavaScript has no private fields or WeakMaps.
+Developer timing instrumentation separately tracks caller-owned functions and
+prototypes weakly, without modifying or retaining those external objects.
+
+Read known handle records directly. Reuse IDs, lengths and node wrappers already
+available at a call site; preserve observations that can change across callbacks,
+getters, coercion or mutation. Lifetime checks belong at boundaries that need
+them, rather than at every helper in a synchronous call chain. In particular,
+`wrap` requires a validated live document: reads/traversals validate before
+wrapping, while callbacks and iterators recheck when user code can have disposed
+the document. Cached attribute observations remain valid only until a write or
+disposal clears the snapshot.
+
+The nullable document owner is also the liveness marker. Resource fields start
+null and receive their live values before use, so V8 learns that disposal can
+change them. Disposal releases queue buffers; it need not rewrite unused queue
+lengths and invalidate optimized reads on other documents. Numeric selection
+Proxies return `_state` directly and skip index parsing for ordinary method
+names. Other property reads preserve their receiver.
 
 ## Native C layout
 
@@ -62,8 +92,10 @@ matching JS. There is no protocol version negotiation or plugin framework.
   mutations in issue order. Errors preserve earlier effects, not transactions.
 - Selections snapshot IDs. Wrappers preserve node identity; retained detached
   nodes remain valid until explicit disposal.
-- Each document belongs to its creating environment. Caller-managed workers can
-  own independent documents; GroveDOM creates no threads or shared-document API.
+- The parser instance, document, selections and node handles stay in the thread
+  that parsed the input. Caller-managed workers own independent documents and
+  exchange markup or extracted values. GroveDOM creates no threads or
+  shared-document API; cloning or posting handles to another worker is unsupported.
 - Kernel calls never invoke user JS. Shared transfer scratch is borrowed only
   during a synchronous call. Returned strings and arrays own their data.
 - Disposal discards pending commands and invalidates retained handles. GC cleanup
@@ -78,7 +110,7 @@ matching JS. There is no protocol version negotiation or plugin framework.
 - Static `until` traversals test stop conditions in the kernel without exposing
   stop-node handles. Callback traversals follow live relations after tree edits;
   returned selections still retain snapshot membership and identity.
-- Live attribute enumeration retains one private map per document. Writes clear
+- Live attribute enumeration retains one internal map per document. Writes clear
   it before observation, and disposal releases it. Missing keys use ordinary
   attribute lookup; returned attribute snapshots remain independent.
 - Scalar containment does not register ancestor handles. Node ID arrays are lazy;

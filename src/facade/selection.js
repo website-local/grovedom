@@ -3,9 +3,9 @@ import { parseStyle } from './style.js';
 const readOnlyProperties = new Set(['type', 'nodeType', 'children', 'childNodes', 'parent', 'parentNode',
     'next', 'prev', 'nextSibling', 'previousSibling', 'firstChild', 'lastChild']);
 const rawProperties = new Set(['name', 'data', 'attribs', ...readOnlyProperties]);
-// Methods keep private branding and selection snapshots. Helpers are bound once.
+// Methods retain selection snapshots. Helpers are bound once per facade.
 export function createSelection(context) {
-    const { kernel, entry, wrap, selection, inputIds, nodeIds, query, matches, flush, edit, nodes, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
+    const { kernel, entry, wrap, selection, inputIds, nodeIds, query, matches, flush, edit, NodeHandle, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
     function setProperty(source, name, value) {
         const { state, ids } = entry(source);
         if (name === 'namespace')
@@ -14,7 +14,7 @@ export function createSelection(context) {
             unsupported('Direct changes to node types or relations are not supported; use DOM mutation methods.');
         if (name === 'attribs')
             return source.each(function () {
-                const record = nodes.get(this), one = nodeIds(record);
+                const record = this._state, one = nodeIds(record);
                 // Reassigning the element's own live view is a no-op. Clearing
                 // it first would also erase the replacement's source values.
                 if (value && value === record.attribs) return;
@@ -33,7 +33,7 @@ export function createSelection(context) {
         if (name === 'data')
             return source.each(function () {
                 if (this.nodeType !== 1) return;
-                const id = nodes.get(this).id;
+                const id = this._state.id;
                 // Cheerio uses an attribute until a raw data property exists.
                 // Replacements keep object identity, including explicit resets.
                 if (state.data.has(id)) state.data.set(id, value);
@@ -52,15 +52,14 @@ export function createSelection(context) {
         one.attr('style', Object.entries(style).map(([key, val]) => `${key}: ${val};`).join(' '));
     }
     class Selection {
-        #state;
-        constructor(state) { this.#state = state; }
-        static state(target) { return #state in target ? target.#state : undefined; }
+        // Direct, unsupported internals; no compatibility promise between releases.
+        constructor(state) { this._state = state; }
         get cheerio() { return '[cheerio object]'; }
         get length() { return entry(this).ids.length; }
         get(index) {
-            const { state, ids } = entry(this);
             if (index === undefined)
                 return this.toArray();
+            const { state, ids } = entry(this);
             if (!Number.isInteger(index))
                 return undefined;
             if (index < 0)
@@ -70,8 +69,11 @@ export function createSelection(context) {
         toArray() { return Array.from(this); }
         *[Symbol.iterator]() {
             const { state, ids } = entry(this);
-            for (const id of ids)
+            for (const id of ids) {
+                // A yield lets the caller dispose the document before resuming.
+                alive(state);
                 yield wrap(state, id);
+            }
         }
         eq(index) {
             const { state, ids } = entry(this);
@@ -91,6 +93,7 @@ export function createSelection(context) {
                 return [];
             const ids = Array.from(record.ids);
             const removed = arguments.length === 1 ? ids.splice(start) : ids.splice(start, deleteCount, ...inputIds(record.state, items));
+            alive(record.state);
             record.ids = Uint32Array.from(ids);
             return removed.map(id => wrap(record.state, id));
         }
@@ -110,7 +113,7 @@ export function createSelection(context) {
         parent(selector) { return this._traverse(2, selector); }
         contents() { return this._traverse(3); }
         _traverse(axis, selector) {
-            const { state, ids } = entry(this);
+            const { state, ids } = this._state;
             flush(state);
             // Contents and immediate siblings keep each input occurrence.
             // Other axes deduplicate only after a filter has seen all visits.
@@ -134,6 +137,7 @@ export function createSelection(context) {
             for (let i = 0; i < ids.length; i++) {
                 // The callback receives a snapshot identity. Its first DOM read flushes
                 // pending writes, so callback entry itself need not cross the binding.
+                alive(state);
                 const node = wrap(state, ids[i]);
                 if (callback.call(node, i, node) === false)
                     break;
@@ -173,7 +177,7 @@ export function createSelection(context) {
             return matched;
         }
         attr(name, value) {
-            const { state, ids } = entry(this);
+            const { state, ids } = this._state;
             if (!arguments.length)
                 return attributes(state, ids);
             if (name && typeof name === 'object') {
@@ -186,16 +190,22 @@ export function createSelection(context) {
                     }
                 });
             }
-            if (typeof name !== 'string')
+            if (typeof name !== 'string') {
+                alive(state);
                 unsupported('attr currently requires an attribute name.');
+            }
             // HTML whitespace is ASCII; NBSP and other Unicode spaces can be
             // part of an attribute name and must survive reads and writes.
-            if (!name || /[\x20\t\r\n\f\0"'<>/=]/.test(name))
+            if (!name || /[\x20\t\r\n\f\0"'<>/=]/.test(name)) {
+                alive(state);
                 throw new TypeError('Invalid attribute name');
+            }
             if (arguments.length === 1)
                 return attributeValue(state, ids, name);
-            if (value === undefined)
+            if (value === undefined) {
+                alive(state);
                 return this;
+            }
             if (typeof value === 'function') {
                 return attributeCallback(this, state, name, value);
             }
@@ -214,11 +224,13 @@ export function createSelection(context) {
             return this;
         }
         text(value) {
-            const { state, ids } = entry(this);
+            const { state, ids } = this._state;
             if (value === undefined)
                 return read(state, ids, 2);
             if (typeof value === 'function')
                 return textCallback(this, state, value);
+            // Preserve validation before coercion as well as enqueue's check after it.
+            alive(state);
             enqueue(state, ids, 3, String(value));
             return this;
         }
@@ -229,7 +241,7 @@ export function createSelection(context) {
             return record.previous ?? selection(record.state, empty);
         }
         map(callback) { return mapped(this, callback); }
-        toString() { const { state, ids } = entry(this); return read(state, ids, 10); }
+        toString() { const { state, ids } = this._state; return read(state, ids, 10); }
         next(selector) { return this._traverse(4, selector); }
         prev(selector) { return this._traverse(5, selector); }
         nextAll(selector) { return this._traverse(6, selector); }
@@ -270,14 +282,14 @@ export function createSelection(context) {
         addBack(selector) { if (!entry(this).previous)
             return this; const previous = this.end(); return this.add(selector ? previous.filter(selector) : previous); }
         index(value) {
-            const { state } = entry(this);
-            if (!this.length)
+            const { state, ids } = entry(this);
+            if (!ids.length)
                 return -1;
             if (value === undefined)
                 return this.first().parent().children().toArray().indexOf(this[0]);
             if (typeof value === 'string')
                 return state.api(value).toArray().indexOf(this[0]);
-            return this.toArray().indexOf(nodes.has(value) ? value : state.api(value)[0]);
+            return this.toArray().indexOf(value instanceof NodeHandle ? value : state.api(value)[0]);
         }
         hasClass(name) {
             return typeof name === 'string' && name.length > 0 && this.is(function () {
@@ -296,13 +308,13 @@ export function createSelection(context) {
         prepend(...values) { return content(this, 1, values); }
         before(...values) { return content(this, 2, values); }
         after(...values) { return content(this, 3, values); }
-        appendTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 3 | 256, entry(state.api(target)).ids, ids), this); }
-        prependTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 4 | 256, entry(state.api(target)).ids, ids), this); }
-        insertBefore(target) { const { state, ids } = entry(this); return selection(state, edit(state, 14 | 256, entry(state.api(target)).ids, ids), this); }
-        insertAfter(target) { const { state, ids } = entry(this); return selection(state, edit(state, 15 | 256, entry(state.api(target)).ids, ids), this); }
-        clone() { const { state, ids } = entry(this); return selection(state, edit(state, 2, ids), this); }
-        empty() { const { state, ids } = entry(this); enqueue(state, ids, 7); return this; }
-        remove(selector) { const { state, ids } = entry(selector ? this.filter(selector) : this); enqueue(state, ids, 6); return this; }
+        appendTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 3 | 256, state.api(target)._state.ids, ids), this); }
+        prependTo(target) { const { state, ids } = entry(this); return selection(state, edit(state, 4 | 256, state.api(target)._state.ids, ids), this); }
+        insertBefore(target) { const { state, ids } = entry(this); return selection(state, edit(state, 14 | 256, state.api(target)._state.ids, ids), this); }
+        insertAfter(target) { const { state, ids } = entry(this); return selection(state, edit(state, 15 | 256, state.api(target)._state.ids, ids), this); }
+        clone() { const { state, ids } = this._state; return selection(state, edit(state, 2, ids), this); }
+        empty() { const { state, ids } = this._state; enqueue(state, ids, 7); return this; }
+        remove(selector) { const { state, ids } = (selector ? this.filter(selector) : this)._state; enqueue(state, ids, 6); return this; }
         detach(selector) { return this.remove(selector); }
         replaceWith(value) {
             const { state, ids } = entry(this);
@@ -317,7 +329,7 @@ export function createSelection(context) {
             return this;
         }
         html(value) {
-            const { state, ids } = entry(this);
+            const { state, ids } = this._state;
             if (value === undefined)
                 return read(state, ids, 3);
             if (typeof value === 'function')
@@ -329,6 +341,7 @@ export function createSelection(context) {
             if (typeof value === 'string' || value === null)
                 enqueue(state, ids, 4, value ?? '');
             else {
+                alive(state);
                 const contentIds = inputIds(state, value);
                 this.empty();
                 edit(state, 3, ids, contentIds);
@@ -336,11 +349,13 @@ export function createSelection(context) {
             return this;
         }
         wrapAll(wrapper) {
-            const { state } = entry(this);
-            if (!this.length)
+            const { state, ids } = entry(this);
+            if (!ids.length)
                 return this;
-            if (typeof wrapper === 'function')
-                wrapper = wrapper.call(this[0], 0, this[0]);
+            if (typeof wrapper === 'function') {
+                const node = wrap(state, ids[0]);
+                wrapper = wrapper.call(node, 0, node);
+            }
             const inserted = state.api(wrapper).insertBefore(this.first());
             let inner = inserted.filter(function () {
                 if (this.nodeType !== 1) return false;
@@ -429,7 +444,7 @@ export function createSelection(context) {
             return result;
         }
         css(name, value) {
-            const { state } = entry(this);
+            const { state, ids } = entry(this);
             if (name && typeof name === 'object' && !Array.isArray(name)) {
                 return this.each(function () {
                     if (this.nodeType !== 1) return;
@@ -437,7 +452,7 @@ export function createSelection(context) {
                     for (let i = 0; i < keys.length; i++) setStyle(state, this, keys[i], name[keys[i]], i);
                 });
             }
-            if (!this.length)
+            if (!ids.length)
                 return value === undefined ? undefined : this;
             if (value === undefined) {
                 if (this[0].nodeType !== 1) return undefined;
@@ -452,9 +467,9 @@ export function createSelection(context) {
         data(name, value) { return data(this, name, value); }
         removeData(name) { return removeData(this, name); }
         val(value) {
-            const { state } = entry(this);
+            const { state, ids } = entry(this);
             if (value === undefined) {
-                if (!this.length)
+                if (!ids.length)
                     return undefined;
                 const one = this.first(), name = one[0].name;
                 if (name === 'textarea')
@@ -469,8 +484,10 @@ export function createSelection(context) {
             }
             if (typeof value === 'function')
                 return this.each(function (i, node) { const one = state.api(node); one.val(value.call(node, i, one.val())); });
-            if (!this.length || this[0].nodeType !== 1) return this;
-            const name = this[0].name;
+            if (!ids.length) return this;
+            const node = wrap(state, ids[0]);
+            if (node.nodeType !== 1) return this;
+            const name = node.name;
             if (name === 'textarea') return this.text(value);
             if (name === 'select') {
                 if (typeof value === 'object' && this.attr('multiple') === undefined) return this;

@@ -38,7 +38,6 @@ test('concurrent worker imports and DOM operations have independent ownership', 
   assert.equal(kernel.stats().liveBytes, 0);
   const $ = load('<main>parent survives</main>');
   try {
-    for (const [message] of snapshots) assert.throws(() => $(message.node), TypeError);
     const done = workers.map(({ worker }) => once(worker, 'message'));
     for (const { worker } of workers) worker.postMessage('run');
     // Parent allocation, query, mutation, and disposal overlap worker activity.

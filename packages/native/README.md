@@ -80,6 +80,22 @@ Native and Wasm entries have independent initialization and node identities.
 
 DOM calls are synchronous and occupy the calling thread. Caller-managed Node
 workers may own independent documents; GroveDOM creates no threads itself.
+The instance, document, selections and handles stay in the thread that parsed
+the input. Send markup or extracted values between workers; passing handles to
+`structuredClone` or `postMessage` is unsupported.
+
+### Internal state
+
+Selections and node handles expose direct internal properties such as `_state`.
+Undocumented records, constructors, fields and helpers are unsupported, with
+**no compatibility promise, even between patch releases**. Their names, layouts,
+mutability and enumeration may change without deprecation. This policy also
+applies to future classes; public documented methods retain their stated contract.
+
+Retaining internal records can keep their document reachable. Do not mutate
+them or rely on them to bypass ownership checks. Explicit disposal releases the
+native document and clears the facade's owner reference; retained selections
+and nodes remain invalid afterward.
 
 ## Initialization
 

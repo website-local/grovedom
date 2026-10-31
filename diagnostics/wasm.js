@@ -13,7 +13,7 @@ export function wasmDiagnostics({ profile = false, growth = false, lifecycle = f
         Object.assign(imports.env, { growth_now: () => performance.now(), growth_sample: (pages, milliseconds) => { counters.calls++; counters.pages += pages; counters.milliseconds += milliseconds; } });
     function inspect(context) {
         const { kernel, shared, acquire, release, input, check, fail, perDocument, pool, cstring } = context;
-        const live = new Set(), owners = new WeakMap();
+        const live = new Set();
         const statsOf = runtime => new Uint32Array(runtime.memory.buffer, runtime.gk_stats(), 5);
         let retiredAllocations = 0, peakBytes = 0;
         function stats() {
@@ -75,10 +75,14 @@ export function wasmDiagnostics({ profile = false, growth = false, lifecycle = f
                 tracking?.create();
                 const ref = new WeakRef(runtime);
                 live.add(ref);
-                owners.set(handle, ref);
+                handle._state.diagnosticReference = ref;
                 return ref;
             },
-            dispose(handle) { tracking?.dispose(); live.delete(owners.get(handle)); owners.delete(handle); },
+            dispose(handle) {
+                tracking?.dispose();
+                live.delete(handle._state.diagnosticReference);
+                handle._state.diagnosticReference = null;
+            },
             collected(ref) { tracking?.collected(); live.delete(ref); },
             retire(runtime) { tracking?.retire(runtime); retiredAllocations += statsOf(runtime)[3]; },
         };

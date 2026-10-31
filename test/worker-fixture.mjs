@@ -13,7 +13,7 @@ assert.equal(kernel.stats().liveBytes, 0);
 const $ = load(`<p>worker ${workerData.id}</p>`);
 const node = $('p')[0];
 const baseline = kernel.stats().liveBytes;
-parentPort.postMessage({ phase: 'loaded', stats: kernel.stats(), node });
+parentPort.postMessage({ phase: 'loaded', stats: kernel.stats() });
 await once(parentPort, 'message');
 
 if (workerData.mode === 'replay') {

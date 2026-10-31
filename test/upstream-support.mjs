@@ -48,11 +48,13 @@ export function expect(value, negate = false) {
   };
   return {
     get not() { return expect(value, !negate); },
-    toBe: expected => check(() => assert.equal(value, expected)),
+    // Negated identity/null checks should not build and catch a failing deep
+    // diagnostic containing exposed document state and Wasm memory views.
+    toBe: expected => negate ? assert.notEqual(value, expected) : assert.equal(value, expected),
     toEqual: expected => check(() => assert.deepEqual(comparable(value), comparable(expected))),
     toStrictEqual: expected => check(() => assert.deepEqual(comparable(value), comparable(expected))),
-    toBeUndefined: () => check(() => assert.equal(value, undefined)),
-    toBeNull: () => check(() => assert.equal(value, null)),
+    toBeUndefined: () => negate ? assert.notEqual(value, undefined) : assert.equal(value, undefined),
+    toBeNull: () => negate ? assert.notEqual(value, null) : assert.equal(value, null),
     toBeTruthy: () => check(() => assert.ok(value)),
     toBeFalsy: () => check(() => assert.ok(!value)),
     toHaveLength: length => check(() => assert.equal(value.length, length)),
