@@ -76,16 +76,22 @@ isolated MDN migration. Update its package runtime requirement and CI to Node
 Repeat installed-consumer checks when engine/package inputs change; the completed
 qualification above does not establish arbitrary hook compatibility.
 
-Use the main Wasm package through the engine adapter, which initializes it lazily
-with the configured pool settings. Do not initialize it separately in a hook.
-Keep explicit document disposal and synchronous DOM execution on the caller's
-thread. The engine adapter supports Wasm only; the separate native package
-requires a different integration. Unsupported parser/API behavior must remain explicit.
+Use the main pooled-Wasm package. Import and initialize GroveDOM in the
+application's options module, then supply its synchronous `load` function as
+`loadHtml`. Configure heap and idle-pool settings through GroveDOM's `init()`
+before the first load. Each worker imports the options module locally; module
+resolution and parser initialization belong to the application. The former
+engine `htmlParser` and `grovedom` options are removed. Keep explicit document
+disposal and synchronous DOM execution on the caller's thread. The separate
+native package has not received this consumer qualification. Unsupported
+parser/API behavior must remain explicit.
 
-Pass parser options explicitly as the fourth argument to the engine's `loadHtml`
-and keep resource documents in `res.meta.doc`. Serialize and dispose generated
-documents before submitting child resources; dispose standalone and nested loads
-in `finally`. Use `pipeline.logger` and the current submission signatures.
+When hooks call the engine's `loadHtml`, pass document parse options as its
+second argument and the application options containing the loader as its fourth.
+Omitting the fourth argument selects default Cheerio. Keep resource documents
+in `res.meta.doc`. Serialize and dispose generated documents before submitting
+child resources; dispose standalone and nested loads in `finally`. Use
+`pipeline.logger` and the current submission signatures.
 Status observers are read-only; their asynchronous work runs concurrently.
 Return that work so cleanup can wait for it. Establish the same engine revision
 and options for both parsers, then compare a fixed recording of
