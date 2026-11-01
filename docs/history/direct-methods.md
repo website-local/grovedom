@@ -171,3 +171,46 @@ No timed/test run fails or triggers that stop. The main timing panel peaks at
 122,784 KiB sampled group RSS. These observations do not qualify sustained
 consumer memory. All 1,606 frozen source/input/dependency/harness files verify
 after timing. The [full consumer performance target](../benchmarks.md) remains open.
+
+## Reported CI after direct-loop integration
+
+This receipt was supplied after the push of `291ad6a`, whose runtime is unchanged
+from `d8ded63`. It compares current 0.1.3, published 0.1.2 and Cheerio 1.2.0 using
+pooled heaps and the shared browser workload. No run link, artifact hashes or raw
+blocks accompanied the table. Ratios are **reference/current**, so above one
+favors current. This receipt does not confirm the other CI jobs.
+
+| Case | Reference | Raw | Probe-filtered | Kept/complete |
+| --- | --- | ---: | ---: | ---: |
+| articles-120 | released Wasm | 1.100× | 1.100× | 81/81 |
+| articles-120 | Cheerio default | 4.462× | 4.462× | 81/81 |
+| articles-120 | Cheerio htmlparser2 | 3.062× | 3.062× | 79/81 |
+| articles-120 | identical Wasm control | 1.025× | 1.025× | 81/81 |
+| articles-600 | released Wasm | 1.072× | 1.075× | 79/81 |
+| articles-600 | Cheerio default | 7.105× | 7.107× | 80/81 |
+| articles-600 | Cheerio htmlparser2 | 5.434× | 5.435× | 79/81 |
+| articles-600 | identical Wasm control | 1.029× | 1.029× | 80/81 |
+| sitemap-600 | released Wasm | 1.047× | 1.047× | 81/81 |
+| sitemap-600 | Cheerio default | 4.510× | 4.510× | 81/81 |
+| sitemap-600 | Cheerio htmlparser2 | 4.530× | 4.532× | 79/80 |
+| sitemap-600 | identical Wasm control | 1.054× | 1.054× | 79/80 |
+| svg-300 | released Wasm | 1.049× | 1.049× | 80/80 |
+| svg-300 | Cheerio default | 3.081× | 3.085× | 79/80 |
+| svg-300 | Cheerio htmlparser2 | 3.080× | 3.080× | 80/80 |
+| svg-300 | identical Wasm control | 1.039× | 1.039× | 79/80 |
+
+The filter retains **1,278 of 1,290 supplied complete blocks**. All raw and
+filtered Cheerio medians exceed 3×. Against the faster compatible Cheerio
+configuration, filtered medians are 3.062×, 5.435×, 4.510× and 3.080× in case order.
+The margins remain narrow on the smaller HTML and SVG workloads.
+
+HTML release gains of 1.100×/1.075× exceed their 1.025×/1.029× control offsets.
+Sitemap's 1.047× is below its 1.054× identical-code control; SVG's 1.049× is close
+to its 1.039× control. The XML figures do not establish a precise attributable
+gain. Controls are observations, not correction factors or confidence bounds.
+
+This CI comparison uses published 0.1.2; the local combined-patch comparison
+uses `dcf7e4a`. The new receipt does not isolate the six loops or resolve the
+local sitemap slowdown. Dividing separate CI receipts would not supply a paired
+incremental effect. All prior unfavorable results remain, and full consumer
+performance/adoption remains unqualified.

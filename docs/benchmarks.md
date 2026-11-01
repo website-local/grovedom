@@ -33,6 +33,16 @@ more measured paths. The combined implementation repeats their method gains;
 the complete library workload panel is mixed, including unfavorable sitemap
 and saved-page results. All controls, the bounded sitemap follow-up and full
 local test counts remain separate from a consumer non-regression claim.
+The subsequent [reported CI table](history/direct-methods.md#reported-ci-after-direct-loop-integration)
+exceeds 3× both Cheerio configurations at every authored-case median, with
+limited XML release gains relative to identical-code controls.
+
+The [initialization-mode comparison](history/mode-initialization.md) finds no
+dependable gain from choosing raw or Proxy construction once per facade.
+Single-mode traces have no wrong-map deopts; first-use instance deopts remain.
+Mixed factory-created classes still share feedback, while full source splitting
+duplicates the JS graph. Raw callbacks improve in the bounded diagnostic, but
+complete workloads do not establish a general raw-mode win. No new mode is shipped.
 
 ## 0.1.2 read paths and remote comparisons
 
