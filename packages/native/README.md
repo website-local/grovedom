@@ -67,6 +67,21 @@ try {
 }
 ```
 
+## Selection modes
+
+Development **0.1.3 (unreleased)** adds `loadFast(content, options?, isDocument?)`
+from `grovedom-native`. It shares `load()` initialization and DOM methods, with
+plain selections accessed through `.get(index)` or iteration. Use `load()` when
+code needs numeric selection indexing such as `$('p')[0]`. Chains and nested
+`$.load()` calls retain their document's mode; generic `.map()` value collections
+remain numerically indexed. TypeScript exposes `FastGroveDOMAPI` and
+`FastSelection` without numeric selection indexing.
+
+Both modes share the facade and native kernel, callback and ownership rules.
+See the [context rules](https://github.com/website-local/grovedom/blob/main/docs/compatibility.md#selection-modes)
+for queries through another document. Measure your complete workload when
+choosing a mode; a general speedup is not established.
+
 ## Document lifetime and workers
 
 Always dispose each document in `finally`. `$.dispose()` is idempotent and
@@ -100,7 +115,7 @@ and nodes remain invalid afterward.
 ## Initialization
 
 The first DOM call loads the bundled addon automatically. To use a custom
-location, call `init()` once before `load`, `contains` or `merge`:
+location, call `init()` once before `load`, `loadFast`, `contains` or `merge`:
 
 ```js
 import { init } from 'grovedom-native';

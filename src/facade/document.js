@@ -60,9 +60,9 @@ export function createFacade(kernel, decodeInput) {
     function selection(state, ids, previous) {
         const value = { state, ids, previous };
         const target = new Selection(value);
-        return new Proxy(target, selectionProxy);
+        return state.fast ? target : new Proxy(target, selectionProxy);
     }
-    function load(content, options = {}, isDocument = true) {
+    function load(content, options = {}, isDocument = true, fast = false) {
         content = decodeInput(content);
         if (typeof content !== 'string')
             unsupported('load accepts HTML strings or UTF-8 byte arrays.');
@@ -89,7 +89,7 @@ export function createFacade(kernel, decodeInput) {
         const xml = Boolean(xmlOption || xmlMode), serialization = snapshotXMLOptions(xmlOption);
         const flags = xml ? xmlFlags(serialization) : 0, baseURI = options.baseURI;
         const state = {
-            owner: null, xml, serialization,
+            owner: null, xml, serialization, fast,
             direct: execution === 'direct', wrappers: new Map(), data: new Map(), baseURI,
             words: null, payload: null, wordLength: 0, byteLength: 0,
             usedWords: null, usedPayload: null, callbackIds: null,
@@ -171,7 +171,7 @@ export function createFacade(kernel, decodeInput) {
         };
         $.extract = map => $.root().extract(map);
         $.merge = merge;
-        $.load = load;
+        $.load = fast ? loadFast : load;
         $.flush = () => flush(state);
         $.dispose = () => {
             if (state.owner === null)
@@ -231,11 +231,15 @@ export function createFacade(kernel, decodeInput) {
         else {
             let length = first.length;
             const count = second.length;
-            for (let i = 0; i < count; i++)
-                first[length++] = second[i];
+            if (isSelection(second)) {
+                for (let i = 0; i < count; i++) first[length++] = second.get(i);
+            } else {
+                for (let i = 0; i < count; i++) first[length++] = second[i];
+            }
             first.length = length;
         }
         return first;
     }
-    return { load, contains, merge };
+    function loadFast(content, options, isDocument) { return load(content, options, isDocument, true); }
+    return { load, loadFast, contains, merge };
 }

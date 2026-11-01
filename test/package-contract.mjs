@@ -2,9 +2,11 @@
 // No diagnostic imports or Cheerio dependency can hide a packaging regression.
 import assert from 'node:assert/strict';
 import { reviewCases } from './review-contract.mjs';
+import { selectionModeCases } from './selection-mode-contract.mjs';
 
 export const packageCases = [
   ...reviewCases,
+  ...selectionModeCases,
   {
     name: 'HTML callbacks, partial effects and selection snapshots',
     run({ load, contains, merge }, execution) {
@@ -339,7 +341,7 @@ export const packageCases = [
 ];
 
 export function checkPackage(api, { corrected = true } = {}) {
-  for (const key of ['load', 'contains', 'merge']) assert.equal(typeof api[key], 'function', key);
+  for (const key of ['load', 'loadFast', 'contains', 'merge']) assert.equal(typeof api[key], 'function', key);
   let cases = 0;
   for (const execution of ['buffered', 'direct']) for (const item of packageCases) {
     if (item.corrected && !corrected) continue;

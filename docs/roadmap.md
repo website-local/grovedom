@@ -14,9 +14,18 @@ retention. [Correctness and resource qualification](testing.md#current-qualifica
 records the exact matrix, exclusions, sanitizer, fuzz and package checks.
 
 Release 0.1.2 is published from `25faa49`, whose full CI workflow is reported
-passing. Both npm packages and the hosted demo now serve 0.1.2. Development
-continues at 0.1.3; prior actual-browser results still apply to their named 0.1.1
-checkpoint. Published-package consumer qualification is the next step.
+passing. Both npm packages and the hosted demo now serve 0.1.2. The development
+version is 0.1.3, with direct facade state, selected allocation/loop improvements
+and opt-in [`loadFast()` selections](compatibility.md#selection-modes). Both modes
+share one implementation; complete consumer performance remains open in
+`mdn-local`. Prior actual-browser results still apply to their named 0.1.1
+checkpoint, and published-package engine qualification remains at 0.1.2.
+
+Published-package engine checks passed on Node 22/24, including installed
+declarations, both downloaders and all 16 ownership/pool cases per runtime.
+The final engine quality commit `3a84caa` also passed 1,138 tests. The
+[integration status](integration.md#engine-qualification) distinguishes this
+completed qualification from the remaining MDN migration and adoption gates.
 
 **Current full-scope non-regression and production adoption remain unverified.**
 Targeted operations improve in scoped measurements, but incomplete panels,
@@ -27,17 +36,20 @@ integration.
 
 ## Priorities
 
-1. Validate published 0.1.2 with the development website-scrap-engine adapter:
-   installed declarations, both downloaders, document cleanup, retries,
-   cancellation and pool controls. Then complete MDN ownership and original-input
-   replay, comparing output and complete-workload performance against current
-   Cheerio and its fastest compatible configuration. Saved consumer snapshots
-   do not establish production input weights or complete-crawl performance.
-2. Extend actual-browser API and fallback checks beyond the selected correctness
-   page. Firefox/Chromium results and exclusions remain documented; WebKit is
-   unqualified, so browser support stays best-effort.
-3. Broaden stateful fuzzing and allocation-failure coverage. Owned-buffer tests
-   do not prove recovery from every upstream or host allocation failure.
+1. Continue in `mdn-local`: migrate to the current engine's explicit document
+   ownership and lifecycle APIs, establish a Cheerio baseline, then compare
+   original-input replay and complete-workload performance. Use published 0.1.2
+   as the qualified integration baseline; evaluate the 0.1.3 changes and fast
+   mode separately against the same required outputs and memory limits.
+   Validate full locale archives and offline browser behavior at the adopted
+   consumer revision. Keep Cheerio as default until the adoption gates pass;
+   saved snapshots do not establish production weights or complete-crawl speed.
+2. Extend actual-browser API and fallback checks beyond
+   the selected correctness page. Firefox/Chromium results and exclusions remain
+   documented; WebKit is unqualified, so browser support stays best-effort.
+3. Broaden stateful fuzzing and allocation-failure coverage when a consumer need
+   warrants that work. Owned-buffer tests do not prove recovery from every
+   upstream or host allocation failure.
 4. Start future optimization work from source analysis and profiles, then use a
    fixed comparison to confirm a concrete finding. Preserve callback order,
    snapshots, identity and unfavorable evidence.

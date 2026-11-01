@@ -2,6 +2,15 @@
 
 ## 0.1.3 (unreleased)
 
+- Add `loadFast()` to Node, browser and native entries. It returns plain selections
+  accessed through `.get()` or iteration; `load()` keeps numeric indexing. Both
+  modes share one facade and kernel, with typed chains and nested loads retaining
+  their mode. Generic mapped values remain indexed. No universal speedup is claimed.
+- Inline measured internal loops for `is(function)`, unnamed `removeData()`,
+  attribute/property maps, `has(nodes)`, `closest(string)`, whole-class toggles
+  and `wrap(string)`, preserving callback, coercion and disposal boundaries.
+- Check actual browser module imports in the VM linker, avoiding a false Node
+  dependency rejection caused by a source comment.
 - Remove callback-based array filtering and mapping from runtime internals;
   avoid temporary wrapper, class-token, CSS and form-serialization arrays while
   preserving selection snapshots, callbacks, sparse inputs and node identity.

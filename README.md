@@ -62,6 +62,31 @@ promise, even between patch releases**. Names, layouts and enumeration may chang
 without deprecation. See the [internal-state policy](packages/wasm/README.md#internal-state)
 for retention and disposal behavior.
 
+## Selection modes
+
+Development **0.1.3 (unreleased)** adds `loadFast()` beside `load()` on the Node,
+browser and native entries. It accepts the same arguments and returns plain
+selections with the same DOM methods. Access nodes with `.get()` or iteration:
+
+```js
+import { loadFast } from 'grovedom';
+
+const $ = loadFast('<a href="/guide">Guide</a>');
+try {
+  console.log($('a').get(0).attribs.href); // /guide
+} finally {
+  $.dispose();
+}
+```
+
+`load()` retains numeric selection indexing such as `$('a')[0]`. Fast selections
+omit that interface; generic value collections returned by `.map()` still have
+numeric indexing. Each document keeps its mode through chains and nested
+`$.load()` calls. Both modes share initialization, DOM algorithms and ownership
+rules. See [mode and context semantics](docs/compatibility.md#selection-modes).
+The name `loadFast` does not promise a speedup for every workload; complete
+consumer gains remain [unverified](docs/benchmarks.md#current-result).
+
 ## What it supports
 
 - CSS selection, traversal and chainable collections.
@@ -80,7 +105,7 @@ Cheerio, jQuery and Web Platform Test expectations and known exclusions.
 ## Configuration
 
 The Node entry initializes its bundled Wasm automatically on the first DOM call.
-For custom settings, call `init()` before `load`, `contains` or `merge`:
+For custom settings, call `init()` before `load`, `loadFast`, `contains` or `merge`:
 
 ```js
 import { init } from 'grovedom';

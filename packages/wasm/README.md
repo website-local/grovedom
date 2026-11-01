@@ -41,6 +41,22 @@ try {
 and `body` elements. Input can be a string or a UTF-8 `Uint8Array` (including a
 Node `Buffer`). Decode other encodings before calling it.
 
+## Selection modes
+
+Development **0.1.3 (unreleased)** adds `loadFast(content, options?, isDocument?)`
+on both Node and browser entries. It shares `load()` initialization and DOM
+methods, with plain selections accessed through `.get(index)` or iteration.
+Use `load()` when code needs numeric selection indexing such as `$('p')[0]`.
+Chains and nested `$.load()` calls retain their document's mode. Generic value
+collections returned by `.map()` remain numerically indexed in both modes.
+
+The modes share one facade and kernel. Callback, snapshot, identity and disposal
+rules still apply; switching modes does not transfer nodes between documents.
+TypeScript exposes `FastGroveDOMAPI` and `FastSelection` without numeric selection
+indexing. Read the [context rules](https://github.com/website-local/grovedom/blob/main/docs/compatibility.md#selection-modes)
+when querying through another document. Measure the complete workload before
+choosing a mode; a general speedup is not established.
+
 ## Fragments and XML
 
 Pass `false` as the third argument to parse an HTML fragment. Enable XML
@@ -107,7 +123,7 @@ collectible; garbage collection is a fallback, not a substitute for disposal.
 ## Initialization and memory
 
 In Node, the first DOM call loads the bundled Wasm automatically. To configure
-it, call `init()` once before `load`, `contains` or `merge`:
+it, call `init()` once before `load`, `loadFast`, `contains` or `merge`:
 
 ```js
 import { init } from 'grovedom';

@@ -32,9 +32,40 @@ Internal calls between public methods are implementation details. Replacing
 operations such as `is` or `removeData`. Explicit calls to user callbacks retain
 their documented ordering, arguments and receiver.
 
+## Selection modes
+
+The unreleased 0.1.3 API offers two document factories on all three entries:
+
+| Factory | Selection node access | TypeScript API / selection |
+|---|---|---|
+| `load()` | Numeric indexing, `.get()` and iteration | `GroveDOMAPI` / `Selection` |
+| `loadFast()` | `.get()` and iteration | `FastGroveDOMAPI` / `FastSelection` |
+
+Both accept the same input, parser options and fragment argument. They share
+initialization, methods, callbacks, snapshots and lifetime rules. Choose the
+mode when creating a document; chains, root selections, node-valued maps and
+nested `$.load()` keep it. Generic value collections from `.map()` still have
+numeric indexing. Fast selections do not implement numeric reads, writes or
+enumeration; assigning an ordinary property such as `selected[0]` does not edit
+their membership. Use `.get(index)`, iteration and `.splice()` as appropriate.
+
+Both modes can coexist in one entry. A CSS query with a foreign selection or
+node context delegates to that context's document and returns its mode. Markup
+construction still belongs to the receiving document. Types conservatively
+reflect both possibilities when the context can have another mode. This does
+not enable cross-document node adoption: passing another document's nodes as
+ordinary input or mutation content remains unsupported. Package entries still
+own independent handle brands.
+
+The two modes share their method prototype. Internal calls remain unsupported
+interception points, and undocumented fields have no compatibility promise.
+The [measured comparison](history/mode-initialization.md) favors plain selections
+for public callbacks in its bounded diagnostic, without establishing a general
+complete-workload gain.
+
 ## Options
 
-`load(content, options?, isDocument?)` accepts `scriptingEnabled`, `baseURI`,
+`load(content, options?, isDocument?)` and `loadFast()` accept `scriptingEnabled`, `baseURI`,
 `execution: 'buffered' | 'direct'`, `xml` and `xmlMode`. Unknown parser options
 are rejected. HTML uses the audited Cheerio/parse5 defaults; there is no
 htmlparser2 HTML mode. See [the declarations](../src/index.d.ts) for signatures.

@@ -29,6 +29,23 @@ share algorithms; Node retains direct Buffer decoding. The browser graph imports
 no Node modules or globals. Release entries never import diagnostics. No runtime
 package/build JSON checks or environment-variable configuration remain.
 
+## Selection modes
+
+`load()` and `loadFast()` share one facade, Selection class and kernel. Each
+document records its mode. Selection construction returns either a numeric-index
+Proxy for `load()` or the plain Selection for `loadFast()`. DOM algorithms are
+maintained once; there are no generated copies, subclasses or delegate methods.
+Both modes may be used in one process, and nested `$.load()` retains its mode.
+
+Internal operations use IDs and records rather than numeric selection indexing.
+Array-first `merge()` reads selection members through `.get()` as each destination
+write occurs, retaining mutation and disposal observations from setters. Generic
+mapped value collections keep their own numeric indexing. Shared declaration
+method lists preserve mode-specific chains without duplicating the API surface.
+The [comparison](history/mode-initialization.md) explains the choice and its
+performance limits; [compatibility](compatibility.md#selection-modes) defines the
+public behavior and foreign-context rules.
+
 ## Internal JavaScript state
 
 Use direct properties for library-owned state, including `Selection`,

@@ -19,6 +19,41 @@ links, acyclic structure and stable handle identity; exclusions do not count as 
 
 ## Current qualification
 
+### Unreleased 0.1.3 selection modes
+
+The simple-dual landing runs all **84 test files separately on Node 24.18.0**:
+
+| Backend | Passed | Exclusions |
+|---|---:|---:|
+| Pooled Wasm | 2,575 | 51 |
+| Native | 2,563 | 63 |
+
+These suites retain compatible-mode coverage and add twelve mode cases for
+HTML/XML, buffered/direct execution, maps, snapshots, nested loads, coercion,
+disposal, live merge reads and mixed contexts. The same cases run in package and
+portable release contracts. The current source also passes the earlier
+570-assertion mode contract and 40 direct-method cases per mode. Global and
+per-document heaps and the portable byte path each pass the twelve mode cases.
+
+Assembled Node/native/browser packages pass public contracts and four concurrent
+worker checks from an isolated consumer. Standalone Node/native/browser
+declarations pass strict checking, including declaration bodies, without
+third-party types. Workspace API assertions also pass. Source and packaged
+normal/fallback browser sandbox runs each pass the 16-module portable graph,
+release contracts and 810 selected browser cases with 35 exclusions. Those
+standards cases still use compatible `load()`; the added mode contracts exercise
+`loadFast()` too. These are Node VM checks, not new browser-engine runs.
+
+The completed per-file runs have no failures, cancellations or TODOs. Two
+initial native wide-form attempts stopped at the sampled RSS guard and a
+smaller V8 heap limit. The unchanged 130,000-field test passes with the normal
+64 MiB V8 heap and `--test-isolation=none`, removing the extra test coordinator
+process. Both unsuccessful attempts remain recorded. The 192 MiB RSS stop uses
+polling and is not a hard cap; runtime checks keep JIT enabled. Wasm and native
+binaries are unchanged. This is API qualification, not consumer adoption evidence.
+
+### Released 0.1.2
+
 The 2026-10-24 pre-release review retains the 0.1.2 read-path runtime and its
 matching C artifacts. Each full configuration runs **2,505 cases**:
 

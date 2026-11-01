@@ -1,6 +1,35 @@
 # Consumer integration
 
-GroveDOM keeps downloader resource policy outside the DOM package. The
+GroveDOM keeps downloader resource policy outside the DOM package. Current
+consumer migration and adoption work belongs in `mdn-local`; use the engine's
+[current adapter guide](https://github.com/website-local/website-scrap-engine/blob/master/docs/grovedom.md)
+and [0.10 migration guide](https://github.com/website-local/website-scrap-engine/blob/master/MIGRATION-0.10.0.md).
+
+## Engine qualification
+
+Published GroveDOM 0.1.2 passed installed-consumer qualification with engine
+commit `3a84caa` on Node 22.22.2 and 24.18.0: strict declarations, all 15 runtime
+check groups, both downloaders, logging, all 16 ownership/pool cases per runtime,
+and module aliases. The engine build and all 1,138 tests passed. Resource
+documents are owned explicitly, and cleanup waits for asynchronous status work.
+
+MDN's migration from engine 0.9.1 remains pending. Earlier isolated migration
+and 193-case/frozen-page replay results qualify their named snapshots.
+The engine's saved MDN patch uses the
+removed `withHtmlParser` API and needs adaptation before current adoption.
+Fresh replay of the adopted consumer, complete-workload performance and full
+archive/browser validation remain open. Cheerio remains the default.
+
+The unreleased 0.1.3 library adds [`loadFast()`](compatibility.md#selection-modes).
+The qualified engine adapter still uses compatible `load()`. Evaluating fast
+mode requires removing numeric selection indexing from the consumer path,
+preserving document ownership and nested loads, then checking identical outputs
+and complete-workload performance. The library API addition alone does not
+qualify or change the engine integration.
+
+## Historical reference replay
+
+The preserved
 [integration adapter](../integration/engine-adapter.mjs) scopes every document
 created by a transform family and disposes it in `finally`, including nested
 `srcdoc`, generated examples and sitemap loads.
@@ -41,24 +70,33 @@ installed dependency and lockfile versions before claiming a locked baseline.
 
 ## Adoption steps
 
-Start with published **grovedom 0.1.2** in an isolated installed consumer. Validate
-declarations, both engine downloaders, document cleanup, failure/retry/cancellation
-paths and per-worker pool controls. Prior candidate and frozen-snapshot results
-do not substitute for this published-package check.
+Use published **grovedom 0.1.2** with the selected current engine revision in an
+isolated MDN migration. Update its package runtime requirement and CI to Node
+22.13.0 or newer and establish a passing Cheerio baseline before opting into GroveDOM.
+Repeat installed-consumer checks when engine/package inputs change; the completed
+qualification above does not establish arbitrary hook compatibility.
 
-Use the main Wasm package with `init` before the first transform. Keep explicit
-adapter-owned disposal and synchronous DOM execution on the caller's thread.
-The separate native package is an alternative, not an automatic fallback.
-Unsupported parser/API behavior must remain explicit.
+Use the main Wasm package through the engine adapter, which initializes it lazily
+with the configured pool settings. Do not initialize it separately in a hook.
+Keep explicit document disposal and synchronous DOM execution on the caller's
+thread. The engine adapter supports Wasm only; the separate native package
+requires a different integration. Unsupported parser/API behavior must remain explicit.
 
-Route documents created by hooks and standalone MDN transforms through the engine's
-ownership scope, including nested loads and serialization. Establish the same
-engine revision and options for both parsers, then compare a fixed recording of
+Pass parser options explicitly as the fourth argument to the engine's `loadHtml`
+and keep resource documents in `res.meta.doc`. Serialize and dispose generated
+documents before submitting child resources; dispose standalone and nested loads
+in `finally`. Use `pipeline.logger` and the current submission signatures.
+Status observers are read-only; their asynchronous work runs concurrently.
+Return that work so cleanup can wait for it. Establish the same engine revision
+and options for both parsers, then compare a fixed recording of
 original responses for exact outputs, submissions, paths, events and cleanup.
 
 Before production migration, validate representative original inputs and agreed
 traffic weights, close any required compatibility gaps and test intended shipping
-platforms. This workspace has not modified or deployed the original consumer runtime.
+platforms. Measure the complete DOM workload against current Cheerio and its
+fastest compatible configuration using the [adoption criteria](benchmarks.md).
+Check full locale archives and offline browsers at the actual adopted revision.
+This workspace has not modified or deployed the original consumer runtime.
 Local package assembly does not authorize publication or rollout.
 
 [Historical integration audit](history/integration.md) records detailed source

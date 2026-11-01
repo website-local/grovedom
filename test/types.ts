@@ -5,7 +5,8 @@ import { init as initNative } from '../src/native.js';
 init({ wasm: new Uint8Array(), heap: 'pool', poolSize: 8 });
 const browserReady: Promise<void> = initBrowser({ wasm: new Uint8Array() });
 initNative({ addon: new URL('file:///example.node') });
-import { load, merge, contains, type FilterFunction, type NodeHandle, type SelectorType } from 'grovedom';
+import { load, loadFast, merge, contains, type FilterFunction, type NodeHandle, type SelectorType,
+  type FastSelection, type FastGroveDOMAPI } from 'grovedom';
 const $ = load('<p>Hello</p>', { scriptingEnabled: true });
 const selector: SelectorType = 'p';
 const filter: FilterFunction<NodeHandle> = function (i, node) { return this === node && i === 0; };
@@ -47,3 +48,20 @@ const fragment = buffered('template').contents()[0]!;
 const included: boolean = contains(buffered('template')[0]!, fragment);
 const removed: NodeHandle[] = buffered('p').splice(0, 1);
 buffered.dispose();
+const fast: FastGroveDOMAPI = loadFast(Buffer.from('<p>Hello</p>'));
+declare module 'grovedom' {
+  interface Selection { selectionExtension(): string; }
+  interface FastSelection { fastExtension(): string; }
+}
+const extension: string = buffered('p').find('i').selectionExtension();
+const fastExtension: string = fast('p').find('i').fastExtension();
+const fastSelected: FastSelection = fast('p').find('b').end().attr('title', 'fast');
+const fastNode: NodeHandle | undefined = fastSelected.get(0);
+const fastValues: (string | undefined)[] = fastSelected.map((_index, node) => node.name).get();
+const fastMerge: FastSelection | undefined = merge(fastSelected, fast('p'));
+const fastArray: NodeHandle[] | undefined = merge([] as NodeHandle[], fastSelected);
+// @ts-expect-error Fast DOM selections require get() or iteration.
+const fastIndexed = fastSelected[0];
+// @ts-expect-error Node maps preserve fast selections.
+const fastMappedIndex = fastSelected.map((_index, node) => node)[0];
+fast.dispose();

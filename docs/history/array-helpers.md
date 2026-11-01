@@ -188,3 +188,36 @@ current**, so larger values favor current.
 All released/current medians favor current. Controls limit small gain claims;
 the SVG/default filtered median remains below 3×. These authored cases do not
 establish the complete consumer adoption target.
+
+## Reported CI receipt after array cleanup
+
+The user supplied this second table after the array-allocation cleanup. It uses
+current 0.1.3, published 0.1.2, Cheerio 1.2.0, pooled heaps and the shared browser
+workload. Run identity, source/artifact hashes and raw blocks were not supplied.
+This receipt is separate from the earlier table and does not confirm other CI
+jobs. Ratios are **reference / current**, so larger values favor current.
+
+| Case | Reference | Raw | Probe-filtered | Kept/complete |
+| --- | --- | ---: | ---: | ---: |
+| articles-120 | Released Wasm | 1.119× | 1.119× | 47/48 |
+| articles-120 | Cheerio default | 4.344× | 4.344× | 48/48 |
+| articles-120 | Cheerio htmlparser2 | 3.062× | 3.062× | 48/48 |
+| articles-120 | Identical Wasm | 1.023× | 1.023× | 48/48 |
+| articles-600 | Released Wasm | 1.122× | 1.122× | 48/48 |
+| articles-600 | Cheerio default | 6.749× | 6.749× | 48/48 |
+| articles-600 | Cheerio htmlparser2 | 5.494× | 5.494× | 48/48 |
+| articles-600 | Identical Wasm | 1.030× | 1.030× | 48/48 |
+| sitemap-600 | Released Wasm | 1.038× | 1.038× | 48/48 |
+| sitemap-600 | Cheerio default | 4.444× | 4.444× | 47/47 |
+| sitemap-600 | Cheerio htmlparser2 | 4.456× | 4.456× | 47/47 |
+| sitemap-600 | Identical Wasm | 1.034× | 1.034× | 47/47 |
+| svg-300 | Released Wasm | 1.041× | 1.041× | 47/47 |
+| svg-300 | Cheerio default | 3.066× | 3.066× | 47/47 |
+| svg-300 | Cheerio htmlparser2 | 3.041× | 3.041× | 47/47 |
+| svg-300 | Identical Wasm | 1.035× | 1.036× | 47/48 |
+
+All four reported cases exceed 3× both Cheerio configurations, narrowly for SVG.
+The released/current XML gains are close to their identical-code control offsets;
+these small differences do not establish an attributable optimization gain.
+Dividing the two receipts' medians would not measure the cleanup's paired effect.
+These authored cases do not establish complete consumer performance or adoption.

@@ -20,8 +20,8 @@ diagnostics do not establish the complete-workload target.
 
 The subsequent [array and mode audit](history/array-helpers.md) removes transient
 arrays, profiles CSS parsing and tests subclass versus generated mode isolation.
-It retains the reported 0.1.3 CI table and all local control limitations. No
-public fast-mode entry or complete-workload speed claim follows from that audit.
+It retains the reported 0.1.3 CI tables and all local control limitations. That
+checkpoint did not expose a fast-mode entry or establish complete-workload gains.
 
 The [callback loop follow-up](history/callback-loops.md) retains direct loops for
 `is(function)` and unnamed `removeData()`. Both improve in the final bounded
@@ -42,7 +42,14 @@ dependable gain from choosing raw or Proxy construction once per facade.
 Single-mode traces have no wrong-map deopts; first-use instance deopts remain.
 Mixed factory-created classes still share feedback, while full source splitting
 duplicates the JS graph. Raw callbacks improve in the bounded diagnostic, but
-complete workloads do not establish a general raw-mode win. No new mode is shipped.
+complete workloads do not establish a general raw-mode win.
+
+The subsequent 0.1.3 landing exposes the measured simple dual design as
+[`loadFast()`](compatibility.md#selection-modes), alongside compatible `load()`.
+Both share the facade and kernel; plain selections omit numeric indexing.
+This API addition does not change the completed measurements or establish a
+consumer speedup. The next useful comparison is an unchanged consumer workload
+using each mode end to end, with exact output and sustained memory checks.
 
 ## 0.1.2 read paths and remote comparisons
 

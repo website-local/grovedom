@@ -23,6 +23,11 @@ export function load(content, options, isDocument) {
         init();
     return facade.load(content, options, isDocument);
 }
+export function loadFast(content, options, isDocument) {
+    if (!facade)
+        init();
+    return facade.loadFast(content, options, isDocument);
+}
 export function contains(container, contained) {
     if (!facade)
         init();

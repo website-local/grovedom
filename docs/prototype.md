@@ -71,11 +71,17 @@ init({ addon: './native/grovedom.node' }); // optional custom location
 
 Native defaults to its bundled addon. Package entries own independent state and
 handle brands. Configuration cannot change after successful initialization,
-including implicit initialization through `load`, `contains` or `merge`.
+including implicit initialization through `load`, `loadFast`, `contains` or `merge`.
 Recursive initialization from option getters or a browser fetch is rejected;
 the entry is reserved before those callbacks run. Failed initialization releases
 that reservation and can be retried. No package metadata compatibility check is
 performed: distribute the matching JS and artifact together.
+
+The unreleased 0.1.3 `loadFast()` export uses the same initialization and options.
+It selects plain collections for each document; `load()` keeps numeric-index
+Proxies. Nested `$.load()` retains the selection mode. Browsers require the same
+awaited `init()` before either factory. See [selection modes](compatibility.md#selection-modes)
+for access methods, types and cross-document contexts.
 
 ## Browser and demo
 

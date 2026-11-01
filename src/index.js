@@ -2,7 +2,7 @@ import { createFacade } from './facade/document.js';
 import { nodeWasm, decodeInput } from './wasm/node.js';
 import { validateOptions, initializedError } from './initialize.js';
 let facade, initializing = false;
-/** Configure once, before load/contains/merge. Without init(), first use loads the bundled Wasm. */
+/** Configure once, before DOM calls. Without init(), first use loads the bundled Wasm. */
 export function init(options = {}) {
     if (facade || initializing)
         throw initializedError();
@@ -17,6 +17,11 @@ export function load(content, options, isDocument) {
     if (!facade)
         init();
     return facade.load(content, options, isDocument);
+}
+export function loadFast(content, options, isDocument) {
+    if (!facade)
+        init();
+    return facade.loadFast(content, options, isDocument);
 }
 export function contains(container, contained) {
     if (!facade)

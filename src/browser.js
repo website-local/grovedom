@@ -29,5 +29,6 @@ function ready() {
     return facade;
 }
 export function load(content, options, isDocument) { return ready().load(content, options, isDocument); }
+export function loadFast(content, options, isDocument) { return ready().loadFast(content, options, isDocument); }
 export function contains(container, contained) { return ready().contains(container, contained); }
 export function merge(first, second) { return ready().merge(first, second); }

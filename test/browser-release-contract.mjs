@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { reviewCases } from './review-contract.mjs';
+import { selectionModeCases } from './selection-mode-contract.mjs';
 
 export function checkBrowserRelease(api) {
   for (const execution of ['buffered', 'direct']) for (const item of reviewCases)
+    item.run(api, execution);
+  for (const execution of ['buffered', 'direct']) for (const item of selectionModeCases)
     item.run(api, execution);
   // Exercise the release corrections through the actual portable facade, including
   // its encodeInto/finalizer fallbacks. JSON comparisons cross the VM realm boundary.

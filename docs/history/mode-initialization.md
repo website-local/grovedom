@@ -2,8 +2,10 @@
 
 This private prototype chooses raw or Proxy construction once per facade. It
 works with the current direct-loop runtime, but the completed comparison gives
-**no dependable speed advantage over simple dual mode**. Keep simple dual as the
-experimental reference. No runtime/API/type/binary change is selected.
+**no dependable speed advantage over simple dual mode**. At this checkpoint,
+simple dual remained the experimental reference and no runtime/API/type/binary
+change was selected. The [subsequent landing](#subsequent-simple-dual-landing)
+exposes that reference without changing this panel's evidence.
 
 The source baseline is e117811, whose runtime remains d8ded63; later browser
 checker and Actions changes do not affect the runtime. Earlier subclass,
@@ -195,3 +197,25 @@ using raw selections end to end with identical output. Further constructor,
 subclass or delegation variations are not justified by this panel. Keep the
 current compatible runtime and Cheerio consumer default while that full-workload
 adoption evidence remains unproven.
+
+## Subsequent simple dual landing
+
+Unreleased 0.1.3 now exposes `loadFast()` beside `load()` on Node, browser and
+native entries. It retains the measured shared facade/class/kernel and
+per-document construction branch. `load()` keeps its numeric-index Proxy;
+`loadFast()` returns plain selections. No initialization-time specialization,
+subclass, delegate or generated source graph was added.
+
+Shared declaration method lists preserve the mode through chains and nested
+loads. Generic mapped values keep numeric indexing, and foreign query contexts
+retain their document's behavior. [Selection mode semantics](../compatibility.md#selection-modes)
+and [qualification](../testing.md#unreleased-013-selection-modes) describe the public contract and checks.
+The size table above remains the experimental graph's measurement, excluding
+the later public entry wrappers, declarations and regression tests.
+
+Including the public wrappers, the landed Wasm Node/browser graph adds 572 JS
+bytes over the compatible baseline, or 86 bytes in the same concatenated-gzip
+estimate. The Wasm binary remains unchanged; declarations and tests are excluded.
+
+This landing adds no timing panel and does not resolve full-workload gains or
+the consumer adoption target. Keep Cheerio as the consumer default.

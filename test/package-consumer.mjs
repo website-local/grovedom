@@ -10,11 +10,18 @@ const expectedCases = packageCases.length * 2;
 const node = await import('grovedom');
 const browser = await import('grovedom/browser');
 assert.throws(() => browser.load('<p/>'), /Await/);
+assert.throws(() => browser.loadFast('<p/>'), /Await/);
 await browser.init({ wasm: readFileSync(new URL('./node_modules/grovedom/grovedom.wasm', import.meta.url)) });
 const entries = [['grovedom', node], ['grovedom/browser', browser]];
 if (target === 'both') entries.push(['grovedom-native', await import('grovedom-native')]);
 for (const [name, api] of entries) {
-  assert.deepEqual(Object.keys(api).sort(), ['contains', 'init', 'load', 'merge']);
+  assert.deepEqual(Object.keys(api).sort(), ['contains', 'init', 'load', 'loadFast', 'merge']);
+  // The first Node/native DOM call also initializes through loadFast.
+  const fast = api.loadFast('<p>first fast load</p>');
+  try {
+    assert.equal(fast('p').text(), 'first fast load');
+    assert.equal('0' in fast('p'), false);
+  } finally { fast.dispose(); }
   assert.equal(checkPackage(api), expectedCases, name);
 }
 // Independently initialized entries must reject handles from other entries.

@@ -14,23 +14,31 @@ test('Node Wasm explicit initialization ignores runtime environment and metadata
   assert.throws(() => api.init({ wasm: wasmPath, poolSize: -1 }), /nonnegative/);
   assert.throws(() => api.init({ wasm: wasmPath + '.missing' }));
   api.init({ wasm: readFileSync(wasmPath), heap: 'pool', poolSize: 2 });
-  const $ = api.load(new Uint8Array(Buffer.from('<p>é 😀</p>')));
-  try { assert.equal($('p').text(), 'é 😀'); }
-  finally { $.dispose(); }
+  for (const open of [api.load, api.loadFast]) {
+    const $ = open(new Uint8Array(Buffer.from('<p>é 😀</p>')));
+    try {
+      assert.equal($('p').text(), 'é 😀');
+      assert.equal('0' in $('p'), open === api.load);
+    } finally { $.dispose(); }
+  }
   assert.throws(() => api.init({ wasm: wasmPath }), /already initialized/);
 });
 
 test('browser async initialization, retry, and BOM-preserving output', { skip: !existsSync(wasmPath) }, async () => {
   const api = await fresh('browser', 'browser');
   assert.throws(() => api.load('<p>early</p>'), /Await/);
+  assert.throws(() => api.loadFast('<p>early</p>'), /Await/);
   await assert.rejects(api.init({ wasm: new Uint8Array([0, 1, 2]) }));
   const ready = api.init({ wasm: readFileSync(wasmPath) });
   assert.throws(() => api.load('<p>pending</p>'), /Await/);
+  assert.throws(() => api.loadFast('<p>pending</p>'), /Await/);
   await assert.rejects(api.init(), /already initialized/);
   await ready;
-  const $ = api.load('<p>\ufeffé 😀</p>');
-  try { assert.equal($('p').text(), '\ufeffé 😀'); }
-  finally { $.dispose(); }
+  for (const open of [api.load, api.loadFast]) {
+    const $ = open('<p>\ufeffé 😀</p>');
+    try { assert.equal($('p').text(), '\ufeffé 😀'); }
+    finally { $.dispose(); }
+  }
   await assert.rejects(api.init(), /already initialized/);
 });
 
@@ -61,11 +69,13 @@ for (const entry of ['index', 'native', 'browser']) {
           const result = api.init(valid);
           errors.push(Promise.resolve(result).then(() => null, error => error));
         } catch (error) { errors.push(Promise.resolve(error)); }
-        try {
-          const $ = api.load('<p>must wait</p>');
-          $.dispose();
-          earlyLoads.push(null);
-        } catch (error) { earlyLoads.push(error); }
+        for (const open of [api.load, api.loadFast]) {
+          try {
+            const $ = open('<p>must wait</p>');
+            $.dispose();
+            earlyLoads.push(null);
+          } catch (error) { earlyLoads.push(error); }
+        }
       }
       const key = entry === 'native' ? 'addon' : 'wasm';
       const options = boundary === 'source getter'
@@ -77,11 +87,14 @@ for (const entry of ['index', 'native', 'browser']) {
         assert.match(error?.message ?? 'Nested initialization succeeded', /already initialized/);
       for (const error of earlyLoads)
         assert.match(error?.message ?? 'DOM use succeeded before initialization', entry === 'browser' ? /Await/ : /already initialized/);
-      const $ = api.load('<p>original owner</p>');
-      try {
-        assert.equal(api.contains($.root()[0], $('p')[0]), true);
-        assert.equal($('p').text(), 'original owner');
-      } finally { $.dispose(); }
+      for (const open of [api.load, api.loadFast]) {
+        const $ = open('<p>original owner</p>');
+        try {
+          assert.equal(api.contains($.root().get(0), $('p').get(0)), true);
+          assert.equal($('p').text(), 'original owner');
+          assert.equal('0' in $('p'), open === api.load);
+        } finally { $.dispose(); }
+      }
       await assert.rejects(async () => api.init(valid), /already initialized/);
     });
   }
@@ -92,7 +105,7 @@ for (const entry of ['index', 'native', 'browser']) {
     const key = entry === 'native' ? 'addon' : 'wasm';
     await assert.rejects(async () => api.init({ get [key]() { throw failure; } }), error => error === failure);
     await api.init(valid);
-    const $ = api.load('<p>retried</p>');
+    const $ = api.loadFast('<p>retried</p>');
     try { assert.equal($('p').text(), 'retried'); }
     finally { $.dispose(); }
   });
