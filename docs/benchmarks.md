@@ -18,6 +18,11 @@ direct metadata, fewer duplicate checks, a corrected Proxy read regression,
 disposal-related deopts and the shared-class mode experiment. Its bounded
 diagnostics do not establish the complete-workload target.
 
+The subsequent [array and mode audit](history/array-helpers.md) removes transient
+arrays, profiles CSS parsing and tests subclass versus generated mode isolation.
+It retains the reported 0.1.3 CI table and all local control limitations. No
+public fast-mode entry or complete-workload speed claim follows from that audit.
+
 ## 0.1.2 read paths and remote comparisons
 
 First-element reads, raw child arrays, text properties and wrapping avoid

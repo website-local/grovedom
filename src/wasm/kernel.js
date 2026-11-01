@@ -2,7 +2,7 @@ import { createEncoder } from '../encoding.js';
 import { buildConfig } from '../build-config.js';
 // Portable transport. The host supplies byte decoding and optional diagnostic imports.
 export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxBytes = 16 * 1024 * 1024 } = {}, platform, inspect) {
-    if (!['global', 'document', 'pool'].includes(heap))
+    if (heap !== 'global' && heap !== 'document' && heap !== 'pool')
         throw new TypeError('Expected global, document, or pool Wasm heap.');
     const perDocument = heap !== 'global';
     const pooled = heap === 'pool';

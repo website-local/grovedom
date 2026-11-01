@@ -1,5 +1,7 @@
 import { unsupported } from './common.js';
 const xmlOptionNames = ['decodeEntities', 'lowerCaseTags', 'lowerCaseAttributeNames', 'selfClosingTags', 'emptyAttrs', 'encodeEntities', 'xmlMode', 'recognizeSelfClosing', 'recognizeCDATA'];
+const serializerOptionNames = ['xml', 'xmlMode', 'decodeEntities', 'encodeEntities', 'selfClosingTags', 'emptyAttrs'];
+const entityModes = [true, false, 'utf8'];
 export function snapshotXMLOptions(value) {
     if (!value || typeof value !== 'object') return undefined;
     const snapshot = { ...value };
@@ -30,7 +32,7 @@ export function xmlFlags(value = {}) {
     if (value.selfClosingTags === false)
         flags |= 8;
     if (value.encodeEntities !== undefined) {
-        if (![true, false, 'utf8'].includes(value.encodeEntities))
+        if (!entityModes.includes(value.encodeEntities))
             throw new TypeError('Expected encodeEntities boolean or utf8');
         flags &= ~16;
         if (value.encodeEntities === false)
@@ -45,14 +47,14 @@ export function serializerOptions(state, options) {
     if (flat.xml && typeof flat.xml === 'object')
         Object.assign(flat, flat.xml);
     for (const key of Object.keys(flat)) {
-        if (!['xml', 'xmlMode', 'decodeEntities', 'encodeEntities', 'selfClosingTags', 'emptyAttrs'].includes(key))
+        if (!serializerOptionNames.includes(key))
             unsupported(`Unsupported serializer option: ${key}`);
         if (key === 'xml') {
             if (typeof flat.xml !== 'boolean' && (!flat.xml || typeof flat.xml !== 'object' || Array.isArray(flat.xml)))
                 throw new TypeError('Expected xml boolean or serializer options');
         }
         else if (key === 'encodeEntities') {
-            if (![true, false, 'utf8'].includes(flat[key]))
+            if (!entityModes.includes(flat[key]))
                 throw new TypeError('Expected encodeEntities boolean or utf8');
         }
         else if (typeof flat[key] !== 'boolean')

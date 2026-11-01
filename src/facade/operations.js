@@ -1,10 +1,18 @@
 import { createEncoder } from '../encoding.js';
 import { expandSelector } from '../selectors.js';
 import { alive, unsupported, empty, boolAttributes } from './common.js';
+const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
+const relativeList = /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/;
+const simpleTag = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+const relativeStart = /^(?:[>+~]|:scope\b)/;
+const childStart = /^(?:>|:scope\b)/;
+const siblingStart = /^[+~]/;
+const hexDigit = /[0-9a-f]/i;
+const cssSpace = /[\t\n\f\r ]/;
+const leadingCSSSpace = /^[\t\n\f\r ]+/;
 // One set of closures per facade; no per-document dispatch object.
 export function createOperations(kernel) {
     const encoder = createEncoder();
-    const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
     function commandViews(state, length, bytes) {
         // Repeated scalar callbacks usually submit the same command/value lengths.
         // Keep one view per buffer, refreshing after growth or a changed used range.
@@ -28,9 +36,9 @@ export function createOperations(kernel) {
             throw new RangeError('Command buffer exceeds the prototype limit');
         if (required <= buffer.length)
             return buffer;
-        let size = Math.max(256, buffer.length);
+        let size = buffer.length < 256 ? 256 : buffer.length;
         while (size < required)
-            size = Math.min(size * 2, 0xffffffff);
+            size = size <= 0x7fffffff ? (size << 1) >>> 0 : 0xffffffff;
         const next = new buffer.constructor(size);
         next.set(buffer);
         return next;
@@ -139,7 +147,16 @@ export function createOperations(kernel) {
                     else if (kind === 'last') ids = ids.slice(-1);
                     else if (kind === 'eq' || kind === 'nth')
                         ids = index >= 0 && index < ids.length ? ids.slice(index, index + 1) : empty;
-                    else ids = ids.filter((_, i) => kind === 'even' ? i % 2 === 0 : kind === 'odd' ? i % 2 === 1 : kind === 'lt' ? i < index : i > index);
+                    else if (kind === 'lt') ids = ids.slice(0, index > 0 ? index : 0);
+                    else if (kind === 'gt') ids = ids.slice(index >= 0 ? index + 1 : 0);
+                    else {
+                        const start = kind === 'odd' ? 1 : 0, length = ids.length;
+                        // Kernel counts are uint32. Shift before adding the odd
+                        // remainder so length + 1 cannot wrap at the boundary.
+                        const result = new Uint32Array((length >>> 1) + (start ? 0 : length & 1));
+                        for (let j = start, next = 0; j < length; j += 2) result[next++] = ids[j];
+                        ids = result;
+                    }
                 }
                 return ids;
             }
@@ -155,7 +172,7 @@ export function createOperations(kernel) {
         }
         // A relative clause can occur anywhere in a list. Only inspect possible
         // relative lists; ordinary absolute selectors still use one kernel query.
-        if (selector.includes(',') && /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/.test(selector)) {
+        if (selector.includes(',') && relativeList.test(selector)) {
             const relative = relativeListQuery(state, selector, roots, match);
             if (relative !== null)
                 return relative;
@@ -171,7 +188,7 @@ export function createOperations(kernel) {
     function matches(state, selector, ids) {
         // The common tag-only is() path needs one boolean, not snapshot IDs.
         // Positional selectors, aliases and relative selectors keep query semantics.
-        if (!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(selector))
+        if (!simpleTag.test(selector))
             return query(state, selector, ids, true).length > 0;
         flush(state);
         return Boolean(kernel.matches(state.owner, selector, ids.length === 1 ? ids[0] : ids));
@@ -185,8 +202,8 @@ export function createOperations(kernel) {
             try { selector = expandSelector(selector); }
             catch { return null; } // An empty traversal must not evaluate it.
         }
-        if (/^(?:[>+~]|:scope\b)/.test(selectorStart(selector)) ||
-            (selector.includes(',') && /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/.test(selector))) return null;
+        if (relativeStart.test(selectorStart(selector)) ||
+            (selector.includes(',') && relativeList.test(selector))) return null;
         flush(state);
         return kernel.until(state.owner, roots, axis, selector, stops);
     }
@@ -199,8 +216,8 @@ export function createOperations(kernel) {
             if (char === '\\') {
                 i++;
                 let digits = 0;
-                while (digits < 6 && /[0-9a-f]/i.test(selector[i] ?? '')) { i++; digits++; }
-                if (digits && !/[\t\n\f\r ]/.test(selector[i] ?? '')) i--;
+                while (digits < 6 && hexDigit.test(selector[i] ?? '')) { i++; digits++; }
+                if (digits && !cssSpace.test(selector[i] ?? '')) i--;
                 else if (selector[i] === '\r' && selector[i + 1] === '\n') i++;
                 continue;
             }
@@ -229,16 +246,13 @@ export function createOperations(kernel) {
         return selector.length;
     }
     function selectorStart(selector) {
-        selector = selector.replace(/^[\t\n\f\r ]+/, '');
+        selector = selector.replace(leadingCSSSpace, '');
         while (selector.startsWith('/*')) {
             const end = selector.indexOf('*/', 2);
             if (end < 0) break;
-            selector = selector.slice(end + 2).replace(/^[\t\n\f\r ]+/, '');
+            selector = selector.slice(end + 2).replace(leadingCSSSpace, '');
         }
         return selector;
-    }
-    function relativeKind(selector) {
-        return /^[+~]/.test(selector) ? 2 : /^(?:>|:scope\b)/.test(selector) ? 1 : 0;
     }
     function relativeListQuery(state, selector, roots, match) {
         const clauses = [];
@@ -247,7 +261,7 @@ export function createOperations(kernel) {
             const end = selectorBoundary(selector, ',', start);
             const clause = selectorStart(selector.slice(start, end));
             clauses.push(clause);
-            kinds |= relativeKind(clause);
+            kinds |= siblingStart.test(clause) ? 2 : childStart.test(clause) ? 1 : 0;
             if (end === selector.length) break;
             start = end + 1;
         }
@@ -271,7 +285,7 @@ export function createOperations(kernel) {
         return edit(state, 13, Uint32Array.from(found), kinds & 2 ? empty : roots);
     }
     function relativeQuery(state, selector, roots, match) {
-        if (!/^(?:[>+~]|:scope\b)/.test(selector))
+        if (!relativeStart.test(selector))
             return null;
         if (match)
             unsupported('Relative selectors in filter/is are not supported.');
@@ -310,8 +324,10 @@ export function createOperations(kernel) {
             const tag = read(state, ids, 5);
             if (tag === 'option')
                 return read(state, ids[0], 2);
-            if (tag === 'input' && ['checkbox', 'radio'].includes(read(state, ids, 1, 'type')))
-                return 'on';
+            if (tag === 'input') {
+                const type = read(state, ids, 1, 'type');
+                if (type === 'checkbox' || type === 'radio') return 'on';
+            }
         }
         return !state.xml && result !== undefined && boolAttributes.has(name.toLowerCase()) ? name : result;
     }

@@ -2,6 +2,9 @@
 // the kernel path; no JS DOM mirror or per-node callbacks are introduced.
 const selected = 'option:is([selected],select:not([multiple]):not(:has(>option[selected]))>:first-of-type)';
 const disabled = ':is(:is(button,input,select,textarea,optgroup,option)[disabled],optgroup[disabled]>option,fieldset[disabled]:not(fieldset[disabled] legend:first-of-type *))';
+const pseudoName = /^[a-z-]+/i;
+const unescapedQuote = /(?<!\\)"/g;
+const newline = /\n/g;
 const aliases = {
     input: ':is(input,textarea,select,button)', header: ':is(h1,h2,h3,h4,h5,h6)',
     button: ':is(button,input[type=button])', text: ':is(input:not([type]),input[type=""],input[type=text])',
@@ -44,7 +47,7 @@ export function expandSelector(selector) {
             bracket--;
         if (bracket || ch !== ':' || selector[i - 1] === ':')
             continue;
-        const match = /^[a-z-]+/i.exec(selector.slice(i + 1));
+        const match = pseudoName.exec(selector.slice(i + 1));
         if (!match)
             continue;
         const name = match[0].toLowerCase(), end = i + 1 + match[0].length;
@@ -72,7 +75,7 @@ export function expandSelector(selector) {
                 throw new Error('Unclosed :contains argument');
             let value = selector.slice(end + 1, j);
             if (!((value[0] === '"' || value[0] === "'") && value.at(-1) === value[0]))
-                value = '"' + value.replace(/(?<!\\)"/g, '\\"').replace(/\n/g, '\\a ') + '"';
+                value = '"' + value.replace(unescapedQuote, '\\"').replace(newline, '\\a ') + '"';
             output += selector.slice(start, i) + ':lexbor-contains(' + value + ')';
             start = j + 1;
             i = j;

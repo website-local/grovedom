@@ -3,6 +3,30 @@ import { parseStyle } from './style.js';
 const readOnlyProperties = new Set(['type', 'nodeType', 'children', 'childNodes', 'parent', 'parentNode',
     'next', 'prev', 'nextSibling', 'previousSibling', 'firstChild', 'lastChild']);
 const rawProperties = new Set(['name', 'data', 'attribs', ...readOnlyProperties]);
+const derivedProperties = new Set(['nodeName', 'innerHTML', 'textContent', 'innerText']);
+const urlSourceTags = new Set(['img', 'iframe', 'audio', 'video', 'source']);
+const invalidAttributeName = /[\x20\t\r\n\f\0"'<>/=]/;
+const whitespace = /\s/;
+const whitespaceRun = /\s+/;
+const excludedHTMLControl = /^(?:submit|button|image|reset|file)$/i;
+const excludedXMLControl = /^(?:submit|button|image|reset|file)$/;
+const checkableHTMLControl = /^(?:checkbox|radio)$/i;
+const checkableXMLControl = /^(?:checkbox|radio)$/;
+const lineBreak = /\r?\n/g;
+const encodedSpace = /%20/g;
+function filterIds(ids, wanted, include) {
+    // Count first so a small retained result does not keep a full-size buffer.
+    // IDs and the private set cannot change between these two passes.
+    const length = ids.length;
+    let count = 0;
+    for (let i = 0; i < length; i++) if (wanted.has(ids[i]) === include) count++;
+    if (!count) return empty;
+    if (count === length) return ids;
+    const result = new Uint32Array(count);
+    for (let i = 0, next = 0; i < length; i++)
+        if (wanted.has(ids[i]) === include) result[next++] = ids[i];
+    return result;
+}
 // Methods retain selection snapshots. Helpers are bound once per facade.
 export function createSelection(context) {
     const { kernel, entry, wrap, selection, inputIds, nodeIds, query, matches, flush, edit, NodeHandle, attributes, attributeValue, enqueue, read, attributeCallback, textCallback, mapped, until, classes, content, wrapping, data, removeData } = context;
@@ -49,7 +73,10 @@ export function createSelection(context) {
         const next = typeof value === 'function' ? value.call(node, index, style[name]) : value;
         if (next === '') delete style[name];
         else if (next != null) style[name] = String(next);
-        one.attr('style', Object.entries(style).map(([key, val]) => `${key}: ${val};`).join(' '));
+        let text = '';
+        for (const key in style) if (Object.hasOwn(style, key))
+            text += (text ? ' ' : '') + `${key}: ${style[key]};`;
+        one.attr('style', text);
     }
     class Selection {
         // Direct, unsupported internals; no compatibility promise between releases.
@@ -66,13 +93,18 @@ export function createSelection(context) {
                 index += ids.length;
             return index >= 0 && index < ids.length ? wrap(state, ids[index]) : undefined;
         }
-        toArray() { return Array.from(this); }
+        toArray() {
+            const { state, ids } = entry(this), length = ids.length;
+            const result = new Array(length);
+            for (let i = 0; i < length; i++) result[i] = wrap(state, ids[i]);
+            return result;
+        }
         *[Symbol.iterator]() {
             const { state, ids } = entry(this);
-            for (const id of ids) {
+            for (let i = 0, length = ids.length; i < length; i++) {
                 // A yield lets the caller dispose the document before resuming.
                 alive(state);
-                yield wrap(state, id);
+                yield wrap(state, ids[i]);
             }
         }
         eq(index) {
@@ -95,7 +127,8 @@ export function createSelection(context) {
             const removed = arguments.length === 1 ? ids.splice(start) : ids.splice(start, deleteCount, ...inputIds(record.state, items));
             alive(record.state);
             record.ids = Uint32Array.from(ids);
-            return removed.map(id => wrap(record.state, id));
+            for (let i = 0, length = removed.length; i < length; i++) removed[i] = wrap(record.state, removed[i]);
+            return removed;
         }
         find(selector) {
             const { state, ids } = entry(this);
@@ -103,7 +136,11 @@ export function createSelection(context) {
                 return selection(state, empty, this);
             if (typeof selector !== 'string') {
                 const roots = this.toArray();
-                const result = state.api(selector).filter((i, node) => roots.some(root => state.api.contains(root, node)));
+                const result = state.api(selector).filter((i, node) => {
+                    for (let j = 0, length = roots.length; j < length; j++)
+                        if (state.api.contains(roots[j], node)) return true;
+                    return false;
+                });
                 entry(result).previous = this;
                 return result;
             }
@@ -134,7 +171,7 @@ export function createSelection(context) {
             if (typeof callback !== 'function')
                 throw new TypeError('Expected a callback');
             const { state, ids } = entry(this);
-            for (let i = 0; i < ids.length; i++) {
+            for (let i = 0, length = ids.length; i < length; i++) {
                 // The callback receives a snapshot identity. Its first DOM read flushes
                 // pending writes, so callback entry itself need not cross the binding.
                 alive(state);
@@ -152,7 +189,7 @@ export function createSelection(context) {
                 return selection(state, query(state, selector, ids, true), this);
             if (typeof selector !== 'function') {
                 const wanted = new Set(inputIds(state, selector));
-                return selection(state, ids.filter(id => wanted.has(id)), this);
+                return selection(state, filterIds(ids, wanted, true), this);
             }
             const result = new Uint32Array(ids.length);
             let length = 0;
@@ -165,8 +202,15 @@ export function createSelection(context) {
                 const { state, ids } = entry(this);
                 return selector.length > 0 && matches(state, selector, ids);
             }
-            if (typeof selector !== 'function')
-                return this.filter(selector).length > 0;
+            if (typeof selector !== 'function') {
+                const { state, ids } = entry(this);
+                if (!selector) return false;
+                const wanted = inputIds(state, selector);
+                if (wanted.length === 1) return ids.includes(wanted[0]);
+                const set = new Set(wanted);
+                for (let i = 0, length = ids.length; i < length; i++) if (set.has(ids[i])) return true;
+                return false;
+            }
             let matched = false;
             this.each(function (i, node) {
                 if (selector.call(node, i, node)) {
@@ -196,7 +240,7 @@ export function createSelection(context) {
             }
             // HTML whitespace is ASCII; NBSP and other Unicode spaces can be
             // part of an attribute name and must survive reads and writes.
-            if (!name || /[\x20\t\r\n\f\0"'<>/=]/.test(name)) {
+            if (!name || invalidAttributeName.test(name)) {
                 alive(state);
                 throw new TypeError('Invalid attribute name');
             }
@@ -218,7 +262,7 @@ export function createSelection(context) {
             if (typeof names !== 'string')
                 throw new TypeError('Expected attribute names');
             const { state, ids } = entry(this);
-            for (const name of names.split(/\s+/))
+            for (const name of names.split(whitespaceRun))
                 if (name)
                     enqueue(state, ids, 2, name);
             return this;
@@ -255,10 +299,11 @@ export function createSelection(context) {
             const { state } = entry(this), result = [];
             if (selector)
                 this.each(function () {
-                    for (let node = this; node && node !== context && node.type !== 'root'; node = node.parent) {
+                    for (let node = this; node && node !== context; node = node.parent) {
+                        const type = node.nodeType;
+                        if (type === 9 || type === 11) break;
                         if (state.api(node).is(selector)) {
-                            if (!result.includes(node))
-                                result.push(node);
+                            if (!result.includes(node)) result.push(node);
                             break;
                         }
                     }
@@ -268,8 +313,10 @@ export function createSelection(context) {
         not(selector) {
             if (typeof selector === 'function')
                 return this.filter(function (i, node) { return !selector.call(this, i, node); });
-            const { state, ids } = entry(this), excluded = new Set(entry(this.filter(selector)).ids);
-            return selection(state, ids.filter(id => !excluded.has(id)), this);
+            const { state, ids } = entry(this);
+            const excluded = new Set(!selector ? empty : typeof selector === 'string'
+                ? query(state, selector, ids, true) : inputIds(state, selector));
+            return selection(state, filterIds(ids, excluded, false), this);
         }
         has(selector) { const { state } = entry(this); return this.filter(function () { return state.api(this).find(selector).length > 0; }); }
         add(other, context) {
@@ -285,21 +332,28 @@ export function createSelection(context) {
             const { state, ids } = entry(this);
             if (!ids.length)
                 return -1;
-            if (value === undefined)
-                return this.first().parent().children().toArray().indexOf(this[0]);
+            if (value === undefined) {
+                flush(state);
+                const parent = kernel.traverse(state.owner, ids.subarray(0, 1), 2);
+                return kernel.traverse(state.owner, parent, 1).indexOf(ids[0]);
+            }
             if (typeof value === 'string')
-                return state.api(value).toArray().indexOf(this[0]);
-            return this.toArray().indexOf(value instanceof NodeHandle ? value : state.api(value)[0]);
+                return state.api(value)._state.ids.indexOf(ids[0]);
+            const node = value instanceof NodeHandle ? value : state.api(value).get(0);
+            const record = node?._state;
+            return record?.state === state ? ids.indexOf(record.id) : -1;
         }
         hasClass(name) {
-            return typeof name === 'string' && name.length > 0 && this.is(function () {
-                const value = this.attribs?.class ?? '';
+            if (typeof name !== 'string' || !name) return false;
+            const { state, ids } = entry(this);
+            for (let i = 0, length = ids.length; i < length; i++) {
+                const value = read(state, ids[i], 1, 'class') ?? '';
                 for (let index = value.indexOf(name); index >= 0; index = value.indexOf(name, index + 1)) {
                     const end = index + name.length;
-                    if ((!index || /\s/.test(value[index - 1])) && (end === value.length || /\s/.test(value[end]))) return true;
+                    if ((!index || whitespace.test(value[index - 1])) && (end === value.length || whitespace.test(value[end]))) return true;
                 }
-                return false;
-            });
+            }
+            return false;
         }
         addClass(value) { return classes(this, 'add', value, undefined, arguments.length); }
         removeClass(value) { return classes(this, 'remove', value, undefined, arguments.length); }
@@ -334,7 +388,8 @@ export function createSelection(context) {
                 return read(state, ids, 3);
             if (typeof value === 'function')
                 return this.each(function (i, node) {
-                    if (!['tag', 'script', 'style', 'root'].includes(node.type)) return;
+                    const type = node.nodeType;
+                    if (type !== 1 && type !== 9 && type !== 11) return;
                     const one = state.api(node);
                     one.html(value.call(node, i, one.html()));
                 });
@@ -402,7 +457,7 @@ export function createSelection(context) {
                         // formatted tag names, resolved URLs or parsed styles.
                         // GroveDOM's derived setters retain their callback values.
                         const old = name === 'tagName' ? node.name
-                            : rawProperties.has(name) || ['nodeName', 'innerHTML', 'textContent', 'innerText'].includes(name)
+                            : rawProperties.has(name) || derivedProperties.has(name)
                                 || (!state.xml && boolAttributes.has(name.toLowerCase())) ? one.prop(name) : one.attr(name);
                         setProperty(one, name, value.call(node, i, old));
                     });
@@ -427,14 +482,14 @@ export function createSelection(context) {
             }
             if (!state.xml && boolAttributes.has(name.toLowerCase()))
                 return this.attr(name) !== undefined;
-            if (name === 'data' && !state.data.has(ids[0]) && this[0].nodeType === 1)
+            if (name === 'data' && !state.data.has(ids[0]) && read(state, ids[0], 6) === 1)
                 return this.attr(name);
             if (rawProperties.has(name))
-                return this[0][name];
+                return wrap(state, ids[0])[name];
             const result = this.attr(name);
             if (result !== undefined && (name === 'href' || name === 'src') && state.baseURI) {
                 const tag = read(state, ids, 5);
-                if ((name === 'href' ? ['a', 'link'] : ['img', 'iframe', 'audio', 'video', 'source']).includes(tag)) {
+                if (name === 'href' ? tag === 'a' || tag === 'link' : urlSourceTags.has(tag)) {
                     try {
                         return new URL(result, state.baseURI).href;
                     }
@@ -449,15 +504,29 @@ export function createSelection(context) {
                 return this.each(function () {
                     if (this.nodeType !== 1) return;
                     const keys = Object.keys(name);
-                    for (let i = 0; i < keys.length; i++) setStyle(state, this, keys[i], name[keys[i]], i);
+                    for (let i = 0, length = keys.length; i < length; i++) setStyle(state, this, keys[i], name[keys[i]], i);
                 });
             }
             if (!ids.length)
                 return value === undefined ? undefined : this;
             if (value === undefined) {
-                if (this[0].nodeType !== 1) return undefined;
+                if (read(state, ids[0], 6) !== 1) return undefined;
                 const style = parseStyle(this.attr('style'));
-                return name === undefined ? style : Array.isArray(name) ? Object.fromEntries(name.filter(key => key in style).map(key => [key, style[key]])) : style[name];
+                if (name === undefined) return style;
+                if (!Array.isArray(name)) return style[name];
+                // Snapshot accepted keys before reading values. Array getters may
+                // change later keys or inherited style values during this pass.
+                const keys = [];
+                for (let i = 0, length = name.length; i < length; i++) if (i in name) {
+                    const key = name[i];
+                    if (key in style) keys.push(key);
+                }
+                const result = {};
+                for (let i = 0, length = keys.length; i < length; i++) {
+                    const key = keys[i];
+                    Object.defineProperty(result, key, { value: style[key], enumerable: true, configurable: true, writable: true });
+                }
+                return result;
             }
             return this.each(function (i, node) {
                 if (node.nodeType !== 1) return;
@@ -471,16 +540,19 @@ export function createSelection(context) {
             if (value === undefined) {
                 if (!ids.length)
                     return undefined;
-                const one = this.first(), name = one[0].name;
+                const first = ids.length === 1 ? ids : ids.subarray(0, 1), name = read(state, first, 5);
                 if (name === 'textarea')
-                    return one.text();
+                    return read(state, first, 2);
                 if (name === 'select') {
-                    const selected = one.find('option:selected');
-                    if (one.attr('multiple'))
-                        return selected.map(function () { return state.api(this).text(); }).get();
-                    return selected.attr('value');
+                    const selected = query(state, 'option:selected', first);
+                    if (attributeValue(state, first, 'multiple')) {
+                        const length = selected.length, values = new Array(length);
+                        for (let i = 0; i < length; i++) values[i] = read(state, selected[i], 2);
+                        return values;
+                    }
+                    return attributeValue(state, selected, 'value');
                 }
-                return ['input', 'button', 'option'].includes(name) ? one.attr('value') : undefined;
+                return name === 'input' || name === 'button' || name === 'option' ? attributeValue(state, first, 'value') : undefined;
             }
             if (typeof value === 'function')
                 return this.each(function (i, node) { const one = state.api(node); one.val(value.call(node, i, one.val())); });
@@ -491,16 +563,22 @@ export function createSelection(context) {
             if (name === 'textarea') return this.text(value);
             if (name === 'select') {
                 if (typeof value === 'object' && this.attr('multiple') === undefined) return this;
-                const values = (Array.isArray(value) ? value : [value]).map(String);
+                // Preserve map's length snapshot, sparse slots and coercion order.
+                let values;
+                if (Array.isArray(value)) {
+                    const length = value.length;
+                    values = new Array(length);
+                    for (let i = 0; i < length; i++) if (i in value) values[i] = String(value[i]);
+                } else values = [String(value)];
                 this.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
                 return this;
             }
-            return ['input', 'button', 'option'].includes(name) ? this.attr('value', value) : undefined;
+            return name === 'input' || name === 'button' || name === 'option' ? this.attr('value', value) : undefined;
         }
         serializeArray() {
             const { state } = entry(this), fields = [], result = [];
-            const excluded = state.xml ? /^(?:submit|button|image|reset|file)$/ : /^(?:submit|button|image|reset|file)$/i;
-            const checkable = state.xml ? /^(?:checkbox|radio)$/ : /^(?:checkbox|radio)$/i;
+            const excluded = state.xml ? excludedXMLControl : excludedHTMLControl;
+            const checkable = state.xml ? checkableXMLControl : checkableHTMLControl;
             this.each(function () {
                 if (this.name === 'form') {
                     for (const node of state.api(this).find('input,select,textarea,keygen')) fields.push(node);
@@ -508,15 +586,26 @@ export function createSelection(context) {
             });
             for (const node of fields) {
                 const field = state.api(node), name = field.attr('name'), type = field.attr('type') ?? '';
-                if (!name || field.attr('disabled') !== undefined || !['input', 'select', 'textarea', 'keygen'].includes(node.name) || excluded.test(type) || (checkable.test(type) && field.attr('checked') === undefined))
+                if (!name || field.attr('disabled') !== undefined) continue;
+                const tag = node.name;
+                if ((tag !== 'input' && tag !== 'select' && tag !== 'textarea' && tag !== 'keygen') || excluded.test(type) || (checkable.test(type) && field.attr('checked') === undefined))
                     continue;
                 const value = field.val() ?? '';
-                for (const item of Array.isArray(value) ? value : [value])
-                    result.push({ name, value: String(item).replace(/\r?\n/g, '\r\n') });
+                if (Array.isArray(value)) {
+                    for (const item of value) result.push({ name, value: String(item).replace(lineBreak, '\r\n') });
+                } else result.push({ name, value: String(value).replace(lineBreak, '\r\n') });
             }
             return result;
         }
-        serialize() { return this.serializeArray().map(({ name, value }) => `${encodeURIComponent(name)}=${encodeURIComponent(value)}`).join('&').replace(/%20/g, '+'); }
+        serialize() {
+            const fields = this.serializeArray();
+            let result = '';
+            for (let i = 0, length = fields.length; i < length; i++) {
+                const { name, value } = fields[i];
+                result += (i ? '&' : '') + encodeURIComponent(name) + '=' + encodeURIComponent(value);
+            }
+            return result.replace(encodedSpace, '+');
+        }
         extract(map) {
             const { state } = entry(this), result = {};
             for (const key in map) {

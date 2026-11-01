@@ -2,6 +2,13 @@
 
 ## 0.1.3 (unreleased)
 
+- Remove callback-based array filtering and mapping from runtime internals;
+  avoid temporary wrapper, class-token, CSS and form-serialization arrays while
+  preserving selection snapshots, callbacks, sparse inputs and node identity.
+- Hoist regular expressions and option whitelists. Use bounded integer growth
+  and positional counts, and avoid redundant tag-name reads in ancestor checks.
+- Parse style declarations without split-rule arrays, retaining malformed-tail
+  behavior, property order and own special keys.
 - Store selection and node metadata directly in unsupported `_state` properties;
   remove private-field accessors and selection WeakMap lookups. Preserve numeric
   selection access, snapshots and document ownership.

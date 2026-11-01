@@ -5,6 +5,9 @@ import { createNodes } from './nodes.js';
 import { createSelection } from './selection.js';
 import { createCollectionHelpers } from './collection-helpers.js';
 import { createDataMethods } from './data.js';
+const numericKey = /^(?:0|[1-9][0-9]*)$/;
+const loadOptionNames = ['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xmlMode'];
+const executionModes = ['buffered', 'direct'];
 // Each package owns an independent facade, kernel and handle brand.
 export function createFacade(kernel, decodeInput) {
     const operations = createOperations(kernel);
@@ -14,7 +17,6 @@ export function createFacade(kernel, decodeInput) {
     const context = { kernel, isSelection, selection, entry, ...operations, ...nodeAPI };
     const Selection = createSelection({ ...context, ...createCollectionHelpers(context), ...createDataMethods(context) });
     function isSelection(value) { return value instanceof Selection; }
-    const numericKey = /^(0|[1-9][0-9]*)$/;
     const selectionProxy = {
         get(target, key, receiver) {
             // Internal records need neither index parsing nor receiver forwarding.
@@ -37,7 +39,13 @@ export function createFacade(kernel, decodeInput) {
             return Reflect.set(target, key, value, receiver);
         },
         has(target, key) { return typeof key === 'string' && numericKey.test(key) ? Number(key) < entry(target).ids.length : Reflect.has(target, key); },
-        ownKeys(target) { return [...Array.from({ length: entry(target).ids.length }, (_, i) => String(i)), ...Reflect.ownKeys(target)]; },
+        ownKeys(target) {
+            const length = entry(target).ids.length, own = Reflect.ownKeys(target);
+            const keys = new Array(length + own.length);
+            for (let i = 0; i < length; i++) keys[i] = String(i);
+            for (let i = 0, count = own.length; i < count; i++) keys[length + i] = own[i];
+            return keys;
+        },
         getOwnPropertyDescriptor(target, key) {
             if (typeof key === 'string' && numericKey.test(key) && Number(key) < entry(target).ids.length)
                 return { configurable: true, enumerable: true, value: target.get(Number(key)) };
@@ -62,7 +70,7 @@ export function createFacade(kernel, decodeInput) {
         if (typeof options !== 'object' || Array.isArray(options))
             throw new TypeError('Expected parser options');
         for (const key of Object.keys(options))
-            if (!['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xmlMode'].includes(key))
+            if (!loadOptionNames.includes(key))
                 unsupported(`Unsupported parser option: ${key}`);
         const scriptingEnabled = options.scriptingEnabled;
         if (scriptingEnabled !== undefined && typeof scriptingEnabled !== 'boolean')
@@ -70,7 +78,7 @@ export function createFacade(kernel, decodeInput) {
         if (typeof isDocument !== 'boolean')
             throw new TypeError('Expected isDocument boolean');
         const execution = options.execution;
-        if (execution !== undefined && !['buffered', 'direct'].includes(execution))
+        if (execution !== undefined && !executionModes.includes(execution))
             throw new TypeError('Expected buffered or direct execution');
         const xmlMode = options.xmlMode;
         if (xmlMode !== undefined && typeof xmlMode !== 'boolean')
@@ -116,7 +124,7 @@ export function createFacade(kernel, decodeInput) {
             let roots;
             if (typeof context === 'string' && context.trimStart().startsWith('<')) {
                 const fragment = $(context);
-                roots = fragment.length ? inputIds(state, fragment[0].parent) : empty;
+                roots = fragment.length ? inputIds(state, fragment.get(0).parent) : empty;
             }
             else
                 roots = context === undefined ? rootIds : typeof context === 'string' ? $(context)._state.ids : inputIds(state, context);
@@ -200,17 +208,17 @@ export function createFacade(kernel, decodeInput) {
         ids[1] = b.id;
         return Boolean(read(a.state, ids, 15));
     }
-    function merge(first, second) {
-        const arrayLike = value => {
-            if (Array.isArray(value) || isSelection(value))
-                return true;
-            if (value === null || typeof value !== 'object' || !Number.isSafeInteger(value.length) || value.length < 0)
-                return false;
-            for (let i = 0; i < value.length; i++)
-                if (!(i in value))
-                    return false;
+    function arrayLike(value) {
+        if (Array.isArray(value) || isSelection(value))
             return true;
-        };
+        if (value === null || typeof value !== 'object' || !Number.isSafeInteger(value.length) || value.length < 0)
+            return false;
+        for (let i = 0; i < value.length; i++)
+            if (!(i in value))
+                return false;
+        return true;
+    }
+    function merge(first, second) {
         if (!arrayLike(first) || !arrayLike(second))
             return undefined;
         if (isSelection(first)) {

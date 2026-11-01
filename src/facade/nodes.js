@@ -18,14 +18,6 @@ export function createNodes(kernel, operations, isSelection, selection) {
         const id = read(state, record.id, operation);
         return id ? wrap(state, id) : null;
     }
-    function rawChildren(node) {
-        const record = node._state, { state } = record;
-        flush(state);
-        const ids = kernel.traverse(state.owner, nodeIds(record), 3);
-        const children = new Array(ids.length);
-        for (let i = 0; i < ids.length; i++) children[i] = wrap(state, ids[i]);
-        return children;
-    }
     // Callers validate liveness before wrapping. Iteration and callbacks recheck
     // after user code; synchronous reads/traversals already validate the owner.
     function wrap(state, id) {
@@ -102,7 +94,13 @@ export function createNodes(kernel, operations, isSelection, selection) {
                 const name = read(state, id, 5);
                 return name === 'script' || name === 'style' ? name : 'tag';
             }
-            return ({ 3: 'text', 4: 'cdata', 7: 'directive', 8: 'comment', 9: 'root', 10: 'directive', 11: 'root' })[type];
+            switch (type) {
+                case 3: return 'text';
+                case 4: return 'cdata';
+                case 7: case 10: return 'directive';
+                case 8: return 'comment';
+                case 9: case 11: return 'root';
+            }
         }
     }
     const originalName = Object.getOwnPropertyDescriptor(NodeHandle.prototype, 'name').get;
@@ -116,7 +114,14 @@ export function createNodes(kernel, operations, isSelection, selection) {
         nextSibling: { get() { return this.next; } },
         prev: { get() { return rawAxis(this, 12); } },
         previousSibling: { get() { return this.prev; } },
-        children: { get() { return rawChildren(this); } },
+        children: { get() {
+            const record = this._state, { state } = record;
+            flush(state);
+            const ids = kernel.traverse(state.owner, nodeIds(record), 3);
+            const length = ids.length, children = new Array(length);
+            for (let i = 0; i < length; i++) children[i] = wrap(state, ids[i]);
+            return children;
+        } },
         childNodes: { get() { return this.children; } },
         firstChild: { get() { return rawChild(this, 13); } },
         lastChild: { get() { return rawChild(this, 14); } },

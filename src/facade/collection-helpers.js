@@ -1,4 +1,6 @@
 import { alive, empty } from './common.js';
+const classToken = /\S+/g;
+const whitespaceRun = /\s+/;
 export function createCollectionHelpers(context) {
     const { kernel, isSelection, NodeHandle, wrap, selection, inputIds, nodeIds, entry, edit, enqueue, flush, traverseUntil } = context;
     class MappedCollection extends Array {
@@ -18,17 +20,22 @@ export function createCollectionHelpers(context) {
     }
     function mapped(source, callback) {
         const result = new MappedCollection();
+        let allNodes = true;
         source.each(function (i, value) {
             const next = callback.call(value, i, value);
             if (Array.isArray(next)) {
-                for (const item of next)
+                for (const item of next) {
                     result.push(item);
+                    if (allNodes && !(item instanceof NodeHandle)) allNodes = false;
+                }
             }
-            else if (next != null)
+            else if (next != null) {
                 result.push(next);
+                if (allNodes && !(next instanceof NodeHandle)) allNodes = false;
+            }
         });
         const state = isSelection(source) ? source._state.state : undefined;
-        if (state && result.every(value => value instanceof NodeHandle))
+        if (state && allNodes)
             return selection(state, inputIds(state, result), source);
         Object.defineProperty(result, 'previous', { value: source });
         return result;
@@ -84,9 +91,23 @@ export function createCollectionHelpers(context) {
         }
         return inputIds(state, result);
     }
-    const classTokens = value => typeof value === 'string' ? value.match(/\S+/g) ?? [] : Array.isArray(value) ? value.flatMap(classTokens) : [];
+    function classTokens(value, result) {
+        if (typeof value === 'string') {
+            const tokens = value.match(classToken);
+            if (!result) return tokens ?? [];
+            if (tokens) for (let i = 0, length = tokens.length; i < length; i++) result.push(tokens[i]);
+        } else if (Array.isArray(value)) {
+            result ??= [];
+            for (let i = 0, length = value.length; i < length; i++) if (i in value) classTokens(value[i], result);
+        }
+        return result ?? [];
+    }
     function classes(source, action, value, force, argc) {
         const { state } = source._state;
+        // String inputs are immutable. Array getters and callbacks are still
+        // evaluated separately for each node, in their original order.
+        const fixed = typeof value === 'string' && value
+            ? action === 'remove' ? classTokens(value) : value.split(whitespaceRun) : null;
         return source.each(function (i, node) {
             if (node.nodeType !== 1)
                 return;
@@ -103,10 +124,15 @@ export function createCollectionHelpers(context) {
                 one.attr('class', next === false || old ? '' : data.savedClass ?? '');
                 return;
             }
-            const text = Array.isArray(next) ? classTokens(next).join(' ') : next;
-            if (typeof text !== 'string' || !text)
-                return;
-            const requested = action === 'remove' ? classTokens(text) : text.split(/\s+/);
+            let requested = fixed;
+            if (!requested) {
+                if (Array.isArray(next)) {
+                    requested = classTokens(next);
+                    if (!requested.length) return;
+                } else if (typeof next === 'string' && next)
+                    requested = action === 'remove' ? classTokens(next) : next.split(whitespaceRun);
+                else return;
+            }
             if (action === 'add') {
                 let updated = old ? ` ${old} ` : '';
                 for (const token of requested)
@@ -117,14 +143,21 @@ export function createCollectionHelpers(context) {
             const tokens = classTokens(old);
             let changed = false;
             for (const token of requested) {
-                const index = tokens.indexOf(token);
                 if (action === 'remove') {
-                    for (let i = tokens.length - 1; i >= 0; i--)
-                        if (tokens[i] === token) { tokens.splice(i, 1); changed = true; }
-                } else if (index < 0 && force !== false)
-                    tokens.push(token);
-                else if (index >= 0 && force !== true)
-                    tokens.splice(index, 1);
+                    let kept = 0;
+                    for (let i = 0, length = tokens.length; i < length; i++) {
+                        if (tokens[i] === token) changed = true;
+                        else tokens[kept++] = tokens[i];
+                    }
+                    tokens.length = kept;
+                } else {
+                    const index = tokens.indexOf(token);
+                    if (index < 0 && force !== false) tokens.push(token);
+                    else if (index >= 0 && force !== true) {
+                        for (let i = index + 1, length = tokens.length; i < length; i++) tokens[i - 1] = tokens[i];
+                        tokens.length--;
+                    }
+                }
             }
             if (action === 'toggle' || changed) one.attr('class', tokens.join(' '));
         });
@@ -159,7 +192,7 @@ export function createCollectionHelpers(context) {
             }
         });
     }
-    function content(source, position, values) {
+    function content(source, position, values, owned = true) {
         const { state, ids } = entry(source);
         if (!ids.length)
             return source;
@@ -171,7 +204,10 @@ export function createCollectionHelpers(context) {
                 const one = state.api(node);
                 content(one, position, [values[0].call(node, i, one.html())]);
             });
-        const ordered = position === 1 || position === 3 ? [...values].reverse() : values;
+        // Rest/callback arrays belong to this helper. Caller-owned nested arrays
+        // keep their forward snapshot before reversal, after the callback check.
+        const reverse = position === 1 || position === 3;
+        const ordered = reverse ? (owned ? values : [...values]).reverse() : values;
         for (const value of ordered) {
             if (value == null)
                 continue;
@@ -181,10 +217,15 @@ export function createCollectionHelpers(context) {
                 else
                     edit(state, position + 7, ids, empty, value);
             }
-            else if (Array.isArray(value) && value.some(item => typeof item === 'string' || Array.isArray(item)))
-                content(source, position, value);
-            else
-                edit(state, position + 3, ids, inputIds(state, value));
+            else {
+                let nested = false;
+                if (Array.isArray(value)) for (let i = 0, length = value.length; i < length; i++) if (i in value) {
+                    const item = value[i];
+                    if (typeof item === 'string' || Array.isArray(item)) { nested = true; break; }
+                }
+                if (nested) content(source, position, value, false);
+                else edit(state, position + 3, ids, inputIds(state, value));
+            }
         }
         return source;
     }

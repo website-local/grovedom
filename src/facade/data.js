@@ -3,14 +3,17 @@
 const ownValue = (object, key, value) => Object.defineProperty(object, key, {
     configurable: true, enumerable: true, writable: true, value,
 });
-const camel = name => name.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+const jsonShape = /^(?:\{[\s\S]*\}|\[[\s\S]*\])$/;
+const dashLetter = /-([a-z])/g;
+const uppercaseLetter = /[A-Z]/g;
+const dataToken = /\S+/g;
 function parse(value) {
     if (value === 'true') return true;
     if (value === 'false') return false;
     if (value === 'null') return null;
     const number = Number(value);
     if (String(number) === value) return number;
-    if (/^(?:\{[\s\S]*\}|\[[\s\S]*\])$/.test(value)) {
+    if (jsonShape.test(value)) {
         try { return JSON.parse(value); } catch { }
     }
     return value;
@@ -29,10 +32,11 @@ export function createDataMethods({ entry, wrap, read, attributes }) {
         if (node.nodeType !== 1) return undefined;
         const result = store(state, node);
         if (name == null) {
-            for (const [key, val] of Object.entries(attributes(state, ids))) {
-                if (!key.startsWith('data-')) continue;
-                const name = camel(key.slice(5));
-                if (!Object.hasOwn(result, name)) ownValue(result, name, parse(val));
+            const values = attributes(state, ids);
+            for (const key in values) {
+                if (!Object.hasOwn(values, key) || !key.startsWith('data-')) continue;
+                const name = key.slice(5).replace(dashLetter, (_, letter) => letter.toUpperCase());
+                if (!Object.hasOwn(result, name)) ownValue(result, name, parse(values[key]));
             }
             return result;
         }
@@ -46,7 +50,7 @@ export function createDataMethods({ entry, wrap, read, attributes }) {
             });
         }
         if (Object.hasOwn(result, name)) return result[name];
-        const attr = 'data-' + name.replace(/[A-Z]/g, letter => '-' + letter.toLowerCase());
+        const attr = 'data-' + name.replace(uppercaseLetter, letter => '-' + letter.toLowerCase());
         const raw = read(state, ids, 1, attr);
         if (raw === undefined) return undefined;
         const parsed = parse(raw);
@@ -60,7 +64,7 @@ export function createDataMethods({ entry, wrap, read, attributes }) {
             if (name === undefined) state.data.delete(id);
             else {
                 const data = state.data.get(id);
-                if (data) for (const key of name.match(/\S+/g) ?? []) delete data[key];
+                if (data) for (const key of name.match(dataToken) ?? []) delete data[key];
             }
         });
     }
