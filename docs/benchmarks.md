@@ -23,6 +23,11 @@ arrays, profiles CSS parsing and tests subclass versus generated mode isolation.
 It retains the reported 0.1.3 CI table and all local control limitations. No
 public fast-mode entry or complete-workload speed claim follows from that audit.
 
+The [callback loop follow-up](history/callback-loops.md) retains direct loops for
+`is(function)` and unnamed `removeData()`. Both improve in the final bounded
+compatible-mode check; `filter` remains unchanged. The report includes controls,
+validation and the limits of these method-level results.
+
 ## 0.1.2 read paths and remote comparisons
 
 First-element reads, raw child arrays, text properties and wrapping avoid

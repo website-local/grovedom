@@ -27,6 +27,11 @@ gaps. Unsupported APIs do not silently fall back to another parser.
 | Streams, network loading, loadBuffer sniffing | Unsupported | Decode/fetch outside GroveDOM |
 | Browser JavaScript, layout, resource fetching | Unsupported | DOM transformation only |
 
+Internal calls between public methods are implementation details. Replacing
+`each`, for example, does not provide a supported interception point for other
+operations such as `is` or `removeData`. Explicit calls to user callbacks retain
+their documented ordering, arguments and receiver.
+
 ## Options
 
 `load(content, options?, isDocument?)` accepts `scriptingEnabled`, `baseURI`,

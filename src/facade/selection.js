@@ -211,14 +211,19 @@ export function createSelection(context) {
                 for (let i = 0, length = ids.length; i < length; i++) if (set.has(ids[i])) return true;
                 return false;
             }
-            let matched = false;
-            this.each(function (i, node) {
-                if (selector.call(node, i, node)) {
-                    matched = true;
-                    return false;
+            const { state, ids } = this._state, wrappers = state.wrappers;
+            if (state.owner === null) alive(state);
+            for (let i = 0, length = ids.length; i < length; i++) {
+                if (state.owner === null) alive(state);
+                const id = ids[i];
+                let node = wrappers.get(id);
+                if (!node) {
+                    node = Object.freeze(new NodeHandle(state, id));
+                    wrappers.set(id, node);
                 }
-            });
-            return matched;
+                if (selector.call(node, i, node)) return true;
+            }
+            return false;
         }
         attr(name, value) {
             const { state, ids } = this._state;
@@ -534,7 +539,14 @@ export function createSelection(context) {
             });
         }
         data(name, value) { return data(this, name, value); }
-        removeData(name) { return removeData(this, name); }
+        removeData(name) {
+            if (name !== undefined) return removeData(this, name);
+            const { state, ids } = this._state, data = state.data;
+            if (state.owner === null) alive(state);
+            // No caller code runs during the native Map.delete loop.
+            for (let i = 0, length = ids.length; i < length; i++) data.delete(ids[i]);
+            return this;
+        }
         val(value) {
             const { state, ids } = entry(this);
             if (value === undefined) {
