@@ -28,6 +28,12 @@ The [callback loop follow-up](history/callback-loops.md) retains direct loops fo
 compatible-mode check; `filter` remains unchanged. The report includes controls,
 validation and the limits of these method-level results.
 
+The subsequent [direct collection loops](history/direct-methods.md) retain six
+more measured paths. The combined implementation repeats their method gains;
+the complete library workload panel is mixed, including unfavorable sitemap
+and saved-page results. All controls, the bounded sitemap follow-up and full
+local test counts remain separate from a consumer non-regression claim.
+
 ## 0.1.2 read paths and remote comparisons
 
 First-element reads, raw child arrays, text properties and wrapping avoid

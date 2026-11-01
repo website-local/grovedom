@@ -230,14 +230,27 @@ export function createSelection(context) {
             if (!arguments.length)
                 return attributes(state, ids);
             if (name && typeof name === 'object') {
-                return this.each(function () {
-                    if (this.nodeType !== 1) return;
-                    const one = state.api(this);
-                    for (const key of Object.keys(name)) {
-                        const val = name[key];
-                        one.attr(key, val === null ? null : String(val));
+                alive(state);
+                for (let i = 0, length = ids.length; i < length; i++) {
+                    const id = ids[i];
+                    if (read(state, id, 6) !== 1) continue;
+                    // Enumerate per node: earlier getters can change the map.
+                    const keys = Object.keys(name);
+                    for (let k = 0, count = keys.length; k < count; k++) {
+                        const key = keys[k], value = name[key];
+                        const text = value === null ? '' : String(value);
+                        if (!key || invalidAttributeName.test(key)) {
+                            alive(state);
+                            throw new TypeError('Invalid attribute name');
+                        }
+                        // Getters and coercion can borrow the callback IDs or dispose.
+                        if (state.owner === null) alive(state);
+                        const one = state.callbackIds ??= new Uint32Array(1);
+                        one[0] = id;
+                        enqueue(state, one, value === null ? 2 : 1, key, text);
                     }
-                });
+                }
+                return this;
             }
             if (typeof name !== 'string') {
                 alive(state);
@@ -301,19 +314,28 @@ export function createSelection(context) {
         prevUntil(stop, selector) { return until(this, 7, stop, selector); }
         parentsUntil(stop, selector) { return until(this, 9, stop, selector); }
         closest(selector, context) {
-            const { state } = entry(this), result = [];
-            if (selector)
-                this.each(function () {
-                    for (let node = this; node && node !== context; node = node.parent) {
-                        const type = node.nodeType;
-                        if (type === 9 || type === 11) break;
-                        if (state.api(node).is(selector)) {
-                            if (!result.includes(node)) result.push(node);
-                            break;
-                        }
+            const { state, ids } = entry(this), result = [], one = new Uint32Array(1);
+            const stop = context instanceof NodeHandle && context._state.state === state ? context._state.id : 0;
+            if (selector) for (let i = 0, length = ids.length; i < length; i++) {
+                let id = ids[i];
+                while (id && id !== stop) {
+                    const type = read(state, id, 6);
+                    if (type === 9 || type === 11) break;
+                    one[0] = id;
+                    const found = typeof selector === 'string' ? matches(state, selector, one)
+                        : state.api(wrap(state, id)).is(selector);
+                    if (found) {
+                        if (!result.includes(id)) result.push(id);
+                        break;
                     }
-                });
-            return selection(state, inputIds(state, result), this);
+                    // A predicate may have changed the current live parent.
+                    one[0] = id;
+                    flush(state);
+                    const parents = kernel.traverse(state.owner, one, 10);
+                    id = parents.length ? parents[0] : 0;
+                }
+            }
+            return selection(state, Uint32Array.from(result), this);
         }
         not(selector) {
             if (typeof selector === 'function')
@@ -323,7 +345,28 @@ export function createSelection(context) {
                 ? query(state, selector, ids, true) : inputIds(state, selector));
             return selection(state, filterIds(ids, excluded, false), this);
         }
-        has(selector) { const { state } = entry(this); return this.filter(function () { return state.api(this).find(selector).length > 0; }); }
+        has(selector) {
+            const { state, ids } = entry(this);
+            if (typeof selector === 'string')
+                return this.filter(function () { return state.api(this).find(selector).length > 0; });
+            const result = new Uint32Array(ids.length), pair = new Uint32Array(2);
+            let count = 0;
+            for (let i = 0, length = ids.length; i < length; i++) {
+                if (!selector) continue;
+                // Resolve per root, preserving array getters and selection snapshots.
+                const wanted = state.api(selector)._state.ids;
+                if (state.owner === null) alive(state);
+                pair[0] = ids[i];
+                for (let j = 0, size = wanted.length; j < size; j++) {
+                    pair[1] = wanted[j];
+                    if (read(state, pair, 15)) {
+                        result[count++] = ids[i];
+                        break;
+                    }
+                }
+            }
+            return selection(state, result.subarray(0, count), this);
+        }
         add(other, context) {
             const { state, ids } = entry(this), next = inputIds(state, state.api(other, context));
             const joined = new Uint32Array(ids.length + next.length);
@@ -362,7 +405,20 @@ export function createSelection(context) {
         }
         addClass(value) { return classes(this, 'add', value, undefined, arguments.length); }
         removeClass(value) { return classes(this, 'remove', value, undefined, arguments.length); }
-        toggleClass(value, force) { return classes(this, 'toggle', value, force, arguments.length); }
+        toggleClass(value, force) {
+            if (value !== undefined && typeof value !== 'boolean')
+                return classes(this, 'toggle', value, force, arguments.length);
+            const { state, ids } = entry(this), one = state.callbackIds ??= new Uint32Array(1);
+            for (let i = 0, length = ids.length; i < length; i++) {
+                const id = ids[i];
+                if (read(state, id, 6) !== 1) continue;
+                const old = read(state, id, 1, 'class') ?? '', data = wrap(state, id)._state;
+                if (old) data.savedClass = old;
+                one[0] = id;
+                enqueue(state, one, 1, 'class', value === false || old ? '' : data.savedClass ?? '');
+            }
+            return this;
+        }
         append(...values) { return content(this, 0, values); }
         prepend(...values) { return content(this, 1, values); }
         before(...values) { return content(this, 2, values); }
@@ -437,7 +493,35 @@ export function createSelection(context) {
                 inner.append(this);
             return this;
         }
-        wrap(wrapper) { return wrapping(this, wrapper, false); }
+        wrap(wrapper) {
+            if (typeof wrapper !== 'string') return wrapping(this, wrapper, false);
+            const { state, ids } = entry(this);
+            const one = new Uint32Array(1), root = new Uint32Array(1), inner = new Uint32Array(1);
+            for (let i = 0, length = ids.length; i < length; i++) {
+                const id = ids[i], type = read(state, id, 6);
+                if (type === 9 || type === 11) continue;
+                const roots = state.api(wrapper)._state.ids;
+                let rootId = roots[0];
+                if (!rootId || read(state, rootId, 6) !== 1 || rootId === id) continue;
+                root[0] = rootId;
+                if (i + 1 < length || !wrapper.trimStart().startsWith('<'))
+                    rootId = edit(state, 2, root)[0];
+                root[0] = rootId;
+                let innerId = rootId;
+                for (;;) {
+                    inner[0] = innerId;
+                    flush(state);
+                    const children = kernel.traverse(state.owner, inner, 1);
+                    if (!children.length) break;
+                    innerId = children[0];
+                }
+                one[0] = id;
+                edit(state, 5, one, root);
+                enqueue(state, inner, 7);
+                edit(state, 3, inner, one);
+            }
+            return this;
+        }
         wrapInner(wrapper) { return wrapping(this, wrapper, true); }
         unwrap(selector) {
             const { state } = entry(this);
@@ -447,11 +531,34 @@ export function createSelection(context) {
         prop(name, value) {
             const { state, ids } = entry(this);
             if (name && typeof name === 'object') {
-                return this.each(function () {
-                    if (this.nodeType !== 1) return;
-                    const one = state.api(this);
-                    for (const key of Object.keys(name)) setProperty(one, key, name[key]);
-                });
+                for (let i = 0, length = ids.length; i < length; i++) {
+                    const id = ids[i];
+                    if (read(state, id, 6) !== 1) continue;
+                    const keys = Object.keys(name);
+                    let special;
+                    for (let k = 0, count = keys.length; k < count; k++) {
+                        const key = keys[k], next = name[key];
+                        // setProperty validates lifetime before coercing a value.
+                        if (state.owner === null) alive(state);
+                        if (rawProperties.has(key) || derivedProperties.has(key) || key === 'namespace' || key === 'tagName') {
+                            special ??= selection(state, Uint32Array.of(id));
+                            setProperty(special, key, next);
+                            continue;
+                        }
+                        const value = !state.xml && boolAttributes.has(key.toLowerCase()) ? next ? '' : null
+                            : next == null || typeof next === 'function' ? String(next) : next;
+                        if (!key || invalidAttributeName.test(key)) {
+                            alive(state);
+                            throw new TypeError('Invalid attribute name');
+                        }
+                        const text = value === null ? '' : String(value);
+                        if (state.owner === null) alive(state);
+                        const one = state.callbackIds ??= new Uint32Array(1);
+                        one[0] = id;
+                        enqueue(state, one, value === null ? 2 : 1, key, text);
+                    }
+                }
+                return this;
             }
             if (value !== undefined) {
                 if (typeof value === 'function')
