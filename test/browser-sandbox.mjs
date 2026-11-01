@@ -32,11 +32,15 @@ const modules = new Map();
 async function moduleFor(url) {
   if (modules.has(url)) return modules.get(url);
   const source = (await readResource(url)).toString('utf8');
-  assert(!/\b(?:process|Buffer)\b|node:/.test(source), `Node dependency in ${url}`);
+  assert(!/\b(?:process|Buffer)\b/.test(source), `Node dependency in ${url}`);
   const module = new SourceTextModule(source, { context, identifier: url,
     initializeImportMeta(meta) { meta.url = url; } });
   modules.set(url, module);
-  await module.link((specifier, parent) => moduleFor(new URL(specifier, parent.identifier).href));
+  await module.link((specifier, parent) => {
+    // Inspect parsed imports/re-exports so comments and ordinary strings cannot match.
+    assert(!specifier.startsWith('node:'), `Node dependency ${specifier} in ${parent.identifier}`);
+    return moduleFor(new URL(specifier, parent.identifier).href);
+  });
   return module;
 }
 const entry = await moduleFor(packageRoot ? packageURL + 'src/browser.js'
