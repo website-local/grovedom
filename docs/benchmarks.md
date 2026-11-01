@@ -47,9 +47,25 @@ complete workloads do not establish a general raw-mode win.
 The subsequent 0.1.3 landing exposes the measured simple dual design as
 [`loadFast()`](compatibility.md#selection-modes), alongside compatible `load()`.
 Both share the facade and kernel; plain selections omit numeric indexing.
-This API addition does not change the completed measurements or establish a
-consumer speedup. The next useful comparison is an unchanged consumer workload
+The subsequent CI comparison below measures both public loaders. The next useful
+comparison is an unchanged consumer workload
 using each mode end to end, with exact output and sustained memory checks.
+
+## 0.1.3 reported CI
+
+CI is reported passing after `887268c`. The
+[36 supplied rows](history/release-benchmarks.md#013-reported-ci) retain
+**1,180/1,210** complete blocks. Direct compatible/fast filtered ratios are
+**1.086×/1.119×** for HTML120/600, about **7.9%/10.6% less elapsed time** with
+`loadFast()`. Each current mode and control has a separate complete module graph;
+all variants still run in one process.
+
+Sitemap/SVG mode differences of **1.024×/1.026×** are smaller than their
+identical-code offsets. Their unfavorable release/fast pairs are **0.967×/0.991×**.
+Controls are diagnostics, not correction factors or confidence bounds; independent
+pair medians need not be transitive. Both modes exceed 3× both Cheerio configurations
+at all four reported authored-case medians. This does not qualify the complete
+consumer workload or sustained memory. Keep fast mode opt-in.
 
 ## 0.1.2 read paths and remote comparisons
 

@@ -69,7 +69,7 @@ try {
 
 ## Selection modes
 
-Development **0.1.3 (unreleased)** adds `loadFast(content, options?, isDocument?)`
+Version **0.1.3** adds `loadFast(content, options?, isDocument?)`
 from `grovedom-native`. It shares `load()` initialization and DOM methods, with
 plain selections accessed through `.get(index)` or iteration. Use `load()` when
 code needs numeric selection indexing such as `$('p')[0]`. Chains and nested

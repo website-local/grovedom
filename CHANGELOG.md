@@ -2,15 +2,19 @@
 
 ## 0.1.3 (unreleased)
 
+Experimental release adding an opt-in selection mode and reducing facade
+allocations. Existing `load()` calls keep numeric indexing, initialization and
+document ownership rules.
+
+### Selection modes and facade improvements
+
 - Add `loadFast()` to Node, browser and native entries. It returns plain selections
   accessed through `.get()` or iteration; `load()` keeps numeric indexing. Both
   modes share one facade and kernel, with typed chains and nested loads retaining
-  their mode. Generic mapped values remain indexed. No universal speedup is claimed.
+  their mode. Generic mapped values remain indexed.
 - Inline measured internal loops for `is(function)`, unnamed `removeData()`,
   attribute/property maps, `has(nodes)`, `closest(string)`, whole-class toggles
   and `wrap(string)`, preserving callback, coercion and disposal boundaries.
-- Check actual browser module imports in the VM linker, avoiding a false Node
-  dependency rejection caused by a source comment.
 - Remove callback-based array filtering and mapping from runtime internals;
   avoid temporary wrapper, class-token, CSS and form-serialization arrays while
   preserving selection snapshots, callbacks, sparse inputs and node identity.
@@ -30,10 +34,28 @@
 - Store Wasm document owner state directly on internal handles, preserving
   disposal and garbage-collection cleanup. Document that internals, including
   `_state`, carry no compatibility promise even between patch releases.
-- Synchronize documentation with published 0.1.2, retain both reported CI
-  benchmark summaries, and prioritize published-package consumer qualification.
-- Advance development manifests and the Release default to 0.1.3; align the
-  Browser demo default with published v0.1.2.
+
+### CI and integration
+
+- Compare compatible and fast modes against the release, both Cheerio parsers
+  and matching identical-code controls in CI, including a direct mode comparison.
+- Report the package, worker index and last phase when installed-worker checks
+  stall; retain four concurrent workers and the existing timeout.
+- Check actual browser module imports in the VM linker, avoiding a false Node
+  dependency rejection caused by a source comment.
+- Update integration guidance for application-initialized synchronous loaders
+  and worker-local options modules.
+
+### Qualification and release scope
+
+The [reported CI comparison](docs/benchmarks.md#013-reported-ci) shows about
+8% and 11% less elapsed time with fast mode on the two authored HTML cases.
+XML/SVG mode differences remain inconclusive against identical-code offsets.
+Complete consumer performance and sustained-memory qualification remain open.
+
+Both packages remain experimental. Node.js >=22.0.0, the Wasm browser entry,
+Linux x64/glibc >=2.35 native scope and explicit document disposal are unchanged.
+Direct internal properties such as `_state` remain unsupported application API.
 
 ## 0.1.2
 

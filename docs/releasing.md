@@ -6,6 +6,14 @@ The hosted demo and Browser demo workflow default use **v0.1.2**.
 Pushes and pull requests verify code. Publication requires manual **Release**
 dispatch; a version bump alone publishes nothing.
 
+The [0.1.3 release notes](../CHANGELOG.md#013-unreleased) cover opt-in `loadFast()`,
+facade allocation improvements and CI diagnostics. Both package manifests and
+the lockfile already select 0.1.3. The
+[reported CI pass](testing.md#013-ci-follow-up) covers `887268c`; the release
+dispatch rebuilds and verifies the selected final commit. The
+[performance evidence](benchmarks.md#013-reported-ci) remains scoped to authored
+cases, with complete consumer and sustained-memory qualification still open.
+
 ## Verification
 
 CI and releases share `verify.yml`. Its eleven jobs cover two builds, sanitizers,

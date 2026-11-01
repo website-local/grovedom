@@ -52,6 +52,25 @@ process. Both unsuccessful attempts remain recorded. The 192 MiB RSS stop uses
 polling and is not a hard cap; runtime checks keep JIT enabled. Wasm and native
 binaries are unchanged. This is API qualification, not consumer adoption evidence.
 
+### 0.1.3 CI follow-up
+
+CI is reported passing after `887268c`, which adds installed-worker diagnostics
+and comparisons for both selection modes. The earlier Ubuntu 22.04/Node 22.0.0
+worker timeout did not reproduce locally; its cause remains unknown. Exact
+Node 22.0.0 with bundled npm 10.5.1 passes the offline two-package installer and
+the original four-worker fixture. Updated checks also pass on Node 24.
+
+All 33 benchmark checks pass on Node 22 Wasm/native and Node 24 Wasm. They verify
+both modes' outputs, pair direction, matching controls, deadlines and retention.
+A synthetic-clock browser-graph check covers all 36 comparison rows; it is
+correctness evidence, not a performance measurement. The
+[reported timings](benchmarks.md#013-reported-ci) retain their separate scope.
+
+The worker check retains four concurrent workers, 76 contract cases per worker
+and the 30-second timeout. A timeout now identifies package, worker index and
+the last import/case/exit phase. An injected keepalive confirms diagnostic error
+reporting; it does not reproduce or explain the original hosted stall.
+
 ### Released 0.1.2
 
 The 2026-10-24 pre-release review retains the 0.1.2 read-path runtime and its
