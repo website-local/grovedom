@@ -31,18 +31,31 @@ try {
     assert.throws(() => a(b('p')[0]), TypeError);
   // First imports in caller-managed workers use the installed package loader.
   const names = target === 'both' ? ['grovedom', 'grovedom-native'] : ['grovedom'];
-  await Promise.all(names.flatMap(name => [0, 1].map(() => new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./package-consumer-worker.mjs', import.meta.url), { workerData: name });
-    let result;
-    const timer = setTimeout(() => { worker.terminate(); reject(new Error('Installed worker timed out')); }, 30000);
-    worker.once('message', value => { result = value; });
-    worker.once('error', error => { clearTimeout(timer); reject(error); });
-    worker.once('exit', code => {
-      clearTimeout(timer);
-      if (code || result !== expectedCases) reject(new Error(`Installed worker ${name}: exit=${code}, cases=${result}`));
-      else resolve();
-    });
-  }))));
+  const workers = [];
+  try {
+    await Promise.all(names.flatMap(name => [0, 1].map(index => new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('./package-consumer-worker.mjs', import.meta.url), { workerData: name });
+      workers.push(worker);
+      let result, phase = 'worker startup';
+      const timer = setTimeout(() => {
+        reject(new Error(`Installed worker ${name} #${index} timed out during ${phase}`));
+      }, 30000);
+      worker.once('online', () => { phase = 'worker module import'; });
+      worker.on('message', value => {
+        if (typeof value === 'number') { result = value; phase = `exit after ${value} cases`; }
+        else phase = value.phase === 'case' ? `${value.execution}: ${value.name}` : value.phase;
+      });
+      worker.once('error', error => { clearTimeout(timer); reject(error); });
+      worker.once('exit', code => {
+        clearTimeout(timer);
+        if (code || result !== expectedCases) reject(new Error(`Installed worker ${name} #${index}: exit=${code}, cases=${result}, phase=${phase}`));
+        else resolve();
+      });
+    }))));
+  } finally {
+    // A worker stuck in native code must not delay reporting the original failure.
+    void Promise.allSettled(workers.map(worker => worker.terminate()));
+  }
   for (const owner of owners) assert.equal(owner('p').text(), 'owned');
 } finally { for (const owner of owners) owner.dispose(); }
 console.log('Installed Node/browser/native API, callback, XML, lifetime and worker contracts passed.');

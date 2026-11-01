@@ -29,10 +29,10 @@ export function summarize(blocks) {
     byOrder: Object.fromEntries(['ABBA/BAAB', 'BAAB/ABBA'].map(order => [order, stats(complete.filter(b => b.order === order))])) };
 }
 // The balanced opposite-order halves and probe-only filter match bench/short.mjs.
-// A is current Wasm; B is the reference. Ratios B/A > 1 favor current Wasm.
+// A is the current variant in each pair; B is its reference. Ratios B/A > 1 favor A.
 export async function compare(variants, { durationMs, now = () => performance.now(),
   yieldControl = async () => {}, selectedCases = cases, warmups = 20, iterations = 2,
-  probe = createProbe(now) } = {}) {
+  probe = createProbe(now), pairs: requestedPairs } = {}) {
   if (!(durationMs > 0) || !Number.isFinite(durationMs)) throw new Error('Positive finite duration required');
   if (variants.length < 2 || new Set(variants.map(v => v.name)).size !== variants.length)
     throw new Error('At least two uniquely named variants required');
@@ -41,6 +41,13 @@ export async function compare(variants, { durationMs, now = () => performance.no
       selectedCases.some(c => typeof c?.id !== 'string' || !c.id.trim()) ||
       new Set(selectedCases.map(c => c.id)).size !== selectedCases.length)
     throw new Error('Nonempty cases with unique, nonempty IDs required');
+  const byName = new Map(variants.map(variant => [variant.name, variant]));
+  const names = requestedPairs ?? variants.slice(1).map(reference => [variants[0].name, reference.name]);
+  if (!Array.isArray(names) || !names.length || names.some(pair =>
+    !Array.isArray(pair) || pair.length !== 2 || pair[0] === pair[1] || pair.some(name => !byName.has(name))) ||
+    new Set(names.map(pair => JSON.stringify(pair))).size !== names.length)
+    throw new Error('Nonempty, unique pairs of distinct known variants required');
+  const pairs = names.map(pair => pair.map(name => byName.get(name)));
   const start = now(), deadline = start + durationMs;
   const inputs = selectedCases.map(c => ({ ...c, source: caseSource(c) }));
   for (const input of inputs) {
@@ -54,14 +61,14 @@ export async function compare(variants, { durationMs, now = () => performance.no
   }
   // Warm the independent CPU probe as in the local short paired harness.
   for (let i = 0; i < 30; i++) { if (now() >= deadline) throw new Error('Budget exhausted during probe warmup'); probe(); }
-  const panels = inputs.flatMap(input => variants.slice(1).map(reference => ({
-    input, reference, blocks: [],
+  const panels = inputs.flatMap(input => pairs.map(pair => ({
+    input, pair, blocks: [],
   })));
   let round = 0, stopped = false;
   while (!stopped && now() < deadline) {
     for (let p = 0; p < panels.length; p++) {
       const panel = panels[(p + round) % panels.length];
-      const pair = [variants[0], panel.reference], milliseconds = [[], []], probes = [];
+      const { pair } = panel, milliseconds = [[], []], probes = [];
       const block = { round, order: round % 2 ? 'BAAB/ABBA' : 'ABBA/BAAB', milliseconds, probes, complete: false, accepted: false };
       for (let half = 0; half < 2 && !stopped; half++) {
         await yieldControl();
@@ -94,10 +101,11 @@ export async function compare(variants, { durationMs, now = () => performance.no
     }
     if (!stopped) round++;
   }
-  const results = panels.map(({ input, reference, blocks }) => ({ case: input.id,
-    reference: reference.name, control: Boolean(reference.control), ...summarize(blocks), blocks }));
+  const results = panels.map(({ input, pair: [current, reference], blocks }) => ({ case: input.id,
+    current: current.name, mode: current.mode ?? null, reference: reference.name,
+    control: Boolean(reference.control), ...summarize(blocks), blocks }));
   return { elapsedMs: now() - start, completeRounds: round,
     sufficient: results.every(r => r.raw.blocks >= 3),
-    settings: { warmups, iterations, maximumProbeSpread: 1.5, order: 'ABBA/BAAB alternating with BAAB/ABBA' },
+    settings: { warmups, iterations, pairs: names, maximumProbeSpread: 1.5, order: 'ABBA/BAAB alternating with BAAB/ABBA' },
     results };
 }

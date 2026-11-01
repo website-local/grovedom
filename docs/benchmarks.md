@@ -124,7 +124,11 @@ is a separate selected-suite result.
 ## Hosted CI and browser demo
 
 CI compares the verified package, npm latest and pinned Cheerio's default and
-htmlparser2 parsers. CI and the demo share `demo/workload.js` and
+htmlparser2 parsers. Both current `load()` and `loadFast()` receive those paired
+comparisons and a matching identical-code control; a separate pair measures
+compatible/fast directly. The report identifies the current mode in every row.
+Both modes and all pairs share the existing job deadline. The browser demo
+continues to use compatible `load()`. CI and the demo share `demo/workload.js` and
 `demo/comparison.js`: HTML120/600, XML sitemap600 and SVG300, covering parse,
 queries, callbacks, edits, traversal, serialization and disposal.
 
@@ -137,7 +141,10 @@ queries, callbacks, edits, traversal, serialization and disposal.
 
 Each block keeps opposite-order halves together. Identical-Wasm controls have
 separate heaps and byte-identical copies of the **complete JS graph**; copying and
-initialization occur outside timing. Ordinary GC and compilation effects remain.
+initialization occur outside timing. CI also uses separate complete graphs for
+the two current modes to avoid mixing their facade feedback. All variants still
+run in one process; this is not an isolated-process mode comparison. Ordinary GC
+and compilation effects remain.
 
 Keep all raw and incomplete blocks. Filtering accepts only complete blocks with
 positive finite probe readings and independent max/min ≤1.5. Invalid case labels

@@ -340,11 +340,12 @@ export const packageCases = [
   },
 ];
 
-export function checkPackage(api, { corrected = true } = {}) {
+export function checkPackage(api, { corrected = true, onCase } = {}) {
   for (const key of ['load', 'loadFast', 'contains', 'merge']) assert.equal(typeof api[key], 'function', key);
   let cases = 0;
   for (const execution of ['buffered', 'direct']) for (const item of packageCases) {
     if (item.corrected && !corrected) continue;
+    onCase?.(item.name, execution);
     try { item.run(api, execution); }
     catch (cause) { throw new Error(`${item.name}, ${execution}`, { cause }); }
     cases++;

@@ -7,11 +7,14 @@ import { cases, page, transform, caseSource, caseReplay } from '../demo/workload
 import * as localXML from '../bench/xml-fixtures.mjs';
 import { page as localPage, replay as localReplay } from './fixtures.mjs';
 
-for (const c of cases) test(`local/demo/CI workload ${c.id} matches both Cheerio parsers`, () => {
+for (const c of cases) test(`local/demo/CI workload ${c.id} matches both Cheerio parsers and selection modes`, async () => {
   assert.equal(page, localPage);
   assert.equal(transform, localReplay);
   const source = caseSource(c), output = caseReplay(load, source, c);
   assert.equal(caseReplay(slimLoad, source, c), output);
+  const { load: compatible, loadFast } = await import('../diagnostics/index.js');
+  assert.equal(caseReplay(compatible, source, c), output);
+  assert.equal(caseReplay(loadFast, source, c), output);
   const $ = load(output, { xml: Boolean(c.kind) });
   const values = (selector, read) => $(selector).get().map(node => read($(node)));
   const repeated = value => Array(c.rows).fill(value);
@@ -172,6 +175,41 @@ test('paired ratios preserve their direction and are not normalized by the contr
     for (const order of Object.values(panel.byOrder)) assert.equal(order.pairedSpeedup, ratio);
   }
 });
+
+test('multiple current modes keep matching controls, direct ratios and one deadline', async () => {
+  let clock = 0;
+  const open = cost => (source, options) => { clock += cost; return load(source, options); };
+  const result = await compare([
+    { name: 'compatible', mode: 'compatible', load: open(4) },
+    { name: 'fast', mode: 'fast', load: open(2) },
+    { name: 'reference', load: open(12) },
+    { name: 'compatible control', load: open(4), control: true },
+    { name: 'fast control', load: open(2), control: true },
+  ], { durationMs: 2400, now: () => clock, probe: () => { clock++; return 1; },
+    pairs: [['compatible', 'reference'], ['compatible', 'compatible control'],
+      ['fast', 'reference'], ['fast', 'fast control'], ['fast', 'compatible']],
+    warmups: 1, iterations: 1, selectedCases: [{ id: 'tiny', rows: 1 }] });
+  assert(result.sufficient);
+  assert(result.elapsedMs < 2420);
+  assert.deepEqual(result.results.map(row => [row.current, row.mode, row.reference, row.control, row.raw.pairedSpeedup]), [
+    ['compatible', 'compatible', 'reference', false, 3],
+    ['compatible', 'compatible', 'compatible control', true, 1],
+    ['fast', 'fast', 'reference', false, 6],
+    ['fast', 'fast', 'fast control', true, 1],
+    ['fast', 'fast', 'compatible', false, 2],
+  ]);
+  assert(result.results.every(row => row.raw.blocks >= 3));
+  assert(result.results.some(row => row.blocks.some(block => !block.complete)));
+});
+
+for (const pairs of [[], [['A', 'unknown']], [['A', 'A']], [['A', 'B'], ['A', 'B']], [['A']]])
+  test(`benchmark rejects invalid comparison pairs ${JSON.stringify(pairs)} before loading`, async () => {
+    let opened = 0;
+    const open = source => { opened++; return load(source); };
+    await assert.rejects(compare([{ name: 'A', load: open }, { name: 'B', load: open }],
+      { durationMs: 100, pairs, selectedCases: [{ id: 'tiny', rows: 1 }] }), /pairs/);
+    assert.equal(opened, 0);
+  });
 
 test('a changed first output within a timed batch cancels the comparison and disposes every document', async () => {
   let clock = 0, opened = 0, disposed = 0, referenceCalls = 0;

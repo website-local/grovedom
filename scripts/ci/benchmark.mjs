@@ -33,30 +33,45 @@ async function wasm(name, entry) {
   const api = await import(pathToFileURL(entry ?? join(root, 'src/browser.js')).href);
   await api.init({ wasm: bytes, heap: 'pool' });
   metadata[name] = { version: info.version, wasmSha256: createHash('sha256').update(bytes).digest('hex') };
-  return api.load;
+  return api;
 }
-const currentLoad = await wasm('current'), releasedLoad = await wasm('released');
+const currentApi = await wasm('current'), releasedApi = await wasm('released');
 const controlEntry = prepareBenchmarkControl(join(out, 'node_modules/current'), join(out, 'control'));
-const controlLoad = await wasm('current', controlEntry);
+const controlApi = await wasm('current', controlEntry);
+// Each mode and its matching control need independent feedback and heaps.
+const fastEntry = prepareBenchmarkControl(join(out, 'node_modules/current'), join(out, 'fast'));
+const fastControlEntry = prepareBenchmarkControl(join(out, 'node_modules/current'), join(out, 'fast-control'));
+const fastApi = await wasm('current', fastEntry), fastControlApi = await wasm('current', fastControlEntry);
+assert.equal(typeof fastApi.loadFast, 'function', 'Current package must export loadFast');
+assert.equal(typeof fastControlApi.loadFast, 'function', 'Fast control must export loadFast');
 const cheerio = await import(pathToFileURL(join(out, 'node_modules/cheerio/dist/esm/index.js')));
 const slim = await import(pathToFileURL(join(out, 'node_modules/cheerio/dist/esm/slim.js')));
 metadata.cheerio = { version: JSON.parse(readFileSync(join(out, 'node_modules/cheerio/package.json'))).version };
 const durationMs = deadline - Date.now();
 assert(durationMs >= 1000, 'No measurement time remains in the job budget');
 const result = await compare([
-  { name: 'current Wasm', load: currentLoad }, { name: 'released Wasm', load: releasedLoad },
+  { name: 'current Wasm', mode: 'compatible', load: currentApi.load },
+  { name: 'current Wasm fast', mode: 'fast', load: fastApi.loadFast },
+  { name: 'released Wasm', load: releasedApi.load },
   { name: 'Cheerio default', load: cheerio.load }, { name: 'Cheerio htmlparser2', load: slim.load },
-  { name: 'identical Wasm control', load: controlLoad, control: true },
-], { durationMs });
-const report = { schema: 1, commit: manifest.commit, metadata, runtime: process.version,
+  { name: 'identical Wasm control', load: controlApi.load, control: true },
+  { name: 'identical fast Wasm control', load: fastControlApi.loadFast, control: true },
+], { durationMs, pairs: [
+  ...['released Wasm', 'Cheerio default', 'Cheerio htmlparser2', 'identical Wasm control']
+    .map(reference => ['current Wasm', reference]),
+  ...['released Wasm', 'Cheerio default', 'Cheerio htmlparser2', 'identical fast Wasm control', 'current Wasm']
+    .map(reference => ['current Wasm fast', reference]),
+] });
+const report = { schema: 2, commit: manifest.commit, metadata, runtime: process.version,
+  selectionModes: ['compatible', 'fast'], separateModeGraphs: true,
   heap: 'pool', jobBudgetMs: 120000, measurementBudgetMs: durationMs,
   elapsedSinceFirstStepMs: Date.now() - start, ...result };
 writeFileSync(join(out, 'result.json'), JSON.stringify(report, null, 2) + '\n');
-let summary = `## Wasm benchmark\n\nCurrent ${metadata.current.version}; latest published ${metadata.released.version}; Cheerio ${metadata.cheerio.version}. Pooled heaps, shared browser workload.\n\n`;
-summary += '| Case | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |\n| --- | --- | ---: | ---: | ---: |\n';
+let summary = `## Wasm benchmark\n\nCurrent ${metadata.current.version}; latest published ${metadata.released.version}; Cheerio ${metadata.cheerio.version}. Pooled heaps, shared browser workload. Compatible load() and fast loadFast() use separate module graphs in one process.\n\n`;
+summary += '| Case | Current mode | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |\n| --- | --- | --- | ---: | ---: | ---: |\n';
 for (const row of result.results)
-  summary += `| ${row.case} | ${row.reference} | ${row.raw.pairedSpeedup?.toFixed(3) ?? 'n/a'}× | ${row.filtered.pairedSpeedup?.toFixed(3) ?? 'n/a'}× | ${row.filtered.blocks}/${row.raw.blocks} |\n`;
-summary += '\nBalanced ABBA/BAAB blocks; ratios above one favor current Wasm. Independent CPU-probe max/min ≤1.5 retains whole blocks. All raw/incomplete blocks are preserved. Identical-code controls should be near 1; ratios are never normalized by them. Setup and all cases share one ~2 minute job budget. Exact outputs are checked on every replay. Shared-host timings are diagnostic, not a regression/adoption gate.\n';
+  summary += `| ${row.case} | ${row.mode} | ${row.reference} | ${row.raw.pairedSpeedup?.toFixed(3) ?? 'n/a'}× | ${row.filtered.pairedSpeedup?.toFixed(3) ?? 'n/a'}× | ${row.filtered.blocks}/${row.raw.blocks} |\n`;
+summary += '\nBalanced ABBA/BAAB blocks; ratios above one favor the current mode shown. The current Wasm reference in fast rows measures compatible/fast directly. Independent CPU-probe max/min ≤1.5 retains whole blocks. All raw/incomplete blocks are preserved. Each mode has an identical-code control with separate feedback and heaps; ratios are never normalized by controls. Setup, both modes and all cases share one ~2 minute job budget. Exact outputs are checked on every replay. Shared-host timings are diagnostic, not a regression/adoption gate.\n';
 writeFileSync(join(out, 'summary.md'), summary);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
 assert(result.sufficient, 'Fewer than three complete paired blocks per comparison fit in the job budget');
