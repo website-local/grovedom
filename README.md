@@ -9,9 +9,9 @@ from JavaScript, with no runtime dependencies or native installation step.
 [Getting started](#getting-started) · [Browser usage](#browser-usage) ·
 [Compatibility](docs/compatibility.md) · [Architecture](docs/design.md)
 
-**Experimental:** `0.1.2` is published on npm.
-This [compatibility and lifecycle patch](CHANGELOG.md#012) corrects initialization,
-ownership and traversal behavior and reduces temporary allocations.
+**Experimental:** `0.1.3` is published on npm.
+This [release](CHANGELOG.md#013) adds opt-in `loadFast()`, reduces facade
+allocations and keeps compatible `load()` and explicit document ownership.
 GroveDOM implements a substantial subset of Cheerio, not a complete drop-in
 replacement. Check the [compatibility guide](docs/compatibility.md) before migrating.
 
@@ -64,7 +64,7 @@ for retention and disposal behavior.
 
 ## Selection modes
 
-Development **0.1.3 (unreleased)** adds `loadFast()` beside `load()` on the Node,
+Version **0.1.3** adds `loadFast()` beside `load()` on the Node,
 browser and native entries. It accepts the same arguments and returns plain
 selections with the same DOM methods. Access nodes with `.get()` or iteration:
 
@@ -159,7 +159,8 @@ The [browser benchmark](docs/prototype.md#browser-and-demo) shares the local and
 authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0
 with default and htmlparser2 parsers and an identical-Wasm control, verifying output
 equality on every replay. The [hosted demo](https://website-local.github.io/grovedom/)
-serves 0.1.2 through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages).
+uses released artifacts through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages),
+whose manual deployment default is `v0.1.3`.
 
 ## Packages and platform support
 
@@ -193,7 +194,7 @@ validation remain [open work](docs/roadmap.md).
 
 ## Development
 
-The `main` branch targets **0.1.3 (unreleased)**.
+The `main` branch targets **0.1.4 (unreleased)**.
 
 See [build and package setup](docs/prototype.md) for the pinned Lexbor/WASI inputs
 and required Node, Clang/LLVM, CMake and Ninja tools. After configuring those

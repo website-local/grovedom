@@ -20,12 +20,14 @@ removed `withHtmlParser` API and needs adaptation before current adoption.
 Fresh replay of the adopted consumer, complete-workload performance and full
 archive/browser validation remain open. Cheerio remains the default.
 
-The unreleased 0.1.3 library adds [`loadFast()`](compatibility.md#selection-modes).
-The qualified engine adapter still uses compatible `load()`. Evaluating fast
-mode requires removing numeric selection indexing from the consumer path,
-preserving document ownership and nested loads, then checking identical outputs
-and complete-workload performance. The library API addition alone does not
-qualify or change the engine integration.
+Published 0.1.3 adds [`loadFast()`](compatibility.md#selection-modes).
+The existing published-package engine qualification is for 0.1.2 and compatible
+`load()`. Qualify 0.1.3 compatible loading on the adopted consumer first.
+Evaluating fast mode requires auditing numeric selection access and loader/hook
+types, preserving document ownership and nested loads, then checking identical
+outputs and complete-workload performance. The current engine already accepts
+an application-supplied loader; the library release does not require restoring
+engine-owned parser initialization or change its consumer default.
 
 ## Historical reference replay
 
@@ -70,11 +72,14 @@ installed dependency and lockfile versions before claiming a locked baseline.
 
 ## Adoption steps
 
-Use published **grovedom 0.1.2** with the selected current engine revision in an
+Use published **grovedom 0.1.3** with the selected current engine revision in an
 isolated MDN migration. Update its package runtime requirement and CI to Node
 22.13.0 or newer and establish a passing Cheerio baseline before opting into GroveDOM.
-Repeat installed-consumer checks when engine/package inputs change; the completed
-qualification above does not establish arbitrary hook compatibility.
+Synchronize the manifest, lockfile, installed engine and test/download/release
+workflows. Repeat installed-consumer checks for the changed package inputs;
+the earlier 0.1.2 qualification does not establish current hook compatibility.
+Start with compatible `load()`; evaluate `loadFast()` only after the indexing,
+type, callback and lifetime checks above. Keep 0.1.2 as a historical reference.
 
 Use the main pooled-Wasm package. Import and initialize GroveDOM in the
 application's options module, then supply its synchronous `load` function as

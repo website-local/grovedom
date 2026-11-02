@@ -1,18 +1,20 @@
 # GitHub CI and releases
 
-Experimental **0.1.2 is published** from `25faa49`; source manifests, lockfile,
-changelog and the Release workflow default target **0.1.3 (unreleased)**.
-The hosted demo and Browser demo workflow default use **v0.1.2**.
+Experimental **0.1.3 is published**; source manifests, lockfile, changelog and
+the Release workflow default target **0.1.4 (unreleased)**.
+The Browser demo workflow default is **v0.1.3**; deployments use that release's
+verified artifacts.
 Pushes and pull requests verify code. Publication requires manual **Release**
 dispatch; a version bump alone publishes nothing.
 
-The [0.1.3 release notes](../CHANGELOG.md#013-unreleased) cover opt-in `loadFast()`,
-facade allocation improvements and CI diagnostics. Both package manifests and
-the lockfile already select 0.1.3. The
+The [0.1.3 release notes](../CHANGELOG.md#013) cover opt-in `loadFast()`,
+facade allocation improvements and CI diagnostics. Publication was reported
+on 2026-11-02. The
 [reported CI pass](testing.md#013-ci-follow-up) covers `887268c`; the release
 dispatch rebuilds and verifies the selected final commit. The
-[performance evidence](benchmarks.md#013-reported-ci) remains scoped to authored
-cases, with complete consumer and sustained-memory qualification still open.
+[performance evidence](benchmarks.md#013-reported-ci) retains separate development
+and release CI receipts. It remains scoped to authored cases, with complete
+consumer and sustained-memory qualification still open.
 
 ## Verification
 
@@ -39,7 +41,7 @@ major 6 until the checker supports a changed compiler entry point.
 Default token permissions are read-only, and pull requests receive no release
 credentials. CI timing has no speed threshold; output mismatches, setup failures
 or insufficient samples fail verification. The
-[reported 0.1.2 CI status](testing.md#reported-012-ci-passes), local qualification and
+[reported CI status](testing.md#013-ci-follow-up), local qualification and
 [actual-browser results](testing.md#reported-browser-runs) have separate scopes.
 
 For local verification, configure builds and disk-backed temporary/cache/fuzz
@@ -69,7 +71,7 @@ native compatibility floor. Both packages have no runtime or peer dependencies.
 The [package READMEs](../packages/wasm/README.md) and [native guide](../packages/native/README.md)
 are copied into their tarballs.
 
-Published versions through 0.1.2 are immutable. Update both manifests, lockfile,
+Published versions through 0.1.3 are immutable. Update both manifests, lockfile,
 changelog and Release default together for a new development version. Preflight requires a
 unique, nonempty changelog entry matching the committed version. Deliberate
 incompatible API changes during 0.1 development require 0.2.0; compatibility fixes
@@ -150,7 +152,7 @@ in the `github-pages` environment. Official Pages actions use `GITHUB_TOKEN` and
 deployment OIDC; no npm token is needed. The site is
 <https://website-local.github.io/grovedom/>.
 
-Dispatch **Actions → Browser demo** with a published tag (default `v0.1.2`).
+Dispatch **Actions → Browser demo** with a published tag (default `v0.1.3`).
 Its release must contain the original two tarballs, checksums and `release.json`;
 a newer CI artifact with the same version cannot replace them. UI release events
 also trigger Pages, including prereleases. **Release** calls Pages directly after

@@ -1,7 +1,7 @@
 # Setup and packages
 
-Both packages are published at experimental 0.1.2; this page covers development
-builds and package assembly. The `main` branch targets **0.1.3 (unreleased)**.
+Experimental 0.1.3 is published; this page covers development builds and package
+assembly. The `main` branch targets **0.1.4 (unreleased)**.
 Use existing Node, Clang/LLVM, CMake/Ninja and reviewed Lexbor/WASI libraries.
 Builds install no toolchains. Put temporary files, caches and outputs in a
 disk-backed scratch location appropriate for your environment.
@@ -77,7 +77,7 @@ the entry is reserved before those callbacks run. Failed initialization releases
 that reservation and can be retried. No package metadata compatibility check is
 performed: distribute the matching JS and artifact together.
 
-The unreleased 0.1.3 `loadFast()` export uses the same initialization and options.
+The `loadFast()` export introduced in 0.1.3 uses the same initialization and options.
 It selects plain collections for each document; `load()` keeps numeric-index
 Proxies. Nested `$.load()` retains the selection mode. Browsers require the same
 awaited `init()` before either factory. See [selection modes](compatibility.md#selection-modes)

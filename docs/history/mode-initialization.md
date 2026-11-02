@@ -200,7 +200,7 @@ adoption evidence remains unproven.
 
 ## Subsequent simple dual landing
 
-Unreleased 0.1.3 now exposes `loadFast()` beside `load()` on Node, browser and
+GroveDOM 0.1.3 exposes `loadFast()` beside `load()` on Node, browser and
 native entries. It retains the measured shared facade/class/kernel and
 per-document construction branch. `load()` keeps its numeric-index Proxy;
 `loadFast()` returns plain selections. No initialization-time specialization,
@@ -209,7 +209,7 @@ subclass, delegate or generated source graph was added.
 Shared declaration method lists preserve the mode through chains and nested
 loads. Generic mapped values keep numeric indexing, and foreign query contexts
 retain their document's behavior. [Selection mode semantics](../compatibility.md#selection-modes)
-and [qualification](../testing.md#unreleased-013-selection-modes) describe the public contract and checks.
+and [qualification](../testing.md#released-013-selection-modes) describe the public contract and checks.
 The size table above remains the experimental graph's measurement, excluding
 the later public entry wrappers, declarations and regression tests.
 

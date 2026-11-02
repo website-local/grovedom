@@ -19,7 +19,10 @@ links, acyclic structure and stable handle identity; exclusions do not count as 
 
 ## Current qualification
 
-### Unreleased 0.1.3 selection modes
+### Released 0.1.3 selection modes
+
+Publication was reported on 2026-11-02. The checks below retain their original
+source and artifact scope.
 
 The simple-dual landing runs all **84 test files separately on Node 24.18.0**:
 
@@ -70,6 +73,20 @@ The worker check retains four concurrent workers, 76 contract cases per worker
 and the 30-second timeout. A timeout now identifies package, worker index and
 the last import/case/exit phase. An injected keepalive confirms diagnostic error
 reporting; it does not reproduce or explain the original hosted stall.
+
+### 0.1.3 release preparation
+
+The final documentation checkpoint passes all **53 release checks**. Private
+package fixtures pass the offline two-package installer, four concurrent workers
+and all 69 installed-file hashes. Packaged normal/fallback VM paths each pass
+the 16-module graph, release contracts and 810 cases / 35 exclusions. Runtime
+and declaration sources are unchanged from the qualification above.
+
+Those local fixtures reuse validated binaries and retain their original build
+metadata; the Release workflow builds and verifies its own publication artifacts.
+The separately [reported release benchmark](history/release-benchmarks.md#013-release-ci)
+retains 36 rows and 759/759 blocks. The supplied table and publication report
+do not add a separately inspected full hosted-matrix result or actual-browser run.
 
 ### Released 0.1.2
 

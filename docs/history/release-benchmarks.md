@@ -3,6 +3,77 @@
 These reported CI and browser runs retain each checkpoint's publication status.
 See the [current summary](../benchmarks.md) for readiness.
 
+## 0.1.3 release CI
+
+Reported on 2026-11-02 for the 0.1.3 release; publication was subsequently
+reported the same day. The benchmark used **current 0.1.3**, then-published
+Wasm **0.1.2** and Cheerio **1.2.0**. Its release reference remains 0.1.2.
+Pooled heaps and the shared browser workload are unchanged. Compatible
+`load()` and fast `loadFast()` use separate module graphs in one process.
+
+All 36 supplied rows are retained. Ratios are reference elapsed time divided
+by current elapsed time; fast/current-Wasm rows directly measure compatible/fast.
+No raw blocks, run link, exact commit, order breakdown or artifact hashes were
+supplied. This receipt does not independently establish the full hosted-matrix
+status. It remains separate from the November 1 development CI receipt below.
+
+| Case | Current mode | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | --- | ---: | ---: | ---: |
+| articles-120 | compatible | released Wasm | 1.092× | 1.092× | 21/21 |
+| articles-120 | compatible | Cheerio default | 4.070× | 4.070× | 21/21 |
+| articles-120 | compatible | Cheerio htmlparser2 | 2.996× | 2.996× | 21/21 |
+| articles-120 | compatible | identical Wasm control | 1.025× | 1.025× | 21/21 |
+| articles-120 | fast | released Wasm | 1.183× | 1.183× | 21/21 |
+| articles-120 | fast | Cheerio default | 4.381× | 4.381× | 21/21 |
+| articles-120 | fast | Cheerio htmlparser2 | 3.191× | 3.191× | 21/21 |
+| articles-120 | fast | identical fast Wasm control | 1.026× | 1.026× | 21/21 |
+| articles-120 | fast | current Wasm | 1.082× | 1.082× | 21/21 |
+| articles-600 | compatible | released Wasm | 1.131× | 1.131× | 21/21 |
+| articles-600 | compatible | Cheerio default | 6.816× | 6.816× | 21/21 |
+| articles-600 | compatible | Cheerio htmlparser2 | 5.385× | 5.385× | 21/21 |
+| articles-600 | compatible | identical Wasm control | 1.039× | 1.039× | 21/21 |
+| articles-600 | fast | released Wasm | 1.194× | 1.194× | 21/21 |
+| articles-600 | fast | Cheerio default | 7.545× | 7.545× | 21/21 |
+| articles-600 | fast | Cheerio htmlparser2 | 5.871× | 5.871× | 21/21 |
+| articles-600 | fast | identical fast Wasm control | 1.023× | 1.023× | 21/21 |
+| articles-600 | fast | current Wasm | 1.071× | 1.071× | 21/21 |
+| sitemap-600 | compatible | released Wasm | 1.009× | 1.009× | 21/21 |
+| sitemap-600 | compatible | Cheerio default | 4.458× | 4.458× | 21/21 |
+| sitemap-600 | compatible | Cheerio htmlparser2 | 4.444× | 4.444× | 21/21 |
+| sitemap-600 | compatible | identical Wasm control | 1.036× | 1.036× | 22/22 |
+| sitemap-600 | fast | released Wasm | 0.991× | 0.991× | 22/22 |
+| sitemap-600 | fast | Cheerio default | 4.462× | 4.462× | 22/22 |
+| sitemap-600 | fast | Cheerio htmlparser2 | 4.461× | 4.461× | 21/21 |
+| sitemap-600 | fast | identical fast Wasm control | 1.067× | 1.067× | 21/21 |
+| sitemap-600 | fast | current Wasm | 1.014× | 1.014× | 21/21 |
+| svg-300 | compatible | released Wasm | 1.042× | 1.042× | 21/21 |
+| svg-300 | compatible | Cheerio default | 3.087× | 3.087× | 21/21 |
+| svg-300 | compatible | Cheerio htmlparser2 | 3.113× | 3.113× | 21/21 |
+| svg-300 | compatible | identical Wasm control | 1.040× | 1.040× | 21/21 |
+| svg-300 | fast | released Wasm | 1.016× | 1.016× | 21/21 |
+| svg-300 | fast | Cheerio default | 3.175× | 3.175× | 21/21 |
+| svg-300 | fast | Cheerio htmlparser2 | 3.159× | 3.159× | 21/21 |
+| svg-300 | fast | identical fast Wasm control | 1.056× | 1.056× | 21/21 |
+| svg-300 | fast | current Wasm | 1.016× | 1.016× | 21/21 |
+
+All **759/759** complete blocks are retained; raw and probe-filtered rounded
+ratios agree in every row. Direct compatible/fast ratios are **1.082×/1.071×**
+for HTML120/600, about **7.6%/6.6% less elapsed time** with fast mode. Matching
+compatible/fast controls are 1.025×/1.026× and 1.039×/1.023×.
+
+Sitemap/SVG direct ratios are **1.014×/1.016×**, smaller than their control
+offsets of 1.036×/1.067× and 1.040×/1.056×. They do not establish a dependable
+fast-mode gain. Preserve the unfavorable sitemap release/fast **0.991×**.
+SVG release/fast is **1.016×**, below both identical-code offsets.
+
+Fast mode exceeds 3× both Cheerio configurations at all four supplied authored-case
+medians. Compatible articles-120 is **2.996×** against htmlparser2, slightly below
+3×; its other case medians exceed 3× both configurations. Complete current-consumer
+performance, sustained memory and adoption remain unqualified. Keep fast mode
+opt-in and the consumer's Cheerio default. Controls are diagnostics, not
+normalization factors or confidence bounds. Independent pair medians need not
+be transitive; do not divide separate pairs or receipts into new speedups.
+
 ## 0.1.3 reported CI
 
 Reported on 2026-11-01 after

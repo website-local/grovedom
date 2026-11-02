@@ -1,6 +1,15 @@
 # Changelog
 
-## 0.1.3 (unreleased)
+## 0.1.4 (unreleased)
+
+- Synchronize documentation with published 0.1.3, retain the separate release
+  CI benchmark and update the downstream qualification steps for both loaders.
+- Advance development manifests, lockfile and the Release default to 0.1.4;
+  align the Browser demo default with published v0.1.3.
+
+## 0.1.3
+
+Released 2026-11-02.
 
 Experimental release adding an opt-in selection mode and reducing facade
 allocations. Existing `load()` calls keep numeric indexing, initialization and
@@ -48,8 +57,9 @@ document ownership rules.
 
 ### Qualification and release scope
 
-The [reported CI comparison](docs/benchmarks.md#013-reported-ci) shows about
-8% and 11% less elapsed time with fast mode on the two authored HTML cases.
+The [reported CI comparisons](docs/benchmarks.md#013-reported-ci) show about
+7.9%/10.6% less elapsed time with fast mode on the two authored HTML cases in
+development CI, and 7.6%/6.6% in the separate release CI receipt.
 XML/SVG mode differences remain inconclusive against identical-code offsets.
 Complete consumer performance and sustained-memory qualification remain open.
 

@@ -9,11 +9,11 @@ browser speed; production input weights remain unvalidated.
 ## Current result
 
 **Current full-scope non-regression and production adoption remain unverified.**
-Experimental 0.1.2 is published with scoped improvements, incomplete panels,
+Experimental 0.1.3 is published with scoped improvements, incomplete panels,
 control drift and unfavorable results. Correctness qualification is recorded in
 [testing](testing.md) and does not turn inconclusive timing into a pass.
 
-The unreleased [internal-state investigation](history/internal-state.md) records
+The 0.1.3 [internal-state investigation](history/internal-state.md) records
 direct metadata, fewer duplicate checks, a corrected Proxy read regression,
 disposal-related deopts and the shared-class mode experiment. Its bounded
 diagnostics do not establish the complete-workload target.
@@ -53,6 +53,24 @@ using each mode end to end, with exact output and sustained memory checks.
 
 ## 0.1.3 reported CI
 
+### Release CI, 2026-11-02
+
+The [release receipt](history/release-benchmarks.md#013-release-ci) preserves
+all **36 rows and 759/759** complete blocks, comparing 0.1.3 with released
+0.1.2 and Cheerio 1.2.0. Direct compatible/fast ratios are **1.082×/1.071×**
+for HTML120/600, about **7.6%/6.6% less elapsed time** with `loadFast()`.
+Both modes use separate module graphs in one process.
+
+Sitemap/SVG mode differences of **1.014×/1.016×** are smaller than identical-code
+offsets; sitemap release/fast is an unfavorable **0.991×**. Fast mode exceeds
+3× both Cheerio configurations at every supplied authored-case median.
+Compatible articles-120 is **2.996×** against htmlparser2, slightly below 3×.
+Controls are diagnostics, not correction factors or confidence bounds. The
+supplied table does not identify a full hosted-matrix result or qualify the
+complete consumer workload, sustained memory or adoption. Keep fast mode opt-in.
+
+### Development CI, 2026-11-01
+
 CI is reported passing after `887268c`. The
 [36 supplied rows](history/release-benchmarks.md#013-reported-ci) retain
 **1,180/1,210** complete blocks. Direct compatible/fast filtered ratios are
@@ -64,8 +82,9 @@ Sitemap/SVG mode differences of **1.024×/1.026×** are smaller than their
 identical-code offsets. Their unfavorable release/fast pairs are **0.967×/0.991×**.
 Controls are diagnostics, not correction factors or confidence bounds; independent
 pair medians need not be transitive. Both modes exceed 3× both Cheerio configurations
-at all four reported authored-case medians. This does not qualify the complete
-consumer workload or sustained memory. Keep fast mode opt-in.
+at all four authored-case medians in this earlier receipt. It remains separate
+from the release table above; do not divide across receipts to infer gains.
+Neither qualifies the complete consumer workload or sustained memory.
 
 ## 0.1.2 read paths and remote comparisons
 
