@@ -68,15 +68,33 @@ export function createSelection(context) {
         return source.attr(name, !state.xml && boolAttributes.has(name.toLowerCase()) ? value ? '' : null
             : value == null || typeof value === 'function' ? String(value) : value);
     }
-    function setStyle(state, node, name, value, index) {
-        const one = state.api(node), style = parseStyle(one.attr('style'));
+    function setStyle(state, node, name, value, index, cache) {
+        const one = state.api(node), current = one.attr('style');
+        // A map getter may have replaced the attribute since the previous key.
+        const style = cache && cache.text === current ? cache.style : parseStyle(current);
+        // Inherited accessors can expose this object to a later map getter.
+        let reusable = !(cache && !Object.hasOwn(style, name) && name in style);
         const next = typeof value === 'function' ? value.call(node, index, style[name]) : value;
         if (next === '') delete style[name];
-        else if (next != null) style[name] = String(next);
+        else if (next != null) {
+            if (cache) {
+                const item = String(next);
+                // Coercion can install a setter after the first check.
+                if (!Object.hasOwn(style, name) && name in style) reusable = false;
+                style[name] = item;
+            } else style[name] = String(next);
+        }
         let text = '';
-        for (const key in style) if (Object.hasOwn(style, key))
-            text += (text ? ' ' : '') + `${key}: ${style[key]};`;
+        for (const key in style) if (Object.hasOwn(style, key)) {
+            const item = style[key];
+            text += (text ? ' ' : '') + `${key}: ${item};`;
+            // Reparse declarations whose serialized form can change their keys
+            // or values. Ordinary declarations round-trip without another parse.
+            if (cache && (!key || key.trim() !== key || key.includes(':') || key.includes(';') ||
+                typeof item !== 'string' || !item || item.trim() !== item || item.includes(';'))) reusable = false;
+        }
         one.attr('style', text);
+        if (cache) { cache.text = reusable ? text : null; cache.style = style; }
     }
     class Selection {
         // Direct, unsupported internals; no compatibility promise between releases.
@@ -497,10 +515,14 @@ export function createSelection(context) {
             if (typeof wrapper !== 'string') return wrapping(this, wrapper, false);
             const { state, ids } = entry(this);
             const one = new Uint32Array(1), root = new Uint32Array(1), inner = new Uint32Array(1);
+            const reusable = wrapper.trimStart().startsWith('<') && wrapper.trimEnd().endsWith('>');
+            // Earlier occurrences receive clones, leaving this template detached.
+            // Selector wrappers must keep observing the tree after each move.
+            let template;
             for (let i = 0, length = ids.length; i < length; i++) {
                 const id = ids[i], type = read(state, id, 6);
                 if (type === 9 || type === 11) continue;
-                const roots = state.api(wrapper)._state.ids;
+                const roots = reusable ? (template ??= state.api(wrapper)._state.ids) : state.api(wrapper)._state.ids;
                 let rootId = roots[0];
                 if (!rootId || read(state, rootId, 6) !== 1 || rootId === id) continue;
                 root[0] = rootId;
@@ -615,8 +637,10 @@ export function createSelection(context) {
             if (name && typeof name === 'object' && !Array.isArray(name)) {
                 return this.each(function () {
                     if (this.nodeType !== 1) return;
-                    const keys = Object.keys(name);
-                    for (let i = 0, length = keys.length; i < length; i++) setStyle(state, this, keys[i], name[keys[i]], i);
+                    const keys = Object.keys(name), cache = { text: null, style: null };
+                    // Preserve a visible write after every key and a fresh cache
+                    // for each node, including duplicate selection occurrences.
+                    for (let i = 0, length = keys.length; i < length; i++) setStyle(state, this, keys[i], name[keys[i]], i, cache);
                 });
             }
             if (!ids.length)

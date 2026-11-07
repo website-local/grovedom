@@ -19,6 +19,29 @@ links, acyclic structure and stable handle identity; exclusions do not count as 
 
 ## Current qualification
 
+### 0.1.4 style and wrapper reuse (local)
+
+The [combined implementation](history/operation-reuse.md) passes the 84 existing
+test files and a new 120-case regression file on Node 24.18.0: **85 files and
+2,752 cases per backend**. Pooled Wasm has **2,701 passes / 51 exclusions**;
+native has **2,689 passes / 63 exclusions**, with no final failures,
+cancellations or TODOs. The new cases cover style observation/coercion,
+inherited accessors, parsing fallbacks, wrapper templates, node occurrences and
+disposal in both selection modes, HTML/XML and buffered/direct execution.
+
+The same 120 cases pass on the unchanged source reference, global/per-document
+Wasm heaps and the portable byte path. Selected contracts add 288 differential
+comparisons. Public Node/native entries each pass 76 contract cases. Normal
+and fallback source VM checks each pass sixteen modules, the expanded release
+contract and 810 selected browser cases / 35 exclusions. These checks retain
+their local source scope; they add no installed-consumer or actual-browser result.
+
+The original four-worker and 130,000-field native cases retain their sizes.
+Workers assert the 32 MiB old-space limit; other jobs use 64/4 MiB V8, JIT and
+the existing 192 MiB sampled RSS stop. The native wide-form case runs without an
+extra coordinator. The [qualification record](history/operation-reuse.md) keeps
+earlier fixture failures and the corrected cache defect separate from final passes.
+
 ### Released 0.1.3 selection modes
 
 Publication was reported on 2026-11-02. The checks below retain their original

@@ -14,8 +14,9 @@ explicit document ownership. [Correctness and resource qualification](testing.md
 records the scoped mode, package, worker and portable browser checks, alongside
 earlier sanitizer, fuzz and lifecycle evidence.
 
-Publication was reported on 2026-11-02. Development metadata now selects 0.1.4,
-with runtime and declarations unchanged from 0.1.3. The manual Browser demo
+Publication was reported on 2026-11-02. Development metadata now selects 0.1.4.
+The development source adds [style and literal-wrapper reuse](history/operation-reuse.md),
+with the API, declarations and binaries unchanged. The manual Browser demo
 default is v0.1.3. Separate [development and release CI receipts](benchmarks.md#013-reported-ci)
 retain their controls and unfavorable results; complete consumer performance
 remains open in `mdn-local`. Prior actual-browser results still apply to their

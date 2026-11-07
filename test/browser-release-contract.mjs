@@ -80,5 +80,30 @@ export function checkBrowserRelease(api) {
       assert.equal(retained[0], handles[0]);
     } finally { $.dispose(); }
   }
+  for (const loader of [api.load, api.loadFast]) {
+    for (const execution of ['buffered', 'direct']) for (const xml of [false, true]) {
+      const $ = loader('<main><p>A</p><p>B</p></main>', { xml, execution }, false);
+      try {
+        const selected = $('p'), nodes = selected.get(), observed = [], events = [];
+        selected.css({
+          color: 'red; width: 4px',
+          get height() { observed.push(selected.first().css('width')); return '2px'; },
+          width(index, old) { events.push([index, old]); return '5px'; },
+        });
+        assert.deepEqual(observed, ['4px', '5px']);
+        assert.deepEqual(events, [[2, '4px'], [2, '4px']]);
+        assert.equal(selected.last().attr('style'), 'color: red; width: 5px; height: 2px;');
+        assert.equal(selected.wrap('<section><i>discarded</i><b>tail</b></section>'), selected);
+        assert.equal($('section').length, 2);
+        assert.equal($('section b').text(), 'tailtail');
+        assert.equal(selected.get(0), nodes[0]);
+        assert.equal(selected.get(1), nodes[1]);
+        assert.equal(selected.first().parent().prop('tagName'), 'I');
+        const before = $.html();
+        selected.wrap(' <aside></aside>');
+        assert.equal($.html(), before);
+      } finally { $.dispose(); }
+    }
+  }
   console.log('Portable release contracts passed in HTML/XML and buffered/direct modes.');
 }

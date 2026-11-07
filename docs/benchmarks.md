@@ -13,6 +13,13 @@ Experimental 0.1.3 is published with scoped improvements, incomplete panels,
 control drift and unfavorable results. Correctness qualification is recorded in
 [testing](testing.md) and does not turn inconclusive timing into a pass.
 
+The 0.1.4 [style and wrapper reuse qualification](history/operation-reuse.md)
+measures the combined implementation in both modes, with all eleven method and
+fourteen full workloads. It retains the original and corrected-source panels
+separately, including controls, unfavorable results and the corrected panel's
+best-effort host admission. Scoped method gains do not establish the complete
+consumer target.
+
 The 0.1.3 [internal-state investigation](history/internal-state.md) records
 direct metadata, fewer duplicate checks, a corrected Proxy read regression,
 disposal-related deopts and the shared-class mode experiment. Its bounded
