@@ -1,18 +1,18 @@
 # GitHub CI and releases
 
-Experimental **0.1.3 is published**; source manifests, lockfile, changelog and
-the Release workflow default target **0.1.4 (unreleased)**.
-The Browser demo workflow default is **v0.1.3**; deployments use that release's
+Experimental **0.1.4 is published on npm**; source manifests, lockfile, changelog
+and the Release workflow default target **0.1.5 (unreleased)**.
+The Browser demo workflow default is **v0.1.4**; deployments use that release's
 verified artifacts.
 Pushes and pull requests verify code. Publication requires manual **Release**
 dispatch; a version bump alone publishes nothing.
 
-The [0.1.4 notes](../CHANGELOG.md#014-unreleased) include namespace lifetime,
-selection reuse and the later Node decoding correction. All hosted jobs and the
-gate were reported passing for `5026b83`, before that correction. CI and release
-artifacts must verify the final corrected commit before publication. Keep 0.1.4
-experimental: current-package consumer, complete DOM performance, sustained
-memory and broader browser/archive qualification remain [open](roadmap.md).
+The [0.1.4 notes](../CHANGELOG.md#014) include namespace lifetime, selection reuse
+and the Node decoding correction. The user reported development and release CI
+passing in the corrected `aaf989b` release context, followed by npm publication
+on 2026-11-15. GitHub release and Pages completion were not separately reported.
+Keep 0.1.4 experimental: current-package consumer, complete DOM performance,
+sustained memory and broader browser/archive qualification remain [open](roadmap.md).
 
 ## Verification
 
@@ -69,7 +69,7 @@ native compatibility floor. Both packages have no runtime or peer dependencies.
 The [package READMEs](../packages/wasm/README.md) and [native guide](../packages/native/README.md)
 are copied into their tarballs.
 
-Published versions through 0.1.3 are immutable. Update both manifests, lockfile,
+Published versions through 0.1.4 are immutable. Update both manifests, lockfile,
 changelog and Release default together for a new development version. Preflight requires a
 unique, nonempty changelog entry matching the committed version. Deliberate
 incompatible API changes during 0.1 development require 0.2.0; compatibility fixes
@@ -150,7 +150,7 @@ in the `github-pages` environment. Official Pages actions use `GITHUB_TOKEN` and
 deployment OIDC; no npm token is needed. The site is
 <https://website-local.github.io/grovedom/>.
 
-Dispatch **Actions → Browser demo** with a published tag (default `v0.1.3`).
+Dispatch **Actions → Browser demo** with a published tag (default `v0.1.4`).
 Its release must contain the original two tarballs, checksums and `release.json`;
 a newer CI artifact with the same version cannot replace them. UI release events
 also trigger Pages, including prereleases. **Release** calls Pages directly after

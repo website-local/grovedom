@@ -20,9 +20,10 @@ links, acyclic structure and stable handle identity; exclusions do not count as 
 ## Current qualification
 
 <a id="014-namespace-selection-and-decoding-review"></a>
-Development **0.1.4 remains unreleased and experimental**. Its namespace and
-selection changes landed in `5026b83`; later review withdrew the direct byte-input
-shortcut to restore ordinary Node decoding.
+Experimental **0.1.4 is published on npm**. Its namespace and selection changes
+landed in `5026b83`; `aaf989b` withdrew the direct byte-input shortcut to restore
+ordinary Node decoding. Development 0.1.5 currently changes documentation and
+version metadata only.
 
 | Checkpoint | Evidence |
 |---|---|
@@ -32,17 +33,19 @@ shortcut to restore ordinary Node decoding.
 | Decoder correction | 146 focused passes across decoding, loading/options, both backends, global/document Wasm heaps and portable transport; both new regressions fail on `5026b83` and pass after correction |
 | Corrected package fixtures | 69 files verified; 76 contracts per Node/browser/native entry and per each of four workers; four public decoder cases |
 | Corrected normal/fallback browser VM | Each passes sixteen modules, release contracts and 810 cases / 35 exclusions |
+| Corrected `aaf989b` release context | User reports development and release CI passed; npm 0.1.4 publication reported on 2026-11-15 |
 
-The full suite and hosted pass apply to `5026b83`, before the decoder correction.
-The newer checks use local package fixtures and Node VMs; they add no fresh
-full-suite, Node 22, actual-browser or downstream run. Final corrected-commit CI
-and release-artifact checks remain required before publication.
+The locally counted full suites apply to `5026b83`, before the decoder
+correction; the focused/package/VM checks qualify that correction. Later hosted
+passes are user-reported, without independently retrieved logs or artifact
+hashes. Their CI coverage does not extend the named actual-browser or downstream
+qualification. The new 0.1.5 metadata is outside those hosted runs.
 
 The [namespace/selection record](history/selection-and-namespace-reuse.md#qualification)
 and [decoder follow-up](history/selection-and-namespace-reuse.md#decoder-correction)
 preserve the exact scope, unsuccessful attempts and corrected checker.
-[Performance evidence](benchmarks.md#014-reported-ci) is separate: the supplied
-benchmark predates the decoder correction, and the withdrawn byte shortcut's
+[Performance evidence](benchmarks.md#014-reported-ci) keeps the earlier checkpoint
+and both corrected-source CI receipts separate. The withdrawn byte shortcut's
 earlier timing and capacity benefits no longer apply.
 
 ## Earlier qualification

@@ -9,8 +9,8 @@ browser speed; production input weights remain unvalidated.
 ## Current result
 
 **Current full-scope non-regression and production adoption remain unverified.**
-Experimental 0.1.3 is published; development 0.1.4 remains experimental and
-unreleased. [Correctness qualification](testing.md#current-qualification) and
+Experimental 0.1.4 is published; 0.1.5 is under development.
+[Correctness qualification](testing.md#current-qualification) and
 authored-workload timings answer separate questions.
 
 The 0.1.4 [style/wrapper](history/operation-reuse.md),
@@ -24,29 +24,29 @@ Keep Cheerio as the consumer default and `loadFast()` opt-in. The next useful
 investigation profiles the corrected package in the actual consumer, followed by
 a fixed comparison of the complete DOM workload and sustained memory.
 [Bounded MDN evidence](integration.md#bounded-mdn-013-evidence) uses 0.1.3 and
-does not qualify 0.1.4. Further speculative optimization experiments are not a
-prerequisite for an experimental release.
+does not qualify the published 0.1.4 package.
 
 ## 0.1.4 reported CI
 
-The [November 15 receipt](history/release-benchmarks.md#014-development-ci)
-preserves all **36 supplied rows / 1,013 retained paired blocks** for `5026b83`,
-comparing development 0.1.4 with published 0.1.3 and Cheerio 1.2.0. All displayed
-complete blocks were retained. The user separately confirmed that every hosted
-job and the required gate passed, including macOS.
+The [November 15 release receipt](history/release-benchmarks.md#014-release-ci)
+preserves **36 supplied rows / 800 retained paired blocks**, comparing 0.1.4 with
+then-published 0.1.3 and Cheerio 1.2.0. The user reported all release CI jobs
+passing in the corrected `aaf989b` release context, then confirmed npm
+publication. The table itself embeds no commit or artifact identity.
 
-Six of eight release/current medians favor current. Fast sitemap and SVG are
-**0.976× / 0.990×**, corresponding to about **2.46% / 1.01% more elapsed time**.
-All sixteen Cheerio comparisons exceed 3×, with a minimum of **3.322×**.
-Identical-code controls span **1.000–1.067×**. These rounded authored-workload
-medians do not establish universal gains, non-regression or complete-consumer
+Five of eight release/current medians favor current. Compatible sitemap,
+fast sitemap and fast SVG retain adverse ratios of **0.982× / 0.967× / 0.962×**.
+All sixteen Cheerio comparisons exceed 3×, ranging from **3.006× to 7.426×**.
+Identical-code controls span **0.988–1.054×**. All displayed complete blocks were
+retained, and displayed raw/filtered medians agree. These authored-workload
+results do not establish universal gains, non-regression or complete-consumer
 performance; no control normalization or cross-workload average is supplied.
 
-This receipt predates the subsequent byte-decoding correction. It does not
-measure the corrected source, whose direct byte-input shortcut was withdrawn.
-The [bounded downstream evidence](integration.md#bounded-mdn-013-evidence)
-uses published 0.1.3 and leaves sustained memory and the complete DOM target
-open. Keep Cheerio as the consumer default and `loadFast()` opt-in.
+The [corrected development receipt](history/release-benchmarks.md#014-corrected-development-ci)
+retains a separate **36 rows / 844 blocks**, with six favorable version medians
+and controls of 0.987–1.121×. The [earlier `5026b83` receipt](history/release-benchmarks.md#014-development-ci)
+retains **36 rows / 1,013 blocks** and predates the decoder correction. Each
+table keeps its own adverse observations and qualification limits.
 
 ## Earlier evidence
 

@@ -57,8 +57,8 @@ crawl. Recheck source, lockfile and installed dependencies before reuse.
 
 ## Adoption steps
 
-Preserve the qualified **0.1.3** replay as a reference. Qualify the final corrected
-0.1.4 package against the adopted MDN/engine sources before claiming current
+Preserve the qualified **0.1.3** replay as a reference. Qualify the published
+**0.1.4** package against the adopted MDN/engine sources before claiming current
 consumer support; the bounded 0.1.3 checks do not transfer automatically.
 Keep manifest, lockfile, installed engine and supported Node/CI versions aligned.
 Use the same Cheerio baseline and exact original responses for each loader.

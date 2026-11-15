@@ -1,8 +1,20 @@
 # Changelog
 
-## 0.1.4 (unreleased)
+## 0.1.5 (unreleased)
 
-Experimental development release. Compatible `load()` and opt-in `loadFast()`
+Experimental development cycle.
+
+- Record the 0.1.4 npm publication and its separate development/release CI
+  receipts. Advance package metadata and the Release default to 0.1.5, with
+  the Browser demo default at v0.1.4.
+
+## 0.1.4
+
+<a id="014-unreleased"></a>
+
+Released on npm 2026-11-15.
+
+Experimental release. Compatible `load()` and opt-in `loadFast()`
 retain their public API and explicit document ownership.
 
 - Release namespace-restoration histories with destroyed unobserved subtrees,
@@ -26,10 +38,10 @@ retain their public API and explicit document ownership.
   consumer performance, sustained memory and adoption unqualified.
 
 See [current qualification](docs/testing.md#current-qualification) and the
-[reported CI receipt](docs/benchmarks.md#014-reported-ci). The reported full CI
-pass is for `5026b83`, before the decoder correction; a release requires CI on
-the final corrected commit. Development metadata remains 0.1.4 and the Browser
-demo default remains published v0.1.3.
+[reported CI receipts](docs/benchmarks.md#014-reported-ci). Development and release
+CI were reported passing in the final corrected `aaf989b` release context,
+followed by npm publication. Complete-consumer performance, sustained memory
+and broader browser/archive qualification remain open.
 
 ## 0.1.3
 

@@ -142,3 +142,11 @@ The full suite and hosted pass above apply to `5026b83`; they are not a fresh
 full-suite or hosted pass for this correction. The byte shortcut's earlier
 timing and capacity results no longer describe current source. Final corrected
 commit CI and release-artifact checks remain required before publication.
+
+## Release follow-up
+
+The decoder correction was committed in `aaf989b`. Development and release CI
+were subsequently reported passing in that release context, and npm 0.1.4
+publication was reported on 2026-11-15. The [separate CI receipts](release-benchmarks.md#014-release-ci)
+close the earlier pending reported-CI status while retaining the local review's
+scope and failures. Exact-current-package consumer qualification remains open.

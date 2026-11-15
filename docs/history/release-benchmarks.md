@@ -3,6 +3,129 @@
 These reported CI and browser runs retain each checkpoint's publication status.
 See the [current summary](../benchmarks.md) for readiness.
 
+## 0.1.4 release CI
+
+Reported on 2026-11-15 in the corrected `aaf989b` release context. The user
+reported all release CI jobs passing, with npm initially pending, then confirmed
+npm publication the same day. Commit attribution follows the conversation;
+the table embeds no commit hash, run URL or artifact identity. No independent
+hosted status or package integrity check is inferred.
+
+Current **0.1.4** is compared with then-published Wasm **0.1.3** and Cheerio
+**1.2.0**. Pooled heaps and the shared browser workload are used. Compatible
+`load()` and fast `loadFast()` use separate module graphs in one process.
+Ratios are reference/current elapsed time; values above one favor current.
+Fast/current-Wasm rows directly compare compatible/fast.
+
+| Case | Current mode | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | --- | ---: | ---: | ---: |
+| articles-120 | compatible | released Wasm | 1.024× | 1.024× | 22/22 |
+| articles-120 | compatible | Cheerio default | 4.167× | 4.167× | 22/22 |
+| articles-120 | compatible | Cheerio htmlparser2 | 3.103× | 3.103× | 22/22 |
+| articles-120 | compatible | identical Wasm control | 1.028× | 1.028× | 22/22 |
+| articles-120 | fast | released Wasm | 1.107× | 1.107× | 22/22 |
+| articles-120 | fast | Cheerio default | 4.373× | 4.373× | 22/22 |
+| articles-120 | fast | Cheerio htmlparser2 | 3.330× | 3.330× | 22/22 |
+| articles-120 | fast | identical fast Wasm control | 1.034× | 1.034× | 22/22 |
+| articles-120 | fast | current Wasm | 1.078× | 1.078× | 22/22 |
+| articles-600 | compatible | released Wasm | 1.045× | 1.045× | 22/22 |
+| articles-600 | compatible | Cheerio default | 6.748× | 6.748× | 22/22 |
+| articles-600 | compatible | Cheerio htmlparser2 | 5.250× | 5.250× | 22/22 |
+| articles-600 | compatible | identical Wasm control | 0.988× | 0.988× | 22/22 |
+| articles-600 | fast | released Wasm | 1.095× | 1.095× | 22/22 |
+| articles-600 | fast | Cheerio default | 7.426× | 7.426× | 22/22 |
+| articles-600 | fast | Cheerio htmlparser2 | 5.764× | 5.764× | 22/22 |
+| articles-600 | fast | identical fast Wasm control | 1.011× | 1.011× | 22/22 |
+| articles-600 | fast | current Wasm | 1.113× | 1.113× | 22/22 |
+| sitemap-600 | compatible | released Wasm | 0.982× | 0.982× | 22/22 |
+| sitemap-600 | compatible | Cheerio default | 4.501× | 4.501× | 22/22 |
+| sitemap-600 | compatible | Cheerio htmlparser2 | 4.559× | 4.559× | 22/22 |
+| sitemap-600 | compatible | identical Wasm control | 1.054× | 1.054× | 22/22 |
+| sitemap-600 | fast | released Wasm | 0.967× | 0.967× | 23/23 |
+| sitemap-600 | fast | Cheerio default | 4.405× | 4.405× | 23/23 |
+| sitemap-600 | fast | Cheerio htmlparser2 | 4.492× | 4.492× | 23/23 |
+| sitemap-600 | fast | identical fast Wasm control | 1.052× | 1.052× | 23/23 |
+| sitemap-600 | fast | current Wasm | 0.990× | 0.990× | 23/23 |
+| svg-300 | compatible | released Wasm | 1.049× | 1.049× | 23/23 |
+| svg-300 | compatible | Cheerio default | 3.006× | 3.006× | 23/23 |
+| svg-300 | compatible | Cheerio htmlparser2 | 3.045× | 3.045× | 23/23 |
+| svg-300 | compatible | identical Wasm control | 1.048× | 1.048× | 22/22 |
+| svg-300 | fast | released Wasm | 0.962× | 0.962× | 22/22 |
+| svg-300 | fast | Cheerio default | 3.082× | 3.082× | 22/22 |
+| svg-300 | fast | Cheerio htmlparser2 | 3.061× | 3.061× | 22/22 |
+| svg-300 | fast | identical fast Wasm control | 1.047× | 1.047× | 22/22 |
+| svg-300 | fast | current Wasm | 1.008× | 1.008× | 22/22 |
+
+All **800/800** displayed complete paired blocks were retained; raw and filtered
+columns agree. Five of eight release medians favor current. Compatible sitemap,
+fast sitemap and fast SVG retain adverse **0.982×/0.967×/0.962×** observations.
+All sixteen Cheerio ratios exceed 3× (3.006–7.426×), while identical-code controls
+span **0.988–1.054×**. Direct compatible/fast ratios are 1.078, 1.113, 0.990 and
+1.008 for HTML120, HTML600, sitemap and SVG respectively.
+
+No raw timing slots, order details, confidence intervals or artifact hashes
+were supplied. Keep this receipt separate from both development runs below.
+Do not normalize by controls, divide ratios across runs or average workloads.
+Universal gains, non-regression and complete-consumer 3× remain unproven.
+
+## 0.1.4 corrected development CI
+
+Reported after `aaf989b` was pushed on 2026-11-15, before the separate release
+run above. The user reported CI passing. This commit association follows the
+conversation; the table embeds no commit hash, run URL or artifact identity.
+Current **0.1.4**, published Wasm **0.1.3** and Cheerio **1.2.0** use pooled heaps
+and the shared browser workload, with separate compatible/fast module graphs
+in one process. Ratios follow the same reference/current convention.
+
+| Case | Current mode | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | --- | ---: | ---: | ---: |
+| articles-120 | compatible | released Wasm | 1.021× | 1.021× | 24/24 |
+| articles-120 | compatible | Cheerio default | 4.684× | 4.684× | 24/24 |
+| articles-120 | compatible | Cheerio htmlparser2 | 3.286× | 3.286× | 24/24 |
+| articles-120 | compatible | identical Wasm control | 1.025× | 1.025× | 23/23 |
+| articles-120 | fast | released Wasm | 1.088× | 1.088× | 23/23 |
+| articles-120 | fast | Cheerio default | 4.872× | 4.872× | 23/23 |
+| articles-120 | fast | Cheerio htmlparser2 | 3.485× | 3.485× | 23/23 |
+| articles-120 | fast | identical fast Wasm control | 1.004× | 1.004× | 23/23 |
+| articles-120 | fast | current Wasm | 1.091× | 1.091× | 23/23 |
+| articles-600 | compatible | released Wasm | 1.012× | 1.012× | 23/23 |
+| articles-600 | compatible | Cheerio default | 8.310× | 8.310× | 23/23 |
+| articles-600 | compatible | Cheerio htmlparser2 | 5.968× | 5.968× | 23/23 |
+| articles-600 | compatible | identical Wasm control | 0.987× | 0.987× | 23/23 |
+| articles-600 | fast | released Wasm | 1.115× | 1.115× | 23/23 |
+| articles-600 | fast | Cheerio default | 9.052× | 9.052× | 23/23 |
+| articles-600 | fast | Cheerio htmlparser2 | 6.746× | 6.746× | 23/23 |
+| articles-600 | fast | identical fast Wasm control | 1.023× | 1.023× | 23/23 |
+| articles-600 | fast | current Wasm | 1.061× | 1.061× | 23/23 |
+| sitemap-600 | compatible | released Wasm | 1.055× | 1.055× | 23/23 |
+| sitemap-600 | compatible | Cheerio default | 5.046× | 5.046× | 23/23 |
+| sitemap-600 | compatible | Cheerio htmlparser2 | 4.972× | 4.972× | 23/23 |
+| sitemap-600 | compatible | identical Wasm control | 1.057× | 1.057× | 23/23 |
+| sitemap-600 | fast | released Wasm | 0.999× | 0.999× | 23/23 |
+| sitemap-600 | fast | Cheerio default | 4.786× | 4.786× | 24/24 |
+| sitemap-600 | fast | Cheerio htmlparser2 | 4.940× | 4.940× | 24/24 |
+| sitemap-600 | fast | identical fast Wasm control | 1.121× | 1.121× | 24/24 |
+| sitemap-600 | fast | current Wasm | 1.006× | 1.006× | 24/24 |
+| svg-300 | compatible | released Wasm | 1.031× | 1.031× | 24/24 |
+| svg-300 | compatible | Cheerio default | 3.363× | 3.363× | 24/24 |
+| svg-300 | compatible | Cheerio htmlparser2 | 3.172× | 3.172× | 24/24 |
+| svg-300 | compatible | identical Wasm control | 1.040× | 1.040× | 24/24 |
+| svg-300 | fast | released Wasm | 0.979× | 0.979× | 24/24 |
+| svg-300 | fast | Cheerio default | 3.467× | 3.467× | 24/24 |
+| svg-300 | fast | Cheerio htmlparser2 | 3.335× | 3.335× | 24/24 |
+| svg-300 | fast | identical fast Wasm control | 1.046× | 1.046× | 24/24 |
+| svg-300 | fast | current Wasm | 1.030× | 1.030× | 24/24 |
+
+All **844/844** displayed complete paired blocks were retained; raw and filtered
+columns agree. Six of eight release medians favor current. Fast sitemap and SVG
+retain adverse **0.999×/0.979×** observations. All sixteen Cheerio ratios exceed
+3× (3.172–9.052×); identical-code controls span **0.987–1.121×**. Direct
+compatible/fast ratios are 1.091, 1.061, 1.006 and 1.030 in the same case order.
+
+Raw timing slots, order details and artifact hashes were not supplied. No
+control normalization, cross-run inference or complete-consumer qualification
+is supplied. The older `5026b83` receipt below predates the decoder correction.
+
 ## 0.1.4 development CI
 
 Reported on 2026-11-15 for commit `5026b83`. Current is development **0.1.4**;

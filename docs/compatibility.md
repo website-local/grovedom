@@ -156,8 +156,8 @@ inconsistent cloned-root links or neighboring-node deletion in self-replacement.
 
 ## Qualification
 
-Experimental **0.1.3** has scoped [selection-mode and package qualification](testing.md#released-013-selection-modes)
-and a [reported development CI pass](testing.md#013-ci-follow-up).
+Experimental **0.1.4** has scoped [namespace, decoder and package qualification](testing.md#current-qualification)
+and user-reported development and release CI passes for the corrected release.
 The CI matrix covers Linux Node 22.0.0/22/24 and pooled Wasm on Windows/macOS
 with Node 24, including packed installs. Native remains Linux x64/glibc only;
 [release policy](releasing.md) defines that baseline.

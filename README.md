@@ -9,9 +9,10 @@ from JavaScript, with no runtime dependencies or native installation step.
 [Getting started](#getting-started) · [Browser usage](#browser-usage) ·
 [Compatibility](docs/compatibility.md) · [Architecture](docs/design.md)
 
-**Experimental:** `0.1.3` is published on npm.
-This [release](CHANGELOG.md#013) adds opt-in `loadFast()`, reduces facade
-allocations and keeps compatible `load()` and explicit document ownership.
+**Experimental:** `0.1.4` is published on npm.
+This [release](CHANGELOG.md#014) fixes namespace-history retention and reduces
+repeated style, selection and kernel work. Compatible `load()`, opt-in
+`loadFast()` and explicit document ownership remain unchanged.
 GroveDOM implements a substantial subset of Cheerio, not a complete drop-in
 replacement. Check the [compatibility guide](docs/compatibility.md) before migrating.
 
@@ -160,7 +161,7 @@ authored workload, using balanced paired blocks against CDN-loaded Cheerio 1.2.0
 with default and htmlparser2 parsers and an identical-Wasm control, verifying output
 equality on every replay. The [hosted demo](https://website-local.github.io/grovedom/)
 uses released artifacts through the [GitHub Pages workflow](docs/releasing.md#browser-demo-on-github-pages),
-whose manual deployment default is `v0.1.3`.
+whose manual deployment default is `v0.1.4`.
 
 ## Packages and platform support
 
@@ -194,10 +195,10 @@ validation remain [open work](docs/roadmap.md).
 
 ## Development
 
-The `main` branch targets **0.1.4 (unreleased and experimental)**. See the
-[development notes](CHANGELOG.md#014-unreleased),
+The `main` branch targets **0.1.5 (unreleased and experimental)**. See the
+[development notes](CHANGELOG.md#015-unreleased),
 [current qualification](docs/testing.md#current-qualification) and
-[remaining release checks](docs/roadmap.md).
+[remaining qualification work](docs/roadmap.md).
 
 See [build and package setup](docs/prototype.md) for the pinned Lexbor/WASI inputs
 and required Node, Clang/LLVM, CMake and Ninja tools. After configuring those

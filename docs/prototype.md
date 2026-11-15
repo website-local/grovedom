@@ -1,7 +1,7 @@
 # Setup and packages
 
-Experimental 0.1.3 is published; this page covers development builds and package
-assembly. The `main` branch targets **0.1.4 (unreleased)**.
+Experimental 0.1.4 is published; this page covers development builds and package
+assembly. The `main` branch targets **0.1.5 (unreleased)**.
 Use existing Node, Clang/LLVM, CMake/Ninja and reviewed Lexbor/WASI libraries.
 Builds install no toolchains. Put temporary files, caches and outputs in a
 disk-backed scratch location appropriate for your environment.
