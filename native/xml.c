@@ -329,7 +329,7 @@ lxb_dom_node_t *gd_xml_parse(gd_document *doc, const lxb_char_t *s, size_t n) {
 malformed:
     gd_set_error(doc, "ERR_GROVEDOM_XML", "Malformed XML input");
 failed:
-    gd_destroy_subtree(root);
+    gd_destroy_subtree(doc, root);
     return NULL;
 }
 

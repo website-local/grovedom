@@ -48,7 +48,7 @@ static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_nod
     if (!context) return NULL;
     lxb_dom_node_t *fragment = gd_html_fragment(doc, context, doc->input.data, doc->input.length);
     if (fragment && !gd_templates(doc, fragment)) {
-        gd_destroy_subtree(fragment);
+        gd_destroy_subtree(doc, fragment);
         gd_set_error(doc, "ERR_GROVEDOM_MEMORY", "Template allocation failed");
         return NULL;
     }
@@ -57,18 +57,28 @@ static lxb_dom_node_t *gd_fragment(gd_document *doc, lxb_dom_node_t *context_nod
 
 static lxb_dom_node_t *gd_clone(gd_document *doc, lxb_dom_node_t *source) {
     GD_PROFILE_SCOPE(GP_CLONE);
-    lxb_dom_node_t *root = lxb_dom_node_clone(source, true), *node = root;
-    // Lexbor copies user fields. Clones must receive their own GroveDOM IDs.
+    lxb_dom_node_t *root = lxb_dom_node_clone(source, false);
+    if (!root) return NULL;
+    /* Clone one interface at a time so history follows the original node,
+     * independently of public IDs, and partial trees can be released on error. */
+    root->user = NULL;
+    if (doc->attribute_history && !gd_attributes_clone(doc, source, root)) goto failed;
+    lxb_dom_node_t *parent = root, *node = source->first_child;
     while (node) {
-        uint32_t source_id = (uint32_t) (uintptr_t) node->user;
-        node->user = NULL;
-        if (doc->attribute_history && !gd_attributes_clone(doc, source_id, node)) return NULL;
-        if (node->first_child) { node = node->first_child; continue; }
-        while (node != root && !node->next) node = node->parent;
-        if (node == root) break;
+        lxb_dom_node_t *clone = lxb_dom_node_clone(node, false);
+        if (!clone) goto failed;
+        clone->user = NULL;
+        lxb_dom_node_insert_child(parent, clone);
+        if (doc->attribute_history && !gd_attributes_clone(doc, node, clone)) goto failed;
+        if (node->first_child) { parent = clone; node = node->first_child; continue; }
+        while (node != source && !node->next) { node = node->parent; parent = parent->parent; }
+        if (node == source) break;
         node = node->next;
     }
     return root;
+failed:
+    gd_destroy_subtree(doc, root);
+    return NULL;
 }
 
 static int gd_insert(gd_document *doc, lxb_dom_node_t *target, lxb_dom_node_t *child, unsigned position, lxb_dom_node_t **anchor, int collect, int fresh) {
@@ -184,12 +194,12 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
         lxb_dom_node_t *fragment = gd_fragment(doc, count ? doc->nodes[ids[0]].node : NULL);
         if (!fragment) goto failed;
         lxb_dom_node_t *root = lxb_dom_interface_node(lxb_dom_document_create_document_fragment(&doc->html->dom_document));
-        if (!root) { gd_destroy_subtree(fragment); goto failed; }
+        if (!root) { gd_destroy_subtree(doc, fragment); goto failed; }
         while (fragment->first_child) {
             lxb_dom_node_t *child = fragment->first_child;
             lxb_dom_node_remove(child);
             lxb_dom_node_insert_child(root, child);
-            if (gd_collect(child, 0, doc) != LXB_STATUS_OK) { gd_destroy_subtree(fragment); goto failed; }
+            if (gd_collect(child, 0, doc) != LXB_STATUS_OK) { gd_destroy_subtree(doc, fragment); goto failed; }
         }
         lxb_dom_node_destroy(fragment);
     } else if (operation == 2 || operation == 13) {
@@ -249,7 +259,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                 if (!fragment) goto failed;
                 while (fragment->first_child) {
                     lxb_dom_node_t *child = fragment->first_child;
-                    if (!gd_insert(doc, target, child, position, &anchor, 0, 1)) { gd_destroy_subtree(fragment); goto failed; }
+                    if (!gd_insert(doc, target, child, position, &anchor, 0, 1)) { gd_destroy_subtree(doc, fragment); goto failed; }
                 }
                 lxb_dom_node_destroy(fragment);
             }
@@ -281,6 +291,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                 if (node->parent) lxb_dom_node_insert_before(node, replacement);
                 lxb_dom_node_remove(node);
                 replacement->user = node->user; node->user = NULL;
+                if (doc->attribute_history) gd_attributes_move(doc, node, replacement);
                 doc->nodes[ids[i]].node = replacement;
                 // Parser side pointers can still reference the original interface.
                 // Keep that detached interface in its document arena until disposal.
@@ -297,7 +308,7 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
                              const lxb_char_t *a, size_t alen, const lxb_char_t *b, size_t blen) {
     if (operation == REMOVE_NODE) { lxb_dom_node_remove(node); return LXB_STATUS_OK; }
     if (node->type != LXB_DOM_NODE_TYPE_ELEMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT && node->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT) return LXB_STATUS_OK;
-    if (operation == EMPTY_NODE) { gd_clear_children(node); return LXB_STATUS_OK; }
+    if (operation == EMPTY_NODE) { gd_clear_children(doc, node); return LXB_STATUS_OK; }
     if ((operation == SET_ATTR || operation == REMOVE_ATTR) && ((alen == 2 && lexbor_str_data_ncasecmp(a, (const lxb_char_t *) "id", 2)) ||
         (alen == 5 && lexbor_str_data_ncasecmp(a, (const lxb_char_t *) "class", 5)))) doc->selector_summary_valid = 0;
     if (operation == SET_HTML || operation == APPEND_HTML) doc->selector_summary_valid = 0;
@@ -340,13 +351,13 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
          * and retained identity, this distinguishes paired XML tags from <x/>. */
         lxb_dom_node_t *text = lxb_dom_interface_node(lxb_dom_document_create_text_node(&doc->html->dom_document, a, alen));
         if (!text) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        gd_clear_children(node);
+        gd_clear_children(doc, node);
         lxb_dom_node_insert_child(node, text);
         return LXB_STATUS_OK;
     }
     if (operation == SET_HTML || operation == APPEND_HTML) {
         if (!alen && (doc->xml || operation == APPEND_HTML || node->ns != LXB_NS_HTML || node->local_name != LXB_TAG_HTML)) {
-            if (operation == SET_HTML) gd_clear_children(node);
+            if (operation == SET_HTML) gd_clear_children(doc, node);
             return LXB_STATUS_OK;
         }
         /* Detach old nodes instead of Lexbor's inner_html_set, which destroys
@@ -362,8 +373,8 @@ static lxb_status_t gd_mutate(gd_document *doc, uint32_t operation, lxb_dom_node
             if (temporary) lxb_dom_node_destroy(lxb_dom_interface_node(context));
         }
         if (!fragment) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
-        if (!doc->xml && !gd_templates(doc, fragment)) { gd_destroy_subtree(fragment); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
-        if (operation == SET_HTML) gd_clear_children(node);
+        if (!doc->xml && !gd_templates(doc, fragment)) { gd_destroy_subtree(doc, fragment); return LXB_STATUS_ERROR_MEMORY_ALLOCATION; }
+        if (operation == SET_HTML) gd_clear_children(doc, node);
         while (fragment->first_child) {
             lxb_dom_node_t *child = fragment->first_child;
             lxb_dom_node_remove(child);

@@ -54,7 +54,7 @@ static int gd_subtree_flag(lxb_dom_node_t *root) {
     return 0;
 }
 
-void gd_destroy_subtree(lxb_dom_node_t *root) {
+void gd_destroy_subtree(gd_document *doc, lxb_dom_node_t *root) {
     lxb_dom_node_t *node = root;
     while (node) {
         if (node->first_child) { node = node->first_child; continue; }
@@ -62,6 +62,7 @@ void gd_destroy_subtree(lxb_dom_node_t *root) {
         /* Lexbor's specialized HTML destructors free the interface but omit
          * its attributes. Return them explicitly before freeing that interface. */
         if (node->type == LXB_DOM_NODE_TYPE_ELEMENT) {
+            if (doc->attribute_history) gd_attributes_forget(doc, node);
             lxb_dom_element_t *element = lxb_dom_interface_element(node);
             while (element->first_attr) {
                 lxb_dom_attr_t *attr = element->first_attr;
@@ -74,12 +75,12 @@ void gd_destroy_subtree(lxb_dom_node_t *root) {
     }
 }
 
-void gd_clear_children(lxb_dom_node_t *node) {
+void gd_clear_children(gd_document *doc, lxb_dom_node_t *node) {
     while (node->first_child) {
         lxb_dom_node_t *child = node->first_child;
         lxb_dom_node_remove(child);
         // Retain any subtree with exposed handles. Return others to Lexbor pools.
-        if (!gd_subtree_flag(child)) gd_destroy_subtree(child);
+        if (!gd_subtree_flag(child)) gd_destroy_subtree(doc, child);
     }
 }
 

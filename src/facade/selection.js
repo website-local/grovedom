@@ -209,6 +209,19 @@ export function createSelection(context) {
                 const wanted = new Set(inputIds(state, selector));
                 return selection(state, filterIds(ids, wanted, true), this);
             }
+            if (ids.length >= 64) {
+                let result = null, length = 0;
+                this.each(function (i, node) {
+                    if (selector.call(node, i, node)) {
+                        result ??= new Uint32Array(ids.length);
+                        result[length++] = ids[i];
+                    }
+                });
+                // Sparse retained results should not keep an input-sized buffer.
+                const kept = !result ? empty : length * 4 <= ids.length
+                    ? result.slice(0, length) : result.subarray(0, length);
+                return selection(state, kept, this);
+            }
             const result = new Uint32Array(ids.length);
             let length = 0;
             this.each(function (i, node) { if (selector.call(node, i, node))
@@ -333,6 +346,7 @@ export function createSelection(context) {
         parentsUntil(stop, selector) { return until(this, 9, stop, selector); }
         closest(selector, context) {
             const { state, ids } = entry(this), result = [], one = new Uint32Array(1);
+            let seen;
             const stop = context instanceof NodeHandle && context._state.state === state ? context._state.id : 0;
             if (selector) for (let i = 0, length = ids.length; i < length; i++) {
                 let id = ids[i];
@@ -343,7 +357,11 @@ export function createSelection(context) {
                     const found = typeof selector === 'string' ? matches(state, selector, one)
                         : state.api(wrap(state, id)).is(selector);
                     if (found) {
-                        if (!result.includes(id)) result.push(id);
+                        if (!(seen ? seen.has(id) : result.includes(id))) {
+                            result.push(id);
+                            if (seen) seen.add(id);
+                            else if (result.length === 64) seen = new Set(result);
+                        }
                         break;
                     }
                     // A predicate may have changed the current live parent.
@@ -365,8 +383,16 @@ export function createSelection(context) {
         }
         has(selector) {
             const { state, ids } = entry(this);
-            if (typeof selector === 'string')
-                return this.filter(function () { return state.api(this).find(selector).length > 0; });
+            if (typeof selector === 'string') {
+                if (!selector) return selection(state, empty, this);
+                const result = new Uint32Array(ids.length), one = new Uint32Array(1);
+                let count = 0;
+                for (let i = 0, length = ids.length; i < length; i++) {
+                    one[0] = ids[i];
+                    if (query(state, selector, one).length) result[count++] = ids[i];
+                }
+                return selection(state, result.subarray(0, count), this);
+            }
             const result = new Uint32Array(ids.length), pair = new Uint32Array(2);
             let count = 0;
             for (let i = 0, length = ids.length; i < length; i++) {
@@ -713,7 +739,15 @@ export function createSelection(context) {
                     values = new Array(length);
                     for (let i = 0; i < length; i++) if (i in value) values[i] = String(value[i]);
                 } else values = [String(value)];
-                this.find('option').each(function () { const option = state.api(this); option.attr('selected', values.includes(this.attribs.value) ? '' : null); });
+                // Conversion can change this selection and the option tree.
+                const options = query(state, 'option', entry(this).ids), one = new Uint32Array(1);
+                const wanted = values.length >= 32 && options.length >= 64 ? new Set(values) : null;
+                for (let i = 0, length = options.length; i < length; i++) {
+                    const id = options[i], value = read(state, id, 1, 'value');
+                    const selected = wanted ? wanted.has(value) : values.includes(value);
+                    one[0] = id;
+                    enqueue(state, one, selected ? 1 : 2, 'selected');
+                }
                 return this;
             }
             return name === 'input' || name === 'button' || name === 'option' ? this.attr('value', value) : undefined;
@@ -759,13 +793,28 @@ export function createSelection(context) {
                 // matches. Callbacks may change the descriptor for a later extract.
                 const selector = config.selector, value = config.value ?? 'textContent';
                 const selected = this.find(selector), output = [];
-                (array ? selected : selected.first()).each(function (i, node) {
+                if (array) {
+                    const ids = selected._state.ids;
+                    for (let i = 0, length = ids.length; i < length; i++) {
+                        alive(state);
+                        const id = ids[i];
+                        const extracted = value === 'textContent' || value === 'innerText'
+                            ? read(state, id, value === 'innerText' ? 9 : 2)
+                            : typeof value === 'function' ? value(wrap(state, id), key, result)
+                            : typeof value === 'object' ? selection(state, Uint32Array.of(id)).extract(value)
+                            : selection(state, Uint32Array.of(id)).prop(value);
+                        if (Array.isArray(extracted)) {
+                            for (const item of extracted) output.push(item);
+                        } else if (extracted != null) output.push(extracted);
+                    }
+                    result[key] = output;
+                    continue;
+                }
+                selected.first().each(function (i, node) {
                     const extracted = typeof value === 'function' ? value(node, key, result) : typeof value === 'object' ? state.api(node).extract(value) : state.api(node).prop(value);
-                    if (array && Array.isArray(extracted)) {
-                        for (const item of extracted) output.push(item);
-                    } else if (!array || extracted != null) output.push(extracted);
+                    output.push(extracted);
                 });
-                result[key] = array ? output : output[0];
+                result[key] = output[0];
             }
             return result;
         }

@@ -10,6 +10,7 @@ const loadOptionNames = ['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xml
 const executionModes = ['buffered', 'direct'];
 // Each package owns an independent facade, kernel and handle brand.
 export function createFacade(kernel, decodeInput) {
+    const byteInput = typeof kernel.createBytes === 'function' && typeof decodeInput.bytes === 'function';
     const operations = createOperations(kernel);
     const { flush, read, query, edit } = operations;
     const nodeAPI = createNodes(kernel, operations, isSelection, selection);
@@ -31,6 +32,7 @@ export function createFacade(kernel, decodeInput) {
                 const data = entry(target), ids = inputIds(data.state, value);
                 if (Number(key) >= data.ids.length || ids.length !== 1)
                     throw new TypeError('Expected an existing selection index and one node');
+                if (data.ids[Number(key)] === ids[0]) return true;
                 // Selections created by slice/eq can share storage until explicitly edited.
                 data.ids = data.ids.slice();
                 data.ids[Number(key)] = ids[0];
@@ -63,8 +65,9 @@ export function createFacade(kernel, decodeInput) {
         return state.fast ? target : new Proxy(target, selectionProxy);
     }
     function load(content, options = {}, isDocument = true, fast = false) {
-        content = decodeInput(content);
-        if (typeof content !== 'string')
+        content = decodeInput(content, byteInput);
+        const bytes = byteInput && typeof content !== 'string' ? decodeInput.bytes(content) : undefined;
+        if (typeof content !== 'string' && !bytes)
             unsupported('load accepts HTML strings or UTF-8 byte arrays.');
         options ??= {};
         if (typeof options !== 'object' || Array.isArray(options))
@@ -190,7 +193,8 @@ export function createFacade(kernel, decodeInput) {
         };
         // Finish all JavaScript construction before allocating an owner. A
         // throwing getter or construction failure cannot strand a document.
-        state.owner = xml ? kernel.createXML(content, flags) : kernel.create(content, scriptingEnabled ?? true, !isDocument);
+        state.owner = bytes ? kernel.createBytes(bytes, scriptingEnabled ?? true, !isDocument, xml ? flags : undefined)
+            : xml ? kernel.createXML(content, flags) : kernel.create(content, scriptingEnabled ?? true, !isDocument);
         return $;
     }
     function contains(container, contained) {

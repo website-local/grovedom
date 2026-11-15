@@ -21,7 +21,7 @@ void gd_attribute_selector_case(lxb_css_selector_t *selector) {
  * names. Namespace metadata also survives delete/reinsert of an attribute. */
 struct gd_attribute_history {
     struct gd_attribute_history *next;
-    uint32_t owner;
+    lxb_dom_node_t *owner;
     const lxb_char_t *name;
     size_t length;
     lxb_dom_attr_id_t qualified;
@@ -68,18 +68,16 @@ lxb_dom_attr_t *gd_attribute(gd_document *doc, lxb_dom_node_t *node, const lxb_c
 
 lxb_status_t gd_attribute_remove(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr) {
     if (!doc->xml && adjusted_namespace(attr)) {
-        uint32_t owner = gd_id(doc, node);
-        if (!owner) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
         size_t length;
         const lxb_char_t *name = gd_attribute_name(doc, attr, &length);
         gd_attribute_history *entry = doc->attribute_history;
-        while (entry && !(entry->owner == owner && entry->length == length && memcmp(entry->name, name, length) == 0)) entry = entry->next;
+        while (entry && !(entry->owner == node && entry->length == length && memcmp(entry->name, name, length) == 0)) entry = entry->next;
         if (!entry) {
             entry = lexbor_mraw_alloc(doc->html->dom_document.text, sizeof(*entry));
             if (!entry) return LXB_STATUS_ERROR_MEMORY_ALLOCATION;
             entry->next = doc->attribute_history; doc->attribute_history = entry;
         }
-        entry->owner = owner; entry->name = name; entry->length = length;
+        entry->owner = node; entry->name = name; entry->length = length;
         entry->qualified = attr->qualified_name; entry->ns = attr->node.ns; entry->prefix = attr->node.prefix;
     }
     lxb_dom_element_attr_remove(lxb_dom_interface_element(node), attr);
@@ -88,12 +86,11 @@ lxb_status_t gd_attribute_remove(gd_document *doc, lxb_dom_node_t *node, lxb_dom
 }
 
 void gd_attribute_restore(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr) {
-    if (!doc->attribute_history || !node->user) return;
+    if (!doc->attribute_history) return;
     size_t length;
     const lxb_char_t *name = lxb_dom_attr_qualified_name(attr, &length);
-    uint32_t owner = (uint32_t) (uintptr_t) node->user;
     for (gd_attribute_history *entry = doc->attribute_history; entry; entry = entry->next) {
-        if (entry->owner == owner && entry->length == length && memcmp(entry->name, name, length) == 0) {
+        if (entry->owner == node && entry->length == length && memcmp(entry->name, name, length) == 0) {
             attr->qualified_name = entry->qualified;
             attr->node.ns = entry->ns; attr->node.prefix = entry->prefix;
             return;
@@ -127,16 +124,29 @@ void gd_attributes_normalize(gd_document *doc, lxb_dom_node_t *node) {
     }
 }
 
-int gd_attributes_clone(gd_document *doc, uint32_t source_id, lxb_dom_node_t *clone) {
-    if (!source_id) return 1;
+int gd_attributes_clone(gd_document *doc, lxb_dom_node_t *source, lxb_dom_node_t *clone) {
+    /* Metadata ownership must not expose a handle and retain unseen clones. */
     for (gd_attribute_history *entry = doc->attribute_history; entry; entry = entry->next) {
-        if (entry->owner != source_id) continue;
-        uint32_t owner = gd_id(doc, clone);
-        if (!owner) return 0;
+        if (entry->owner != source) continue;
         gd_attribute_history *copy = lexbor_mraw_alloc(doc->html->dom_document.text, sizeof(*copy));
         if (!copy) return 0;
-        *copy = *entry; copy->owner = owner;
+        *copy = *entry; copy->owner = clone;
         copy->next = doc->attribute_history; doc->attribute_history = copy;
     }
     return 1;
+}
+
+void gd_attributes_move(gd_document *doc, lxb_dom_node_t *source, lxb_dom_node_t *replacement) {
+    for (gd_attribute_history *entry = doc->attribute_history; entry; entry = entry->next)
+        if (entry->owner == source) entry->owner = replacement;
+}
+
+void gd_attributes_forget(gd_document *doc, lxb_dom_node_t *node) {
+    gd_attribute_history **link = &doc->attribute_history;
+    while (*link) {
+        gd_attribute_history *entry = *link;
+        if (entry->owner != node) { link = &entry->next; continue; }
+        *link = entry->next;
+        lexbor_mraw_free(doc->html->dom_document.text, entry);
+    }
 }

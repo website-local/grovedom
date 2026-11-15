@@ -108,6 +108,7 @@ export function createCollectionHelpers(context) {
         // evaluated separately for each node, in their original order.
         const fixed = typeof value === 'string' && value
             ? action === 'remove' ? classTokens(value) : value.split(whitespaceRun) : null;
+        let fixedMembership;
         return source.each(function (i, node) {
             if (node.nodeType !== 1)
                 return;
@@ -142,6 +143,16 @@ export function createCollectionHelpers(context) {
             }
             const tokens = classTokens(old);
             let changed = false;
+            if (action === 'remove' && requested.length >= 32 && tokens.length >= 32) {
+                const membership = fixed ? fixedMembership ??= new Set(fixed) : new Set(requested);
+                let kept = 0;
+                for (let i = 0, length = tokens.length; i < length; i++) {
+                    if (membership.has(tokens[i])) changed = true;
+                    else tokens[kept++] = tokens[i];
+                }
+                if (changed) { tokens.length = kept; one.attr('class', tokens.join(' ')); }
+                return;
+            }
             for (const token of requested) {
                 if (action === 'remove') {
                     let kept = 0;

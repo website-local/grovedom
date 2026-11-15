@@ -71,7 +71,7 @@ jobs:
           - { os: ubuntu-22.04, node: '22.0.0', scope: linux, install: both }
           - { os: ubuntu-22.04, node: '22', scope: all-heaps, install: none }
           - { os: ubuntu-22.04, node: '24', scope: linux, install: both }
-          - { os: macos-14, node: '24', scope: portable, install: wasm }
+          - { os: macos-15, node: '24', scope: portable, install: wasm }
           - { os: windows-2022, node: '24', scope: portable, install: wasm }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15

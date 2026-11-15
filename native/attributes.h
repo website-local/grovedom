@@ -8,6 +8,8 @@ lxb_dom_attr_t *gd_attribute(gd_document *doc, lxb_dom_node_t *node, const lxb_c
 lxb_status_t gd_attribute_remove(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr);
 void gd_attribute_restore(gd_document *doc, lxb_dom_node_t *node, lxb_dom_attr_t *attr);
 void gd_attributes_normalize(gd_document *doc, lxb_dom_node_t *node);
-int gd_attributes_clone(gd_document *doc, uint32_t source_id, lxb_dom_node_t *clone);
+int gd_attributes_clone(gd_document *doc, lxb_dom_node_t *source, lxb_dom_node_t *clone);
+void gd_attributes_move(gd_document *doc, lxb_dom_node_t *source, lxb_dom_node_t *replacement);
+void gd_attributes_forget(gd_document *doc, lxb_dom_node_t *node);
 void gd_attribute_selector_case(lxb_css_selector_t *selector);
 #endif

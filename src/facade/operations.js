@@ -4,6 +4,7 @@ import { alive, unsupported, empty, boolAttributes } from './common.js';
 const positional = /:(first|last|even|odd)$|:(eq|nth|lt|gt)\((-?\d+)\)$/;
 const relativeList = /(?:^|,)\s*(?:[>+~]|:scope\b|\/\*)/;
 const simpleTag = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+const scalarCompound = /^(?:[a-zA-Z][a-zA-Z0-9_-]*|\*|[.#][a-zA-Z_][a-zA-Z0-9_-]*|\[[a-zA-Z_][a-zA-Z0-9_-]*\])(?:[.#][a-zA-Z_][a-zA-Z0-9_-]*|\[[a-zA-Z_][a-zA-Z0-9_-]*\])*$/;
 const relativeStart = /^(?:[>+~]|:scope\b)/;
 const childStart = /^(?:>|:scope\b)/;
 const siblingStart = /^[+~]/;
@@ -186,9 +187,9 @@ export function createOperations(kernel) {
         return kernel.query(state.owner, selector, roots, match);
     }
     function matches(state, selector, ids) {
-        // The common tag-only is() path needs one boolean, not snapshot IDs.
+        // Simple compounds need one boolean, not a complete matching snapshot.
         // Positional selectors, aliases and relative selectors keep query semantics.
-        if (!simpleTag.test(selector))
+        if (!simpleTag.test(selector) && !scalarCompound.test(selector))
             return query(state, selector, ids, true).length > 0;
         flush(state);
         return Boolean(kernel.matches(state.owner, selector, ids.length === 1 ? ids[0] : ids));
