@@ -150,7 +150,7 @@ static int gd_xml_decode(gd_document *doc, const lxb_char_t **data, size_t *leng
     GD_PROFILE_SCOPE(GP_XML_DECODE);
     if (!(doc->xml_flags & XML_DECODE) || !memchr(*data, '&', *length)) return 1;
     const lxb_char_t *s = *data; size_t n = *length, run = 0;
-    doc->output.length = 0;
+    int changed = 0;
     for (size_t i = 0; i < n; i++) {
         if (s[i] != '&') continue;
         size_t end = i + 1; uint32_t c = 0; int found = 0;
@@ -173,9 +173,12 @@ static int gd_xml_decode(gd_document *doc, const lxb_char_t **data, size_t *leng
             }
         }
         if (!found) continue;
+        if (!changed) { doc->output.length = 0; changed = 1; }
         if (gd_write(s + run, i - run, &doc->output) != LXB_STATUS_OK || gd_xml_codepoint(&doc->output, c) != LXB_STATUS_OK) return 0;
         i = end; run = end + 1;
     }
+    /* Text and attribute constructors immediately copy this temporary slice. */
+    if (!changed) return 1;
     if (gd_write(s + run, n - run, &doc->output) != LXB_STATUS_OK) return 0;
     *data = doc->output.data; *length = doc->output.length;
     return 1;

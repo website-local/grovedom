@@ -263,6 +263,14 @@ static node *previous_element(node *n) {
 static int match_list(gd_document *, node *, selector_list *, unsigned);
 static int match_chain(gd_document *, node *, selector *, node *, unsigned);
 
+static int plain_compound(selector_list *list) {
+    for (selector *s = list->first; s; s = s->next) {
+        if ((s->prev && s->combinator != LXB_CSS_SELECTOR_COMBINATOR_CLOSE) ||
+            s->type == LXB_CSS_SELECTOR_TYPE_PSEUDO_CLASS_FUNCTION) return 0;
+    }
+    return 1;
+}
+
 static int anchored(node *n, node *scope, unsigned relation) {
     if (!scope) return 1;
     if (relation == LXB_CSS_SELECTOR_COMBINATOR_CHILD) return n->parent == scope;
@@ -280,6 +288,21 @@ static int anchored(node *n, node *scope, unsigned relation) {
 static int has_relative(gd_document *doc, node *scope, selector_list *list, unsigned depth) {
     for (; list; list = list->next) {
         unsigned relation = list->first->combinator;
+        /* A flat compound can match only on its leading axis. Nested functions,
+         * chains and depth-limit failures retain the original traversal. */
+        if (depth + 1 < 64 && plain_compound(list) &&
+            (relation == LXB_CSS_SELECTOR_COMBINATOR_CHILD ||
+             relation == LXB_CSS_SELECTOR_COMBINATOR_SIBLING ||
+             relation == LXB_CSS_SELECTOR_COMBINATOR_FOLLOWING)) {
+            node *n = relation == LXB_CSS_SELECTOR_COMBINATOR_CHILD ? scope->first_child : scope->next;
+            for (; n; n = n->next) {
+                if (n->type != LXB_DOM_NODE_TYPE_ELEMENT) continue;
+                if (match_chain(doc, n, list->last, scope, depth + 1)) return 1;
+                if (doc->error_code) return 0;
+                if (relation == LXB_CSS_SELECTOR_COMBINATOR_SIBLING) break;
+            }
+            continue;
+        }
         node *start = relation == LXB_CSS_SELECTOR_COMBINATOR_SIBLING || relation == LXB_CSS_SELECTOR_COMBINATOR_FOLLOWING ? scope->next : scope->first_child;
         for (; start; start = start->next) {
             node *n = start;

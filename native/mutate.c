@@ -71,11 +71,12 @@ static lxb_dom_node_t *gd_clone(gd_document *doc, lxb_dom_node_t *source) {
     return root;
 }
 
-static int gd_insert(gd_document *doc, lxb_dom_node_t *target, lxb_dom_node_t *child, unsigned position, lxb_dom_node_t **anchor, int collect) {
+static int gd_insert(gd_document *doc, lxb_dom_node_t *target, lxb_dom_node_t *child, unsigned position, lxb_dom_node_t **anchor, int collect, int fresh) {
     if (child == target) return 1;
     lxb_dom_node_t *parent = position < 2 ? target : target->parent;
     if (!parent) return 1;
-    for (lxb_dom_node_t *node = parent; node; node = node->parent) {
+    /* A child just cloned or parsed cannot contain an existing destination. */
+    if (!fresh) for (lxb_dom_node_t *node = parent; node; node = node->parent) {
         if (node == child) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Insertion would create a node cycle");
     }
     if (child->type == LXB_DOM_NODE_TYPE_DOCUMENT || (parent->type != LXB_DOM_NODE_TYPE_ELEMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT && parent->type != LXB_DOM_NODE_TYPE_DOCUMENT_FRAGMENT)) return gd_set_error(doc, "ERR_GROVEDOM_MUTATION", "Invalid insertion target");
@@ -234,8 +235,9 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                     lxb_dom_node_t *child = doc->nodes[other[j]].node;
                     /* replaceWith reuses supplied nodes at each destination;
                      * ordinary multi-target insertion still clones them. */
-                    if (operation >= 14 || (operation != 7 && i + 1 < count)) child = gd_clone(doc, child);
-                    if (!child || !gd_insert(doc, target, child, position, &anchor, collect)) goto failed;
+                    int fresh = operation >= 14 || (operation != 7 && i + 1 < count);
+                    if (fresh) child = gd_clone(doc, child);
+                    if (!child || !gd_insert(doc, target, child, position, &anchor, collect, fresh)) goto failed;
                 }
                 if (operation == 7) {
                     int keep = 0;
@@ -247,7 +249,7 @@ const gd_result *gk_edit(gd_document *doc, uint32_t operation, const uint32_t *i
                 if (!fragment) goto failed;
                 while (fragment->first_child) {
                     lxb_dom_node_t *child = fragment->first_child;
-                    if (!gd_insert(doc, target, child, position, &anchor, 0)) { gd_destroy_subtree(fragment); goto failed; }
+                    if (!gd_insert(doc, target, child, position, &anchor, 0, 1)) { gd_destroy_subtree(fragment); goto failed; }
                 }
                 lxb_dom_node_destroy(fragment);
             }

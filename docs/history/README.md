@@ -15,6 +15,7 @@ Use [the current README](../../README.md) for setup and support status.
 - [Release optimization follow-ups](release-followups.md)
 - [Isolated performance review](performance-review.md)
 - [Selector experiments](selector-experiments.md)
+- [Proven kernel work reductions](kernel-work-reduction.md)
 - [Memory measurements](memory.md)
 - [Stack audit](stack.md)
 - [Dependency and optimization research](research.md)
