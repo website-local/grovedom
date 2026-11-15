@@ -127,8 +127,7 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
     const kernel = {
         configuration: { heap, initialPages: buildConfig.initialPages, stackBytes: buildConfig.stackBytes },
         createXML(html, flags) { return this.create(html, true, false, flags); },
-        createBytes(bytes, scripting, fragment, xmlFlags) { return this.create(bytes, scripting, fragment, xmlFlags, true); },
-        create(html, scripting, fragment, xmlFlags, bytes = false) {
+        create(html, scripting, fragment, xmlFlags) {
             if (typeof scripting !== 'boolean' || typeof fragment !== 'boolean')
                 fail('ERR_GROVEDOM_ARGUMENT', 'Expected parser flags');
             const runtime = shared ?? acquire(), pointer = runtime.gk_new();
@@ -140,11 +139,7 @@ export function createWasmKernel(module, { heap = 'pool', poolSize = 8, poolMaxB
             state.runtime = runtime;
             state.pointer = pointer;
             try {
-                if (bytes) {
-                    if (!(html instanceof Uint8Array)) fail('ERR_GROVEDOM_ARGUMENT', 'Expected validated UTF-8 bytes');
-                    const pointer = check(state, runtime.gk_input(state.pointer, html.byteLength));
-                    if (html.byteLength) { views(state); state.bytes.set(html, pointer); }
-                } else input(state, html);
+                input(state, html);
                 check(state, xmlFlags === undefined ? runtime.gk_parse(pointer, Number(scripting), Number(fragment)) : runtime.gk_parse_xml(pointer, xmlFlags));
             }
             catch (error) {

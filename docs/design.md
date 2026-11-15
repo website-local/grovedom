@@ -25,7 +25,7 @@ primary target; native and browser entries instantiate independent facades.
 | `diagnostics/` | Statistics, profiling and developer environment configuration |
 
 Factories bind helpers once per package entry, not per document. Node and browser
-share algorithms; Node retains direct Buffer decoding. The browser graph imports
+share algorithms; Node uses ordinary Buffer decoding. The browser graph imports
 no Node modules or globals. Release entries never import diagnostics. No runtime
 package/build JSON checks or environment-variable configuration remain.
 
@@ -109,6 +109,8 @@ matching JS. There is no protocol version negotiation or plugin framework.
   mutations in issue order. Errors preserve earlier effects, not transactions.
 - Selections snapshot IDs. Wrappers preserve node identity; retained detached
   nodes remain valid until explicit disposal.
+- Namespace restoration histories belong to nodes independently of public IDs;
+  they transfer on rename and are freed with destroyed unobserved subtrees.
 - The parser instance, document, selections and node handles stay in the thread
   that parsed the input. Caller-managed workers own independent documents and
   exchange markup or extracted values. GroveDOM creates no threads or

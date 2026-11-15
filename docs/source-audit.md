@@ -19,11 +19,12 @@ paths and public references; the [dependency guide](research.md) explains the pi
 | Boundary | Required behavior | Checks |
 |---|---|---|
 | Creation and initialization | Reserve initialization before user code; finish load-option reads before owner allocation; permit retry after failure | [Initialization](../test/initialization.test.mjs), [load options](../test/load-options.test.mjs) |
+| Byte inputs | Preserve ordinary Node decoding, custom Buffer decoders and conversion observations | [Decoder regressions](../test/node-decoding.test.mjs), [byte inputs](../test/byte-input.test.mjs) |
 | Ownership | Reject foreign handles before interpreting IDs; workers own independent documents | [Node inputs](../test/node-inputs.test.mjs), [workers](../test/workers.test.mjs) |
 | Mutations and callbacks | Apply preceding effects once; preserve callback order, coercion observations and reciprocal links | [Mutation contract](../test/review-contract.mjs), [observations](../test/observation.test.mjs) |
 | Selections and raw nodes | Snapshot membership, stable identity and valid detached nodes until disposal | [Read regressions](../test/read-optimization.test.mjs), [lifecycles](../test/expanded-lifecycle.test.mjs) |
 | Native/Wasm transport | Validate IDs and command bounds; refresh detached memory views; copy results before returning | [Command bounds](../test/command-boundaries.test.mjs), [Wasm transfers](../test/wasm-transfer.test.mjs) |
-| Resource release | Discard pending work on disposal; clear owner/cache references; recover from owned-buffer failures | [Fault injection](../test/faults.c), [memory budgets](../bench/memory-stress.mjs) |
+| Resource release | Free namespace histories with destroyed unobserved subtrees; discard pending work and clear owners/caches on disposal; recover from owned-buffer failures | [Namespace lifetime](../test/namespace-history.test.mjs), [fault injection](../test/faults.c), [memory budgets](../bench/memory-stress.mjs) |
 | Parser and selector limits | Bound recursive selector parsing and compatibility matching; preserve template/fragment context | [Selector safety](../test/selector-safety.test.mjs), [template roots](../test/template-query-roots.test.mjs) |
 
 Kernel calls do not invoke user JavaScript. Shared transfer scratch is borrowed
@@ -43,6 +44,7 @@ tree/recovery tests and sanitizer checks complement it.
 The historical audit preserves each before/after table and reproducer. These
 links retain the earlier section anchors without repeating the checkpoint narrative.
 
+- [0.1.4 namespace and decoder corrections](history/selection-and-namespace-reuse.md): unobserved clone retention, failed-clone cleanup and ordinary Node byte conversion.
 - <a id="fixed-behavior"></a>[Initial API/source corrections](history/source-audit.md#fixed-behavior): attributes, data, classes, forms, traversal, insertion and XML references.
 - <a id="follow-up-gap-fixes"></a>[Follow-up gaps](history/source-audit.md#follow-up-gap-fixes): exact attribute names, callbacks, Unicode selectors, cloning and select parsing.
 - <a id="comparison-with-published-010"></a>[Published 0.1.0 comparison](history/source-audit.md#comparison-with-published-010): properties, extraction, replacement and positional suffixes.

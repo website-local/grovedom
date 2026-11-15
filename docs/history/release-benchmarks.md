@@ -3,6 +3,68 @@
 These reported CI and browser runs retain each checkpoint's publication status.
 See the [current summary](../benchmarks.md) for readiness.
 
+## 0.1.4 development CI
+
+Reported on 2026-11-15 for commit `5026b83`. Current is development **0.1.4**;
+the published reference is **0.1.3**, with Cheerio **1.2.0**. Pooled heaps and
+the shared browser workload are used. Compatible `load()` and fast `loadFast()`
+use separate module graphs in one process.
+
+The user separately confirmed that all hosted jobs and the required gate passed
+for this commit, including macOS. That is a user-reported result, not an
+independently fetched status. Raw slots, order details and artifact hashes were
+not supplied. The later byte-decoding correction is outside this receipt.
+
+Ratios are reference elapsed time divided by current elapsed time; values above
+one favor current. Fast/current-Wasm rows directly compare compatible/fast.
+All 36 supplied rows follow without pooling with earlier measurements.
+
+| Case | Current mode | Reference/current (paired) | Raw | Probe-filtered | Kept/complete blocks |
+| --- | --- | --- | ---: | ---: | ---: |
+| articles-120 | compatible | released Wasm | 1.030× | 1.030× | 28/28 |
+| articles-120 | compatible | Cheerio default | 4.999× | 4.999× | 28/28 |
+| articles-120 | compatible | Cheerio htmlparser2 | 3.328× | 3.328× | 28/28 |
+| articles-120 | compatible | identical Wasm control | 1.041× | 1.041× | 28/28 |
+| articles-120 | fast | released Wasm | 1.097× | 1.097× | 28/28 |
+| articles-120 | fast | Cheerio default | 5.295× | 5.295× | 28/28 |
+| articles-120 | fast | Cheerio htmlparser2 | 3.603× | 3.603× | 28/28 |
+| articles-120 | fast | identical fast Wasm control | 1.021× | 1.021× | 28/28 |
+| articles-120 | fast | current Wasm | 1.107× | 1.107× | 28/28 |
+| articles-600 | compatible | released Wasm | 1.050× | 1.050× | 28/28 |
+| articles-600 | compatible | Cheerio default | 8.300× | 8.300× | 28/28 |
+| articles-600 | compatible | Cheerio htmlparser2 | 6.204× | 6.204× | 28/28 |
+| articles-600 | compatible | identical Wasm control | 1.011× | 1.011× | 28/28 |
+| articles-600 | fast | released Wasm | 1.107× | 1.107× | 28/28 |
+| articles-600 | fast | Cheerio default | 9.189× | 9.189× | 28/28 |
+| articles-600 | fast | Cheerio htmlparser2 | 6.868× | 6.868× | 28/28 |
+| articles-600 | fast | identical fast Wasm control | 1.000× | 1.000× | 28/28 |
+| articles-600 | fast | current Wasm | 1.132× | 1.132× | 28/28 |
+| sitemap-600 | compatible | released Wasm | 1.089× | 1.089× | 28/28 |
+| sitemap-600 | compatible | Cheerio default | 4.800× | 4.800× | 28/28 |
+| sitemap-600 | compatible | Cheerio htmlparser2 | 4.720× | 4.720× | 28/28 |
+| sitemap-600 | compatible | identical Wasm control | 1.064× | 1.064× | 28/28 |
+| sitemap-600 | fast | released Wasm | 0.976× | 0.976× | 28/28 |
+| sitemap-600 | fast | Cheerio default | 4.760× | 4.760× | 28/28 |
+| sitemap-600 | fast | Cheerio htmlparser2 | 4.751× | 4.751× | 28/28 |
+| sitemap-600 | fast | identical fast Wasm control | 1.050× | 1.050× | 28/28 |
+| sitemap-600 | fast | current Wasm | 1.024× | 1.024× | 28/28 |
+| svg-300 | compatible | released Wasm | 1.021× | 1.021× | 28/28 |
+| svg-300 | compatible | Cheerio default | 3.384× | 3.384× | 29/29 |
+| svg-300 | compatible | Cheerio htmlparser2 | 3.322× | 3.322× | 29/29 |
+| svg-300 | compatible | identical Wasm control | 1.059× | 1.059× | 29/29 |
+| svg-300 | fast | released Wasm | 0.990× | 0.990× | 29/29 |
+| svg-300 | fast | Cheerio default | 3.400× | 3.400× | 29/29 |
+| svg-300 | fast | Cheerio htmlparser2 | 3.369× | 3.369× | 28/28 |
+| svg-300 | fast | identical fast Wasm control | 1.067× | 1.067× | 28/28 |
+| svg-300 | fast | current Wasm | 1.037× | 1.037× | 28/28 |
+
+All **1,013/1,013** displayed complete paired blocks were retained; raw and
+filtered columns agree. Six of eight release medians favor current. Fast sitemap
+and SVG retain their unfavorable 0.976×/0.990× observations. All sixteen Cheerio
+ratios exceed 3×, while identical-code controls span 1.000–1.067×. Do not
+normalize by controls or average workloads. Complete-consumer performance,
+sustained memory and general non-regression remain unqualified.
+
 ## 0.1.3 release CI
 
 Reported on 2026-11-02 for the 0.1.3 release; publication was subsequently

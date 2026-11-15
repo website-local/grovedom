@@ -19,166 +19,51 @@ links, acyclic structure and stable handle identity; exclusions do not count as 
 
 ## Current qualification
 
-### 0.1.4 style and wrapper reuse (local)
+<a id="014-namespace-selection-and-decoding-review"></a>
+Development **0.1.4 remains unreleased and experimental**. Its namespace and
+selection changes landed in `5026b83`; later review withdrew the direct byte-input
+shortcut to restore ordinary Node decoding.
 
-The [combined implementation](history/operation-reuse.md) passes the 84 existing
-test files and a new 120-case regression file on Node 24.18.0: **85 files and
-2,752 cases per backend**. Pooled Wasm has **2,701 passes / 51 exclusions**;
-native has **2,689 passes / 63 exclusions**, with no final failures,
-cancellations or TODOs. The new cases cover style observation/coercion,
-inherited accessors, parsing fallbacks, wrapper templates, node occurrences and
-disposal in both selection modes, HTML/XML and buffered/direct execution.
+| Checkpoint | Evidence |
+|---|---|
+| `5026b83`, Node 24.18.0 full suites | 90 files / 2,946 cases per backend: pooled Wasm 2,895 passes / 51 exclusions; native 2,883 / 63 |
+| Namespace lifetime fix | 410 focused passes and eighteen injected native history/clone failure sites |
+| Hosted CI at `5026b83` | User reports every job and the required gate passed, including macOS |
+| Decoder correction | 146 focused passes across decoding, loading/options, both backends, global/document Wasm heaps and portable transport; both new regressions fail on `5026b83` and pass after correction |
+| Corrected package fixtures | 69 files verified; 76 contracts per Node/browser/native entry and per each of four workers; four public decoder cases |
+| Corrected normal/fallback browser VM | Each passes sixteen modules, release contracts and 810 cases / 35 exclusions |
 
-The same 120 cases pass on the unchanged source reference, global/per-document
-Wasm heaps and the portable byte path. Selected contracts add 288 differential
-comparisons. Public Node/native entries each pass 76 contract cases. Normal
-and fallback source VM checks each pass sixteen modules, the expanded release
-contract and 810 selected browser cases / 35 exclusions. These checks retain
-their local source scope; they add no installed-consumer or actual-browser result.
+The full suite and hosted pass apply to `5026b83`, before the decoder correction.
+The newer checks use local package fixtures and Node VMs; they add no fresh
+full-suite, Node 22, actual-browser or downstream run. Final corrected-commit CI
+and release-artifact checks remain required before publication.
 
-The original four-worker and 130,000-field native cases retain their sizes.
-Workers assert the 32 MiB old-space limit; other jobs use 64/4 MiB V8, JIT and
-the existing 192 MiB sampled RSS stop. The native wide-form case runs without an
-extra coordinator. The [qualification record](history/operation-reuse.md) keeps
-earlier fixture failures and the corrected cache defect separate from final passes.
+The [namespace/selection record](history/selection-and-namespace-reuse.md#qualification)
+and [decoder follow-up](history/selection-and-namespace-reuse.md#decoder-correction)
+preserve the exact scope, unsuccessful attempts and corrected checker.
+[Performance evidence](benchmarks.md#014-reported-ci) is separate: the supplied
+benchmark predates the decoder correction, and the withdrawn byte shortcut's
+earlier timing and capacity benefits no longer apply.
 
-### Released 0.1.3 selection modes
+## Earlier qualification
 
-Publication was reported on 2026-11-02. The checks below retain their original
-source and artifact scope.
+Counts and reported CI results belong to their named source/artifact checkpoints.
+Exclusions, failed attempts and coverage limits remain in the linked records.
 
-The simple-dual landing runs all **84 test files separately on Node 24.18.0**:
-
-| Backend | Passed | Exclusions |
-|---|---:|---:|
-| Pooled Wasm | 2,575 | 51 |
-| Native | 2,563 | 63 |
-
-These suites retain compatible-mode coverage and add twelve mode cases for
-HTML/XML, buffered/direct execution, maps, snapshots, nested loads, coercion,
-disposal, live merge reads and mixed contexts. The same cases run in package and
-portable release contracts. The current source also passes the earlier
-570-assertion mode contract and 40 direct-method cases per mode. Global and
-per-document heaps and the portable byte path each pass the twelve mode cases.
-
-Assembled Node/native/browser packages pass public contracts and four concurrent
-worker checks from an isolated consumer. Standalone Node/native/browser
-declarations pass strict checking, including declaration bodies, without
-third-party types. Workspace API assertions also pass. Source and packaged
-normal/fallback browser sandbox runs each pass the 16-module portable graph,
-release contracts and 810 selected browser cases with 35 exclusions. Those
-standards cases still use compatible `load()`; the added mode contracts exercise
-`loadFast()` too. These are Node VM checks, not new browser-engine runs.
-
-The completed per-file runs have no failures, cancellations or TODOs. Two
-initial native wide-form attempts stopped at the sampled RSS guard and a
-smaller V8 heap limit. The unchanged 130,000-field test passes with the normal
-64 MiB V8 heap and `--test-isolation=none`, removing the extra test coordinator
-process. Both unsuccessful attempts remain recorded. The 192 MiB RSS stop uses
-polling and is not a hard cap; runtime checks keep JIT enabled. Wasm and native
-binaries are unchanged. This is API qualification, not consumer adoption evidence.
-
-### 0.1.3 CI follow-up
-
-CI is reported passing after `887268c`, which adds installed-worker diagnostics
-and comparisons for both selection modes. The earlier Ubuntu 22.04/Node 22.0.0
-worker timeout did not reproduce locally; its cause remains unknown. Exact
-Node 22.0.0 with bundled npm 10.5.1 passes the offline two-package installer and
-the original four-worker fixture. Updated checks also pass on Node 24.
-
-All 33 benchmark checks pass on Node 22 Wasm/native and Node 24 Wasm. They verify
-both modes' outputs, pair direction, matching controls, deadlines and retention.
-A synthetic-clock browser-graph check covers all 36 comparison rows; it is
-correctness evidence, not a performance measurement. The
-[reported timings](benchmarks.md#013-reported-ci) retain their separate scope.
-
-The worker check retains four concurrent workers, 76 contract cases per worker
-and the 30-second timeout. A timeout now identifies package, worker index and
-the last import/case/exit phase. An injected keepalive confirms diagnostic error
-reporting; it does not reproduce or explain the original hosted stall.
-
-### 0.1.3 release preparation
-
-The final documentation checkpoint passes all **53 release checks**. Private
-package fixtures pass the offline two-package installer, four concurrent workers
-and all 69 installed-file hashes. Packaged normal/fallback VM paths each pass
-the 16-module graph, release contracts and 810 cases / 35 exclusions. Runtime
-and declaration sources are unchanged from the qualification above.
-
-Those local fixtures reuse validated binaries and retain their original build
-metadata; the Release workflow builds and verifies its own publication artifacts.
-The separately [reported release benchmark](history/release-benchmarks.md#013-release-ci)
-retains 36 rows and 759/759 blocks. The supplied table and publication report
-do not add a separately inspected full hosted-matrix result or actual-browser run.
-
-### Released 0.1.2
-
-The 2026-10-24 pre-release review retains the 0.1.2 read-path runtime and its
-matching C artifacts. Each full configuration runs **2,505 cases**:
-
-| Configuration | Node | Pass / exclusions | Verification |
-|---|---|---:|---|
-| Native | 22, 24 | 2,446 /59 | Read-path checkpoint; unchanged runtime |
-| Pooled Wasm | 22, 24 | 2,454 /51 | Read-path checkpoint; unchanged runtime |
-| Global Wasm | 22 | 2,450 /55 | Fresh pre-release run |
-| Per-document Wasm | 22 | 2,451 /54 | Fresh pre-release run |
-| Native ASan/UBSan | 22 | 2,446 /59 | Fresh pre-release run with leak detection |
-
-Fresh checks also pass 1,000 seeded cases each on native/pool, 64 sanitized
-cases, and 105 owned-buffer growth-failure recoveries. All four 120-cycle /
-2,430-lifetime authored memory budgets pass with custom inputs disabled; final
-tracked live/control bytes are zero. No sanitizer findings, unexpected failures,
-cancellations or TODOs occur in these runs. This is bounded verification, not a
-proof of arbitrary-input safety or universal allocation-failure recovery.
-
-Fresh offline Node 22/24 installs pass public contracts and caller-managed worker
-checks. All 69 packaged files match both installations; source and standalone
-package declarations pass. Packaged portable normal/fallback paths each pass
-810 cases with 35 exclusions plus release contracts on both Node versions.
-All 93 release checks pass on each version. These portable runs use Node, not
-actual browser engines.
-
-The [source review](source-audit.md) covers ownership, reentrant coercions,
-mutation recovery, snapshots and transport lifetimes. No new release-blocking
-defect was found within this scope. Full CI is reported passing for the released
-commit `25faa49`. Both npm packages, the Git tag and the deployed demo manifest
-confirm 0.1.2 publication; the local checks above retain their recorded scope.
-
-The previous API checkpoint's 1,544 consumer comparisons cover 193 scenarios,
-two preserved engine snapshots and four backends. They do not qualify the current
-development consumer, production input weights or a complete crawl.
-[Performance limits](benchmarks.md) remain independent of correctness results.
-
-### 0.1.2 read-path follow-up
-
-Seventeen regressions cover first-element versus aggregate reads, pending writes,
-duplicate/reordered selections, empty results, raw-child snapshots, XML/templates,
-wrapping callbacks and disposal. The
-[original matrix, package and fixture checks](history/testing.md#012-read-path-follow-up)
-retain their checkpoint scope.
-
-### Reported 0.1.2 CI passes
-
-The complete workflow, including the final gate, was reported passing for
-`25faa49`, now tagged `v0.1.2`. A later report also states that CI passed. Their
-[two benchmark summaries](history/release-benchmarks.md#012-reported-ci) remain
-separate; raw job logs, block timings and benchmark artifact hashes were not
-supplied for independent inspection. Publication metadata does not establish a
-new actual-browser or complete-consumer qualification.
-
-Earlier CI was reported passing for `71db6d3` and `654c9b9`; logs and artifact
-hashes were not supplied for independent inspection. Their
-[reported scope](history/testing.md#reported-012-ci-passes) and
-[benchmark rows](history/development-benchmarks.md#012-reported-ci-runs) remain separate.
-The `c807bdb` benchmark receipt alone did not confirm every CI job.
-
-<a id="012-api-optimizations"></a>
-<a id="012-fragment-load-child-and-form-fixes"></a>
-<a id="012-insertion-traversal-and-ownership-review"></a>
-<a id="012-initialization-follow-up"></a>
-<a id="011-full-matrix"></a>
-Earlier API, fragment/load/child/form, insertion/ownership, initialization and
-0.1.1 matrices are in [checkpoint history](history/testing.md).
+| Checkpoint | Detailed record |
+|---|---|
+| <a id="014-style-and-wrapper-reuse-local"></a>0.1.4 style/wrapper reuse | [85 files / 2,752 cases per backend](history/operation-reuse.md#correctness) |
+| <a id="released-013-selection-modes"></a>0.1.3 selection modes | [84 files, mode contracts, packages and workers](history/testing.md#released-013-selection-modes) |
+| <a id="013-ci-follow-up"></a>0.1.3 CI follow-up | [Reported `887268c` pass and worker-timeout investigation](history/testing.md#013-ci-follow-up) |
+| <a id="013-release-preparation"></a>0.1.3 release preparation | [53 release checks and offline package verification](history/testing.md#013-release-preparation) |
+| <a id="released-012"></a>0.1.2 release | [2,505-case matrix, sanitizer, fuzz, fault and memory checks](history/testing.md#released-012) |
+| <a id="012-read-path-follow-up"></a>0.1.2 read paths | [Seventeen regressions, matrix and package checks](history/testing.md#012-read-path-follow-up) |
+| <a id="reported-012-ci-passes"></a>0.1.2 hosted CI | [Reported passes and their limits](history/testing.md#reported-012-ci-passes) |
+| <a id="012-api-optimizations"></a>0.1.2 API optimizations | [Runtime and consumer comparisons](history/testing.md#012-api-optimizations) |
+| <a id="012-fragment-load-child-and-form-fixes"></a>Fragment/load/child/form | [Regression and resource checks](history/testing.md#012-fragment-load-child-and-form-fixes) |
+| <a id="012-insertion-traversal-and-ownership-review"></a>Insertion/ownership | [Runtime, lifecycle and consumer checks](history/testing.md#012-insertion-traversal-and-ownership-review) |
+| <a id="012-initialization-follow-up"></a>Initialization | [Reentrancy and retry checks](history/testing.md#012-initialization-follow-up) |
+| <a id="011-full-matrix"></a>0.1.1 | [Full matrix and selected browser results](history/testing.md#011-full-matrix) |
 
 ## Browser entry
 

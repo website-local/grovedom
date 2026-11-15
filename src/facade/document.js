@@ -10,7 +10,6 @@ const loadOptionNames = ['scriptingEnabled', 'execution', 'baseURI', 'xml', 'xml
 const executionModes = ['buffered', 'direct'];
 // Each package owns an independent facade, kernel and handle brand.
 export function createFacade(kernel, decodeInput) {
-    const byteInput = typeof kernel.createBytes === 'function' && typeof decodeInput.bytes === 'function';
     const operations = createOperations(kernel);
     const { flush, read, query, edit } = operations;
     const nodeAPI = createNodes(kernel, operations, isSelection, selection);
@@ -65,9 +64,8 @@ export function createFacade(kernel, decodeInput) {
         return state.fast ? target : new Proxy(target, selectionProxy);
     }
     function load(content, options = {}, isDocument = true, fast = false) {
-        content = decodeInput(content, byteInput);
-        const bytes = byteInput && typeof content !== 'string' ? decodeInput.bytes(content) : undefined;
-        if (typeof content !== 'string' && !bytes)
+        content = decodeInput(content);
+        if (typeof content !== 'string')
             unsupported('load accepts HTML strings or UTF-8 byte arrays.');
         options ??= {};
         if (typeof options !== 'object' || Array.isArray(options))
@@ -193,8 +191,7 @@ export function createFacade(kernel, decodeInput) {
         };
         // Finish all JavaScript construction before allocating an owner. A
         // throwing getter or construction failure cannot strand a document.
-        state.owner = bytes ? kernel.createBytes(bytes, scriptingEnabled ?? true, !isDocument, xml ? flags : undefined)
-            : xml ? kernel.createXML(content, flags) : kernel.create(content, scriptingEnabled ?? true, !isDocument);
+        state.owner = xml ? kernel.createXML(content, flags) : kernel.create(content, scriptingEnabled ?? true, !isDocument);
         return $;
     }
     function contains(container, contained) {

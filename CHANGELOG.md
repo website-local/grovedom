@@ -2,10 +2,34 @@
 
 ## 0.1.4 (unreleased)
 
-- Synchronize documentation with published 0.1.3, retain the separate release
-  CI benchmark and update the downstream qualification steps for both loaders.
-- Advance development manifests, lockfile and the Release default to 0.1.4;
-  align the Browser demo default with published v0.1.3.
+Experimental development release. Compatible `load()` and opt-in `loadFast()`
+retain their public API and explicit document ownership.
+
+- Release namespace-restoration histories with destroyed unobserved subtrees,
+  transfer them on rename and clean up partial clones after allocation failure.
+  Explicitly retained descendant handles remain usable.
+- Reuse parsed styles and detached literal wrapper templates while preserving
+  coercion, inherited accessors, callbacks and disposal checks.
+- Prune selected relative `:has()` misses, avoid redundant cycle checks for
+  fresh parsed/cloned nodes and defer entity scratch copies until needed.
+- Reduce intermediate selections and wrappers in array `extract()`, `has()`
+  and select `val()`; use scoped membership indexes for large value/class lists,
+  boolean checks for simple `is()` selectors and delayed `closest()` indexing.
+- Avoid copying an unchanged numeric selection assignment and reduce retained
+  backing buffers for large empty or sparse callback filters.
+- Restore ordinary Node byte decoding after finding that the direct byte-input
+  shortcut could bypass a decoder installed before import and observe an
+  inherited Buffer length getter. Withdraw that shortcut and its performance
+  claims; Buffer and Uint8Array inputs remain supported.
+- Move the portable Node 24 CI job to `macos-15`. Record the separately reported
+  0.1.4 CI comparison and bounded downstream 0.1.3 qualification. Keep broader
+  consumer performance, sustained memory and adoption unqualified.
+
+See [current qualification](docs/testing.md#current-qualification) and the
+[reported CI receipt](docs/benchmarks.md#014-reported-ci). The reported full CI
+pass is for `5026b83`, before the decoder correction; a release requires CI on
+the final corrected commit. Development metadata remains 0.1.4 and the Browser
+demo default remains published v0.1.3.
 
 ## 0.1.3
 

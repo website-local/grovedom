@@ -194,7 +194,10 @@ validation remain [open work](docs/roadmap.md).
 
 ## Development
 
-The `main` branch targets **0.1.4 (unreleased)**.
+The `main` branch targets **0.1.4 (unreleased and experimental)**. See the
+[development notes](CHANGELOG.md#014-unreleased),
+[current qualification](docs/testing.md#current-qualification) and
+[remaining release checks](docs/roadmap.md).
 
 See [build and package setup](docs/prototype.md) for the pinned Lexbor/WASI inputs
 and required Node, Clang/LLVM, CMake and Ninja tools. After configuring those

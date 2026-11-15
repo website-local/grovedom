@@ -9,143 +9,62 @@ browser speed; production input weights remain unvalidated.
 ## Current result
 
 **Current full-scope non-regression and production adoption remain unverified.**
-Experimental 0.1.3 is published with scoped improvements, incomplete panels,
-control drift and unfavorable results. Correctness qualification is recorded in
-[testing](testing.md) and does not turn inconclusive timing into a pass.
+Experimental 0.1.3 is published; development 0.1.4 remains experimental and
+unreleased. [Correctness qualification](testing.md#current-qualification) and
+authored-workload timings answer separate questions.
 
-The 0.1.4 [style and wrapper reuse qualification](history/operation-reuse.md)
-measures the combined implementation in both modes, with all eleven method and
-fourteen full workloads. It retains the original and corrected-source panels
-separately, including controls, unfavorable results and the corrected panel's
-best-effort host admission. Scoped method gains do not establish the complete
-consumer target.
+The 0.1.4 [style/wrapper](history/operation-reuse.md),
+[kernel](history/kernel-work-reduction.md) and
+[namespace/selection](history/selection-and-namespace-reuse.md) records preserve
+scoped gains, adverse observations, control drift and incomplete panels.
+The direct byte-input shortcut was withdrawn after decoder regressions, so its
+earlier speed and capacity benefits no longer apply to current source.
 
-The 0.1.3 [internal-state investigation](history/internal-state.md) records
-direct metadata, fewer duplicate checks, a corrected Proxy read regression,
-disposal-related deopts and the shared-class mode experiment. Its bounded
-diagnostics do not establish the complete-workload target.
+Keep Cheerio as the consumer default and `loadFast()` opt-in. The next useful
+investigation profiles the corrected package in the actual consumer, followed by
+a fixed comparison of the complete DOM workload and sustained memory.
+[Bounded MDN evidence](integration.md#bounded-mdn-013-evidence) uses 0.1.3 and
+does not qualify 0.1.4. Further speculative optimization experiments are not a
+prerequisite for an experimental release.
 
-The subsequent [array and mode audit](history/array-helpers.md) removes transient
-arrays, profiles CSS parsing and tests subclass versus generated mode isolation.
-It retains the reported 0.1.3 CI tables and all local control limitations. That
-checkpoint did not expose a fast-mode entry or establish complete-workload gains.
+## 0.1.4 reported CI
 
-The [callback loop follow-up](history/callback-loops.md) retains direct loops for
-`is(function)` and unnamed `removeData()`. Both improve in the final bounded
-compatible-mode check; `filter` remains unchanged. The report includes controls,
-validation and the limits of these method-level results.
+The [November 15 receipt](history/release-benchmarks.md#014-development-ci)
+preserves all **36 supplied rows / 1,013 retained paired blocks** for `5026b83`,
+comparing development 0.1.4 with published 0.1.3 and Cheerio 1.2.0. All displayed
+complete blocks were retained. The user separately confirmed that every hosted
+job and the required gate passed, including macOS.
 
-The subsequent [direct collection loops](history/direct-methods.md) retain six
-more measured paths. The combined implementation repeats their method gains;
-the complete library workload panel is mixed, including unfavorable sitemap
-and saved-page results. All controls, the bounded sitemap follow-up and full
-local test counts remain separate from a consumer non-regression claim.
-The subsequent [reported CI table](history/direct-methods.md#reported-ci-after-direct-loop-integration)
-exceeds 3× both Cheerio configurations at every authored-case median, with
-limited XML release gains relative to identical-code controls.
+Six of eight release/current medians favor current. Fast sitemap and SVG are
+**0.976× / 0.990×**, corresponding to about **2.46% / 1.01% more elapsed time**.
+All sixteen Cheerio comparisons exceed 3×, with a minimum of **3.322×**.
+Identical-code controls span **1.000–1.067×**. These rounded authored-workload
+medians do not establish universal gains, non-regression or complete-consumer
+performance; no control normalization or cross-workload average is supplied.
 
-The [initialization-mode comparison](history/mode-initialization.md) finds no
-dependable gain from choosing raw or Proxy construction once per facade.
-Single-mode traces have no wrong-map deopts; first-use instance deopts remain.
-Mixed factory-created classes still share feedback, while full source splitting
-duplicates the JS graph. Raw callbacks improve in the bounded diagnostic, but
-complete workloads do not establish a general raw-mode win.
-
-The subsequent 0.1.3 landing exposes the measured simple dual design as
-[`loadFast()`](compatibility.md#selection-modes), alongside compatible `load()`.
-Both share the facade and kernel; plain selections omit numeric indexing.
-The subsequent CI comparison below measures both public loaders. The next useful
-comparison is an unchanged consumer workload
-using each mode end to end, with exact output and sustained memory checks.
-
-## 0.1.3 reported CI
-
-### Release CI, 2026-11-02
-
-The [release receipt](history/release-benchmarks.md#013-release-ci) preserves
-all **36 rows and 759/759** complete blocks, comparing 0.1.3 with released
-0.1.2 and Cheerio 1.2.0. Direct compatible/fast ratios are **1.082×/1.071×**
-for HTML120/600, about **7.6%/6.6% less elapsed time** with `loadFast()`.
-Both modes use separate module graphs in one process.
-
-Sitemap/SVG mode differences of **1.014×/1.016×** are smaller than identical-code
-offsets; sitemap release/fast is an unfavorable **0.991×**. Fast mode exceeds
-3× both Cheerio configurations at every supplied authored-case median.
-Compatible articles-120 is **2.996×** against htmlparser2, slightly below 3×.
-Controls are diagnostics, not correction factors or confidence bounds. The
-supplied table does not identify a full hosted-matrix result or qualify the
-complete consumer workload, sustained memory or adoption. Keep fast mode opt-in.
-
-### Development CI, 2026-11-01
-
-CI is reported passing after `887268c`. The
-[36 supplied rows](history/release-benchmarks.md#013-reported-ci) retain
-**1,180/1,210** complete blocks. Direct compatible/fast filtered ratios are
-**1.086×/1.119×** for HTML120/600, about **7.9%/10.6% less elapsed time** with
-`loadFast()`. Each current mode and control has a separate complete module graph;
-all variants still run in one process.
-
-Sitemap/SVG mode differences of **1.024×/1.026×** are smaller than their
-identical-code offsets. Their unfavorable release/fast pairs are **0.967×/0.991×**.
-Controls are diagnostics, not correction factors or confidence bounds; independent
-pair medians need not be transitive. Both modes exceed 3× both Cheerio configurations
-at all four authored-case medians in this earlier receipt. It remains separate
-from the release table above; do not divide across receipts to infer gains.
-Neither qualifies the complete consumer workload or sustained memory.
-
-## 0.1.2 read paths and remote comparisons
-
-First-element reads, raw child arrays, text properties and wrapping avoid
-unnecessary IDs, selections, views and traversals. The focused comparison stops
-at its fixed deadline with **711/1,024 blocks** and no complete four-group panel.
-Pooled first-element reads have a descriptive before/current median of **7.8712**,
-control **1.0245**. Native HTML600 is unfavorable at **0.9444**, control **0.9703**;
-other targeted results also have control drift. See
-[all groups and controls](history/read-performance.md#four-read-path-changes).
-
-The preceding `c807bdb` run completes **120/122 comparisons**, with **11,521 blocks**
-across 32 panels. Pooled HTML600 is near parity with 0.1.1 (**1.0061**, control
-**0.9996**), as is the frozen consumer (**0.9974**, control **1.0051**). Two
-real-page/Cheerio comparisons stop on swap guards. These results qualify neither
-the later read changes nor the development consumer. The
-[full methods and rows](history/read-performance.md#full-comparison-at-c807bdb)
-remain separate from historical adoption screens. Both campaigns are closed.
-
-## 0.1.2 reported CI runs
-
-Full CI is reported passing at released commit `25faa49`. Two
-[supplied summaries](history/release-benchmarks.md#012-reported-ci) retain
-**729/729** and **751/751** complete blocks. All released/current medians favor
-0.1.2, but controls limit precise gains. The later SVG median is **3.022×** default
-Cheerio and **2.998×** htmlparser2, with a **1.044×** identical-Wasm control.
-These reports do not establish the complete-workload adoption target.
-
-Earlier CI is reported passing at `71db6d3` and `654c9b9`. Their
-[32 supplied rows](history/development-benchmarks.md#012-reported-ci-runs) compare
-each with published 0.1.1: authored results are near parity, XML controls limit
-small gain claims, and SVG remains below 3× Cheerio. Raw blocks and artifact hashes
-were not supplied. The [later receipt](history/read-performance.md#reported-ci-after-the-wrapper-change)
-favors the wrapper change on four medians with control drift; it does not confirm
-the remaining CI jobs.
-
-## 0.1.2 API optimizations
-
-Static traversal, live attributes and containment use fewer calls or handles.
-The fixed local comparison completes 55/240 blocks: one scoped non-regression
-pass and fifteen inconclusive panels. A separate server attempt stops in preflight.
-[Counts, panels and stopping rules](history/development-benchmarks.md#012-api-optimizations)
-preserve the scope without a full-scope claim.
+This receipt predates the subsequent byte-decoding correction. It does not
+measure the corrected source, whose direct byte-input shortcut was withdrawn.
+The [bounded downstream evidence](integration.md#bounded-mdn-013-evidence)
+uses published 0.1.3 and leaves sustained memory and the complete DOM target
+open. Keep Cheerio as the consumer default and `loadFast()` opt-in.
 
 ## Earlier evidence
 
-Historical reports retain original protocols, controls, failures and exclusions.
-They are not measurements of the current complete workload.
+Each record keeps its own protocol, inputs, controls, adverse results and
+qualification limits. Do not combine receipts or infer current performance from
+historical checkpoints. Full tables and implementation investigations are
+indexed in [history](history/README.md).
 
-| Checkpoint | Outcome and detailed evidence |
+| Checkpoint | Detailed evidence and limits |
 |---|---|
+| <a id="013-reported-ci"></a><a id="release-ci-2026-11-02"></a>0.1.3 release CI | [36 rows / 759 retained blocks](history/release-benchmarks.md#013-release-ci); fast sitemap release ratio 0.991×, compatible HTML120/htmlparser2 2.996× |
+| <a id="development-ci-2026-11-01"></a>0.1.3 development CI | [36 rows / 1,180 of 1,210 blocks](history/release-benchmarks.md#013-reported-ci); XML/SVG mode differences remain smaller than control offsets |
+| <a id="012-read-paths-and-remote-comparisons"></a>0.1.2 read paths and remote comparisons | [711 of 1,024 focused blocks; preceding 120 of 122 comparisons](history/read-performance.md); incomplete groups, near-parity consumer results and unfavorable observations retained |
+| <a id="012-reported-ci-runs"></a>0.1.2 CI | [Release receipts](history/release-benchmarks.md#012-reported-ci) and [development receipts](history/development-benchmarks.md#012-reported-ci-runs); SVG/htmlparser2 remains below 3× in the later release table |
+| <a id="012-api-optimizations"></a>0.1.2 API optimizations | [55 of 240 blocks](history/development-benchmarks.md#012-api-optimizations); one scoped pass, fifteen inconclusive panels |
 | <a id="012-fragment-load-child-and-form-fixes"></a>Fragment/load/child/form | [Zero of 237 blocks](history/development-benchmarks.md#012-fragment-load-child-and-form-fixes); all sixteen panels stop before timing |
-| <a id="012-insertion-and-ownership-corrections"></a>Insertion/ownership | [81/228 retained blocks](history/development-benchmarks.md#012-insertion-and-ownership-corrections); two passes, fourteen inconclusive |
-| <a id="compatibility-review-follow-up"></a>Six-fix review | [Eleven retained blocks](history/development-benchmarks.md#compatibility-review-follow-up); all six panels incomplete with drifting controls |
+| <a id="012-insertion-and-ownership-corrections"></a>Insertion/ownership | [81 of 228 retained blocks](history/development-benchmarks.md#012-insertion-and-ownership-corrections); two passes, fourteen inconclusive |
+| <a id="compatibility-review-follow-up"></a>Six-fix review | [Eleven retained blocks](history/development-benchmarks.md#compatibility-review-follow-up); all six panels incomplete |
 | <a id="relative-list-resource-correction"></a>Relative-list resources | [12 rather than 40,013 returned IDs](history/development-benchmarks.md#relative-list-resource-correction); repeated replacements plateau, no elapsed-speed claim |
 | <a id="html-wrapper-allocation"></a>Wrapper allocation | [Four-process confirmation](history/read-performance.md#html-wrapper-allocation); 1.0352 before/current, 1.0062 control, one unfavorable group; earlier slowdown not fully explained |
 | Selected Wasm writer | [Scoped HTML600/seeded p90 gains](history/performance-review.md#selected-writer-summary); separate twenty-panel screen has six passes, one failure, thirteen inconclusive |
@@ -153,15 +72,7 @@ They are not measurements of the current complete workload.
 | <a id="historical-checkpoints"></a>Architecture and insertion | [Scoped passes and inconclusive controls](history/release-followups.md#historical-checkpoints) |
 | <a id="scalar-ascii-scan-confirmation"></a>Scalar scan | [Scoped pooled pass](history/release-followups.md#scalar-ascii-scan-confirmation) with narrow selector headroom |
 | <a id="historical-adoption-evidence"></a>Pre-refactor adoption | [Aggregate screens](history/release-followups.md#historical-adoption-evidence) on authored/saved inputs; production weights unqualified |
-
-## 0.1.1 release measurements
-
-Reported CI, Firefox 150 and Chromium 140 use four authored workloads. Firefox
-exceeds 3× both Cheerio configurations in that report; Chromium exceeds 3× default
-Cheerio only on HTML600. Controls and missing raw blocks limit precision. The
-[40 original rows](history/release-benchmarks.md#011-release-measurements) retain all
-ratios and qualifications. [Browser correctness](testing.md#reported-browser-runs)
-is a separate selected-suite result.
+| <a id="011-release-measurements"></a>0.1.1 CI and browser measurements | [40 original rows](history/release-benchmarks.md#011-release-measurements); Firefox exceeds 3× both parsers, Chromium exceeds 3× default Cheerio only on HTML600 |
 
 ## Hosted CI and browser demo
 

@@ -23,6 +23,9 @@ Lexbor's allocator hooks are initialized once by the loader.
 
 - IDs are never recycled within a document. Observed detached subtrees remain
   valid until disposal; unobserved replaced subtrees return to Lexbor pools.
+- Namespace histories follow node ownership without creating public IDs. They
+  transfer on rename and are freed with destroyed unobserved subtrees, including
+  partial clones. Retained handles keep their detached subtrees usable.
 - Raw edge reads register only the requested child. Static `until` returns only
   accepted nodes, and containment registers no ancestors. Relative-list ordering
   does not expose unrelated descendants.
@@ -31,7 +34,7 @@ Lexbor's allocator hooks are initialized once by the loader.
 - Live `attribs` enumeration retains one private map per document until mutation
   or disposal. It has no byte cap; caller-visible attribute snapshots are independent.
 - Selector plans have a bounded per-document cache; values and buffers reuse
-  capacity. Repeated renaming can retain empty prior interfaces until disposal.
+  capacity. Prior rename interfaces remain until their owning subtree is freed.
 - Load options and facade construction finish before allocating an owner, so a
   throwing getter cannot strand a document even without finalization support.
 
@@ -58,6 +61,9 @@ GROVEDOM_CORPUS_MANIFEST= GROVEDOM_MEMORY_CYCLES=120 \
 [Earlier lifecycle measurements](history/memory.md#012-lifecycle-checkpoints)
 preserve exact peaks, the 257-lifetime repeated-input probe and the child-retention
 correction. Those counts are distinct from total JavaScript allocation or RSS.
+The [0.1.4 namespace fix](history/selection-and-namespace-reuse.md#qualification)
+adds replacement-plateau checks and eighteen injected history/clone failures.
+The same checkpoint's byte-input capacity benefit was withdrawn with its shortcut.
 
 [Fault injection](../test/faults.c) checks owned input, transfer, query-result and
 serialization growth failures, retries and idempotent cleanup. It does not cover

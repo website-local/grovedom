@@ -7,14 +7,12 @@ verified artifacts.
 Pushes and pull requests verify code. Publication requires manual **Release**
 dispatch; a version bump alone publishes nothing.
 
-The [0.1.3 release notes](../CHANGELOG.md#013) cover opt-in `loadFast()`,
-facade allocation improvements and CI diagnostics. Publication was reported
-on 2026-11-02. The
-[reported CI pass](testing.md#013-ci-follow-up) covers `887268c`; the release
-dispatch rebuilds and verifies the selected final commit. The
-[performance evidence](benchmarks.md#013-reported-ci) retains separate development
-and release CI receipts. It remains scoped to authored cases, with complete
-consumer and sustained-memory qualification still open.
+The [0.1.4 notes](../CHANGELOG.md#014-unreleased) include namespace lifetime,
+selection reuse and the later Node decoding correction. All hosted jobs and the
+gate were reported passing for `5026b83`, before that correction. CI and release
+artifacts must verify the final corrected commit before publication. Keep 0.1.4
+experimental: current-package consumer, complete DOM performance, sustained
+memory and broader browser/archive qualification remain [open](roadmap.md).
 
 ## Verification
 
@@ -41,7 +39,7 @@ major 6 until the checker supports a changed compiler entry point.
 Default token permissions are read-only, and pull requests receive no release
 credentials. CI timing has no speed threshold; output mismatches, setup failures
 or insufficient samples fail verification. The
-[reported CI status](testing.md#013-ci-follow-up), local qualification and
+[reported CI status](testing.md#current-qualification), local qualification and
 [actual-browser results](testing.md#reported-browser-runs) have separate scopes.
 
 For local verification, configure builds and disk-backed temporary/cache/fuzz

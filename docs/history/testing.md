@@ -1,7 +1,115 @@
-# Earlier correctness checkpoints
+# Correctness checkpoints
 
+<a id="earlier-correctness-checkpoints"></a>
 These counts belong to their recorded implementation checkpoints. The
 [current qualification](../testing.md#current-qualification) includes later fixes.
+
+## Released 0.1.3 selection modes
+
+Publication was reported on 2026-11-02. The checks below retain their original
+source and artifact scope.
+
+The simple-dual landing runs all **84 test files separately on Node 24.18.0**:
+
+| Backend | Passed | Exclusions |
+|---|---:|---:|
+| Pooled Wasm | 2,575 | 51 |
+| Native | 2,563 | 63 |
+
+These suites retain compatible-mode coverage and add twelve mode cases for
+HTML/XML, buffered/direct execution, maps, snapshots, nested loads, coercion,
+disposal, live merge reads and mixed contexts. The same cases run in package and
+portable release contracts. The current source also passes the earlier
+570-assertion mode contract and 40 direct-method cases per mode. Global and
+per-document heaps and the portable byte path each pass the twelve mode cases.
+
+Assembled Node/native/browser packages pass public contracts and four concurrent
+worker checks from an isolated consumer. Standalone Node/native/browser
+declarations pass strict checking, including declaration bodies, without
+third-party types. Workspace API assertions also pass. Source and packaged
+normal/fallback browser sandbox runs each pass the 16-module portable graph,
+release contracts and 810 selected browser cases with 35 exclusions. Those
+standards cases still use compatible `load()`; the added mode contracts exercise
+`loadFast()` too. These are Node VM checks, not new browser-engine runs.
+
+The completed per-file runs have no failures, cancellations or TODOs. Two
+initial native wide-form attempts stopped at the sampled RSS guard and a
+smaller V8 heap limit. The unchanged 130,000-field test passes with the normal
+64 MiB V8 heap and `--test-isolation=none`, removing the extra test coordinator
+process. Both unsuccessful attempts remain recorded. The 192 MiB RSS stop uses
+polling and is not a hard cap; runtime checks keep JIT enabled. Wasm and native
+binaries are unchanged. This is API qualification, not consumer adoption evidence.
+
+## 0.1.3 CI follow-up
+
+CI is reported passing after `887268c`, which adds installed-worker diagnostics
+and comparisons for both selection modes. The earlier Ubuntu 22.04/Node 22.0.0
+worker timeout did not reproduce locally; its cause remains unknown. Exact
+Node 22.0.0 with bundled npm 10.5.1 passes the offline two-package installer and
+the original four-worker fixture. Updated checks also pass on Node 24.
+
+All 33 benchmark checks pass on Node 22 Wasm/native and Node 24 Wasm. They verify
+both modes' outputs, pair direction, matching controls, deadlines and retention.
+A synthetic-clock browser-graph check covers all 36 comparison rows; it is
+correctness evidence, not a performance measurement. The
+[reported timings](../benchmarks.md#013-reported-ci) retain their separate scope.
+
+The worker check retains four concurrent workers, 76 contract cases per worker
+and the 30-second timeout. A timeout now identifies package, worker index and
+the last import/case/exit phase. An injected keepalive confirms diagnostic error
+reporting; it does not reproduce or explain the original hosted stall.
+
+## 0.1.3 release preparation
+
+The final documentation checkpoint passes all **53 release checks**. Private
+package fixtures pass the offline two-package installer, four concurrent workers
+and all 69 installed-file hashes. Packaged normal/fallback VM paths each pass
+the 16-module graph, release contracts and 810 cases / 35 exclusions. Runtime
+and declaration sources are unchanged from the qualification above.
+
+Those local fixtures reuse validated binaries and retain their original build
+metadata; the Release workflow builds and verifies its own publication artifacts.
+The separately [reported release benchmark](release-benchmarks.md#013-release-ci)
+retains 36 rows and 759/759 blocks. The supplied table and publication report
+do not add a separately inspected full hosted-matrix result or actual-browser run.
+
+## Released 0.1.2
+
+The 2026-10-24 pre-release review retains the 0.1.2 read-path runtime and its
+matching C artifacts. Each full configuration runs **2,505 cases**:
+
+| Configuration | Node | Pass / exclusions | Verification |
+|---|---|---:|---|
+| Native | 22, 24 | 2,446 /59 | Read-path checkpoint; unchanged runtime |
+| Pooled Wasm | 22, 24 | 2,454 /51 | Read-path checkpoint; unchanged runtime |
+| Global Wasm | 22 | 2,450 /55 | Fresh pre-release run |
+| Per-document Wasm | 22 | 2,451 /54 | Fresh pre-release run |
+| Native ASan/UBSan | 22 | 2,446 /59 | Fresh pre-release run with leak detection |
+
+Fresh checks also pass 1,000 seeded cases each on native/pool, 64 sanitized
+cases, and 105 owned-buffer growth-failure recoveries. All four 120-cycle /
+2,430-lifetime authored memory budgets pass with custom inputs disabled; final
+tracked live/control bytes are zero. No sanitizer findings, unexpected failures,
+cancellations or TODOs occur in these runs. This is bounded verification, not a
+proof of arbitrary-input safety or universal allocation-failure recovery.
+
+Fresh offline Node 22/24 installs pass public contracts and caller-managed worker
+checks. All 69 packaged files match both installations; source and standalone
+package declarations pass. Packaged portable normal/fallback paths each pass
+810 cases with 35 exclusions plus release contracts on both Node versions.
+All 93 release checks pass on each version. These portable runs use Node, not
+actual browser engines.
+
+The [source review](../source-audit.md) covers ownership, reentrant coercions,
+mutation recovery, snapshots and transport lifetimes. No new release-blocking
+defect was found within this scope. Full CI is reported passing for the released
+commit `25faa49`. Both npm packages, the Git tag and the deployed demo manifest
+confirm 0.1.2 publication; the local checks above retain their recorded scope.
+
+The previous API checkpoint's 1,544 consumer comparisons cover 193 scenarios,
+two preserved engine snapshots and four backends. They do not qualify the current
+development consumer, production input weights or a complete crawl.
+[Performance limits](../benchmarks.md) remain independent of correctness results.
 
 ### 0.1.2 fragment, load, child and form fixes
 
@@ -194,6 +302,15 @@ include incomplete panels and control drift, independently of these correctness
 passes. Final hosted release artifacts still require the manual workflow.
 
 ### Reported 0.1.2 CI passes
+
+The complete workflow, including the final gate, was reported passing for
+`25faa49`, now tagged `v0.1.2`. A later report also states that CI passed. Their
+[two benchmark summaries](release-benchmarks.md#012-reported-ci) remain
+separate; raw job logs, block timings and benchmark artifact hashes were not
+supplied for independent inspection. Publication metadata does not establish a
+new actual-browser or complete-consumer qualification.
+
+The `c807bdb` benchmark receipt alone did not confirm every CI job.
 
 The user reported passing CI on 2026-10-22 for `71db6d3` (fragment/load/child/form
 fixes) and `654c9b9` (API optimizations). This records hosted CI status for both

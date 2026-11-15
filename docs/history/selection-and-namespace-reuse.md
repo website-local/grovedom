@@ -4,6 +4,14 @@ The 0.1.4 development source fixes namespace-history retention before adding
 scoped JavaScript work reductions. This checkpoint preserves the public API and
 both selection modes.
 
+This record preserves the measurements and qualification of `5026b83`.
+Later review withdrew its direct byte-input shortcut after confirming two
+decoding regressions: bypassing a Buffer prototype decoder installed before
+import, and observing an inherited Buffer length getter for Uint8Array input.
+Current source restores ordinary decoding. The byte-input timing and capacity
+benefits below are historical and do not apply to the corrected source.
+See [current qualification](../testing.md#current-qualification).
+
 Namespace restoration metadata now belongs to a node independently of its
 public handle ID. Cloning an unobserved descendant no longer creates an ID just
 to copy that metadata. Destroyed unobserved subtrees release their histories,
@@ -26,9 +34,10 @@ chain history and disposal checks:
   tokens. `closest()` delays its deduplication Set until 64 distinct matches.
 - Callback filters with at least 64 inputs allocate output lazily and compact
   results retaining at most one quarter of the input.
-- Node Wasm snapshots and validates ordinary UTF-8 byte inputs of at least
+- At this checkpoint, Node Wasm snapshots and validates UTF-8 byte inputs of at least
   8192 bytes before reading options. Invalid UTF-8 and custom Buffer decoding
-  retain the string path. Browser and native public decoding remain unchanged.
+  were intended to retain the string path, but the later regressions above
+  invalidate that general compatibility claim. This shortcut is withdrawn.
 
 The shared verification workflow also moves its portable Node 24 job from
 `macos-14` to `macos-15`, following the retirement of the older runner image.
@@ -51,14 +60,16 @@ Global/document heaps and portable transport pass the new cases. Assembled
 Node/browser/native packages each pass 76 contracts and four package workers
 pass the same contracts. Normal/fallback VM browser checks each pass the
 16-module portable graph, release contracts and 810 cases with 35 exclusions.
-These checks do not establish a hosted macOS, installed-package, actual-browser
-or complete-consumer pass. Type checking passes with library declaration
-checking skipped.
+These local checks do not establish an installed-package, actual-browser or
+complete-consumer pass. The user subsequently confirmed all hosted jobs and
+the gate, including macOS, for `5026b83`; that confirmation predates the decoder
+correction. Type checking passes with library declaration checking skipped.
 
 Deterministic probes avoid 128 wrappers in each extraction, `has()` and option
 setter fixture. A 1,024-input callback filter retains 0/32 bytes for empty/sparse
-outputs instead of 4,096 bytes; the dense case remains 4,096 bytes. The 1 MiB
-byte fixture uses 5 MiB of Wasm capacity instead of 7 MiB after serialization.
+outputs instead of 4,096 bytes; the dense case remains 4,096 bytes. The historical
+1 MiB byte fixture used 5 MiB of Wasm capacity instead of 7 MiB after serialization;
+that benefit is withdrawn with the shortcut.
 These are scoped allocation/capacity observations, not sustained total-memory
 measurements. Namespace replacement backing plateaus after initial warmup and
 returns to zero on disposal.
@@ -103,3 +114,31 @@ bounded custom nth-of remain deferred for a matching workload. Permanent
 stepping, relational existence replacement, automatic buffer discard, general
 form-serialization replacement and default block I/O remain excluded in their
 proposed forms. Keep Cheerio as the consumer default and `loadFast()` opt-in.
+
+## Decoder correction
+
+Subsequent review found two byte-decoding regressions in that commit: a Buffer
+prototype decoder installed before import could be bypassed, and decoding a
+Uint8Array could newly observe an inherited Buffer length getter. The current
+source restores ordinary decoding and removes the direct-byte shortcut. Both
+[decoder regressions](../../test/node-decoding.test.mjs) fail before the correction
+and pass afterward. Fresh focused checks have **146 passing executions** across
+the decoder, byte inputs, Node/native loading and options, global/document Wasm
+heaps and portable transport. Two earlier combined test attempts were stopped
+by the sampled RSS guard and remain unsuccessful observations.
+
+Fresh private assembly verifies all **69 package files** against current source
+and retained matching binaries. Node, browser and native entries each pass 76
+contracts; four workers pass the same contracts with their effective heap
+ceiling checked. Both decoder regressions also pass through each assembled Node
+loader, giving four public-loading cases. Normal/fallback browser VM runs each
+pass sixteen modules, release contracts and **810 cases / 35 exclusions**.
+This uses isolated package-resolution fixtures, not a new npm installation,
+actual browser or downstream replay. An initial public decoder checker also
+counted later parser/output Buffer reads; its corrected check stops observation
+at the decoding/options boundary. The failed checker remains recorded.
+
+The full suite and hosted pass above apply to `5026b83`; they are not a fresh
+full-suite or hosted pass for this correction. The byte shortcut's earlier
+timing and capacity results no longer describe current source. Final corrected
+commit CI and release-artifact checks remain required before publication.

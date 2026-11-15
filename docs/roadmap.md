@@ -7,57 +7,53 @@ the same Wasm binary with async initialization. The
 
 ## Current status
 
-Release 0.1.3 adds direct facade state, selected allocation/loop improvements
-and opt-in [`loadFast()` selections](compatibility.md#selection-modes).
-Compatible `load()` and fast selections share one implementation and retain
-explicit document ownership. [Correctness and resource qualification](testing.md#current-qualification)
-records the scoped mode, package, worker and portable browser checks, alongside
-earlier sanitizer, fuzz and lifecycle evidence.
+Development 0.1.4 adds [style/wrapper reuse](history/operation-reuse.md),
+[kernel work reductions](history/kernel-work-reduction.md) and
+[namespace lifetime fixes and selection reuse](history/selection-and-namespace-reuse.md).
+The direct byte-input shortcut was withdrawn after decoder regressions.
+Both selection modes, APIs, declarations and explicit ownership remain unchanged.
+The Browser demo default stays at published v0.1.3.
 
-Publication was reported on 2026-11-02. Development metadata now selects 0.1.4.
-The development source adds [style and literal-wrapper reuse](history/operation-reuse.md),
-with the API, declarations and binaries unchanged. The manual Browser demo
-default is v0.1.3. Separate [development and release CI receipts](benchmarks.md#013-reported-ci)
-retain their controls and unfavorable results; complete consumer performance
-remains open in `mdn-local`. Prior actual-browser results still apply to their
-named 0.1.1 checkpoint, and published-package engine qualification remains at 0.1.2.
+All hosted jobs and the gate were reported passing for `5026b83`, before the
+decoder correction. [Current qualification](testing.md#current-qualification)
+separates that full-suite/CI checkpoint from the correction's focused, package
+and portable-browser checks. The [supplied benchmark](benchmarks.md#014-reported-ci)
+also predates the correction.
 
-Published-package engine checks passed on Node 22/24, including installed
-declarations, both downloaders and all 16 ownership/pool cases per runtime.
-The final engine quality commit `3a84caa` also passed 1,138 tests. The
-[integration status](integration.md#engine-qualification) distinguishes this
-completed qualification from the remaining MDN migration and adoption gates.
-
-**Current full-scope non-regression and production adoption remain unverified.**
-Targeted operations improve in scoped measurements, but incomplete panels,
-control drift and unfavorable results prevent a broader claim. The completed
-[performance evidence](benchmarks.md) remains separate from correctness checks.
-Closed campaigns stay closed; the next measurements should qualify consumer
-integration.
+The [bounded MDN replay](integration.md#bounded-mdn-013-evidence) uses GroveDOM
+0.1.3 with engine 0.10.0. It supports continued experimental evaluation;
+current-package consumer support, full-scope non-regression, sustained memory
+and production adoption remain unverified. Keep Cheerio as the consumer default,
+`loadFast()` opt-in and the existing strong wrapper cache.
 
 ## Priorities
 
-1. Continue in `mdn-local`: migrate to the current engine's explicit document
-   ownership and lifecycle APIs and supported Node/CI versions. Establish a
-   Cheerio baseline, then qualify published 0.1.3 compatible `load()` with
-   original-input replay. Audit numeric selection access and loader/hook types
-   before opting into `loadFast()`. Compare both modes on the same complete
-   required DOM workload, outputs and memory limits; earlier 0.1.2 checks
-   remain historical evidence.
-   Validate full locale archives and offline browser behavior at the adopted
-   consumer revision. Keep Cheerio as default until the adoption gates pass;
-   saved snapshots do not establish production weights or complete-crawl speed.
-2. Extend actual-browser API and fallback checks beyond
-   the selected correctness page. Firefox/Chromium results and exclusions remain
-   documented; WebKit is unqualified, so browser support stays best-effort.
-3. Broaden stateful fuzzing and allocation-failure coverage when a consumer need
-   warrants that work. Owned-buffer tests do not prove recovery from every
-   upstream or host allocation failure.
-4. Start future optimization work from source analysis and profiles, then use a
-   fixed comparison to confirm a concrete finding. Preserve callback order,
-   snapshots, identity and unfavorable evidence.
+1. Verify CI and release artifacts for the final corrected commit before an
+   **experimental 0.1.4 release**. Further optimization experiments are not a
+   prerequisite.
+2. Before removing the experimental designation, qualify that exact package in
+   the current MDN/engine consumer. Preserve original responses and compare exact
+   outputs, both loaders and the complete required DOM workload against current
+   Cheerio and its fastest compatible configuration. The target remains at least
+   3× current Cheerio with acceptable sustained memory; whole-pipeline ratios
+   are a separate metric. Extend agreed locale/archive, asset and offline-browser
+   coverage at the same adopted revision.
+3. Extend actual-browser API/fallback checks beyond the selected Firefox/Chromium
+   correctness page; WebKit remains unqualified. Broaden stateful fuzzing and
+   allocation-failure coverage when a concrete consumer need warrants it.
+4. Start new optimization work from source analysis and a profile of the corrected
+   package in the consumer, then use a fixed comparison to confirm a finding.
+   Keep completed campaigns closed and retain unfavorable evidence.
+
+Caller batching, early tag gates, secondary attribute guards, streaming contains,
+wide attribute indexes and bounded custom nth-of remain deferred pending a
+matching workload. Permanent stepping, relational-existence replacement,
+automatic buffer discard, general serialization replacement, default block I/O
+and transparent direct byte loading remain excluded in their proposed forms.
+The [implementation record](history/selection-and-namespace-reuse.md) preserves
+their scope and the withdrawn byte shortcut's historical results.
 
 Keep [dependency patches](../native/patches/README.md) small and regression-tested.
-Additional native platforms depend on demand and maintenance capacity. Current
+Additional native platforms depend on demand and maintenance capacity; current
 evidence does not justify new schedulers, JITs or backend frameworks.
 [Historical milestones](history/roadmap.md) retain earlier decisions.

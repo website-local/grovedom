@@ -13,73 +13,57 @@ check groups, both downloaders, logging, all 16 ownership/pool cases per runtime
 and module aliases. The engine build and all 1,138 tests passed. Resource
 documents are owned explicitly, and cleanup waits for asynchronous status work.
 
-MDN's migration from engine 0.9.1 remains pending. Earlier isolated migration
-and 193-case/frozen-page replay results qualify their named snapshots.
-The engine's saved MDN patch uses the
-removed `withHtmlParser` API and needs adaptation before current adoption.
-Fresh replay of the adopted consumer, complete-workload performance and full
-archive/browser validation remain open. Cheerio remains the default.
+Later bounded MDN checks use engine **0.10.0** and published GroveDOM **0.1.3**
+with both compatible `load()` and [`loadFast()`](compatibility.md#selection-modes).
+They advance beyond the earlier engine 0.9.1 migration experiments, but do not
+replace the named 0.1.2 installed-engine qualification above or qualify 0.1.4.
+The engine accepts an application-supplied synchronous loader; parser
+initialization and the consumer default remain application decisions.
 
-Published 0.1.3 adds [`loadFast()`](compatibility.md#selection-modes).
-The existing published-package engine qualification is for 0.1.2 and compatible
-`load()`. Qualify 0.1.3 compatible loading on the adopted consumer first.
-Evaluating fast mode requires auditing numeric selection access and loader/hook
-types, preserving document ownership and nested loads, then checking identical
-outputs and complete-workload performance. The current engine already accepts
-an application-supplied loader; the library release does not require restoring
-engine-owned parser initialization or change its consumer default.
+## Bounded MDN 0.1.3 evidence
+
+The retained MDN 0.7.5 runtime uses `SingleThreadDownloader` at concurrency 12
+and defaults to Cheerio. Experimental options select either GroveDOM 0.1.3
+loader with pooled Wasm. A twelve-root original-response replay matches
+**145 responses, 197 exact output files and 2,842 distinct discovery tuples**.
+Corrected finite memory checks collect all twelve documents, 3,790 resources
+and the downloader. GroveDOM ends near 37.6 MiB of JS heap with 5.0625 MiB of
+pooled Wasm retained; these endpoints do not establish sustained memory.
+
+The closed timing schedule has seven valid cells out of nine and only one
+complete three-parser block. Available within-block startup-plus-crawl
+Cheerio/GroveDOM ratios are 1.752 compatible and 1.765 fast; a later fast pair
+is 1.064. These pipeline timings are a different metric from the complete DOM
+3× target. Missing cells and uncontrolled load prevent a balanced aggregate.
+Separate wrapper-cache experiments retain exact outputs across 73 MDN trees
+and support keeping the existing strong cache.
+
+Archive coverage remains bounded: 475 saved files, 46 typed targets and 23
+saved search HTML entries, with 22,338 catalogue entries awaiting HTML.
+Selected browser/font checks pass within their stated pages and states;
+complete locale/search coverage, exhaustive assets and CJK glyphs remain open.
+No new downstream product defect was identified in the review of this evidence.
+The evidence supports continued experimental evaluation, not removal of the
+experimental designation. It contains no 0.1.4 consumer qualification.
 
 ## Historical reference replay
 
-The preserved
-[integration adapter](../integration/engine-adapter.mjs) scopes every document
-created by a transform family and disposes it in `finally`, including nested
-`srcdoc`, generated examples and sitemap loads.
-
-The audited reference is website-scrap-engine 0.9.1 with representative MDN
-transforms. The deterministic replay runs nineteen scenarios with fixed resource
-responses, bindings, URL/async work and disposal. It excludes real network/disk
-and is not a complete crawl or production traffic distribution.
-
-## Corpus
-
-Eight selected saved HTML pages total 511,533 bytes. Portable archive member
-names and SHA-256 values are in [bench/mdn-samples.json](../bench/mdn-samples.json).
-Four larger pages differ from the former corpus; never combine old and refreshed
-corpus timings. Saved output is not a substitute for original unprocessed input.
-Private file locations and consumer checkout details do not belong in this repo.
-
-A later local compatibility pass expanded the installed engine 0.9.1 and an
-isolated development-engine snapshot to **193 scenarios each**, comparing exact
-serialized outputs, download submissions and logged events with Cheerio 1.2.0.
-Native and pooled Wasm match all scenarios on both snapshots. The pass includes
-88 additional saved files and 15 original MDN HTML responses; 16 direct requests
-were attempted, with one recorded 404 and no subresource crawl. Input hashes and
-the separate original/saved/generated provenance are retained with the local
-replay evidence. Saved documents already contain earlier transformations.
-
-Direct DOM checks cover 174 saved/live markup inputs: full HTML/XML output,
-21 selector counts, the first 20 matching name/attribute records per selector,
-and sampled foreign text. Both backends match Cheerio. These checks found foreign
-attribute/serialization and ancestor-selector defects now covered by small public
-regressions. Downloads remain mocked; this is not production-crawl validation or
-browser-engine conformance.
-
-`prepare-consumer.mjs` prepares an isolated replay checkout.
-`replay-consumer.mjs` checks exact outputs/events against the frozen reference;
-`check-consumer-types.mjs` checks the audited TypeScript surface. Recheck source,
-installed dependency and lockfile versions before claiming a locked baseline.
+<a id="corpus"></a>
+The [reference adapter and nineteen-scenario replay](history/integration.md)
+and [expanded 193-scenario checks](history/integration.md#expanded-replay-and-corpus)
+retain their original engine versions and saved/original/generated input
+provenance. They use fixed responses and mocked downloads; neither is a complete
+crawl. Recheck source, lockfile and installed dependencies before reuse.
 
 ## Adoption steps
 
-Use published **grovedom 0.1.3** with the selected current engine revision in an
-isolated MDN migration. Update its package runtime requirement and CI to Node
-22.13.0 or newer and establish a passing Cheerio baseline before opting into GroveDOM.
-Synchronize the manifest, lockfile, installed engine and test/download/release
-workflows. Repeat installed-consumer checks for the changed package inputs;
-the earlier 0.1.2 qualification does not establish current hook compatibility.
-Start with compatible `load()`; evaluate `loadFast()` only after the indexing,
-type, callback and lifetime checks above. Keep 0.1.2 as a historical reference.
+Preserve the qualified **0.1.3** replay as a reference. Qualify the final corrected
+0.1.4 package against the adopted MDN/engine sources before claiming current
+consumer support; the bounded 0.1.3 checks do not transfer automatically.
+Keep manifest, lockfile, installed engine and supported Node/CI versions aligned.
+Use the same Cheerio baseline and exact original responses for each loader.
+Check indexing, types, callbacks, nested loads and lifetime behavior before
+opting into `loadFast()`. Keep earlier qualification and timing panels separate.
 
 Use the main pooled-Wasm package. Import and initialize GroveDOM in the
 application's options module, then supply its synchronous `load` function as
